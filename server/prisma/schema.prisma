@@ -1,0 +1,143 @@
+// Dev uses SQLite so the app runs with zero extra installs.
+// For production, switch provider to "postgresql" and set DATABASE_URL
+// to a Postgres connection string — model definitions below are unchanged.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Organization {
+  id              String   @id @default(cuid())
+  name            String
+  licenseId       String?
+  address         String?
+  county          String?  // Schedule 1 / GC-7Q header field
+  municipality    String?  // Schedule 1 / GC-7Q header field
+  licenseCategory String?  // Schedule 1 / GC-7Q header field (e.g. "Bell Jar")
+  licenseLast5    String?  // last 5 digits of the GC license number, per the Schedule 1 header
+  plan            String   @default("trial") // trial | active | canceled
+  createdAt       DateTime @default(now())
+
+  users         User[]
+  deals         Deal[]
+  disbursements Disbursement[]
+  reports       GC7QReport[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id])
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   // Cashier | Chairperson | Preparer | Head
+  title        String?  // e.g. "Treasurer" — used on the GC-7Q affirmation block
+  phone        String?
+  homeAddress  String?  // "Home Address, City and Zip Code" per the GC-7Q affirmation block
+  createdAt    DateTime @default(now())
+
+  signOffs SignOff[]
+
+  @@index([orgId])
+}
+
+model Deal {
+  id            String   @id @default(cuid())
+  orgId         String
+  org           Organization @relation(fields: [orgId], references: [id])
+  name          String
+  serialNum     String
+  formNum       String
+  ticketCount   Int
+  ticketPrice   Float
+  idealPayout   Float
+  status        String   @default("received") // received (logged, not yet on the floor) | active (on the machine) | closed
+  closeThreshold Float   @default(0.75) // fraction of idealPayout that must be awarded before closing; 0.75 is the NYS minimum, orgs may set higher
+  soldToDate    Int      @default(0)
+  prizesAwardedToDate Float @default(0) // cumulative cash paid to winners (K); other/non-cash prizes (L) not modeled in this build
+  createdAt     DateTime @default(now())
+
+  dailySales     DailySale[]
+  schedule1      Schedule1Record?
+
+  @@index([orgId])
+}
+
+model DailySale {
+  id            String   @id @default(cuid())
+  dealId        String
+  deal          Deal     @relation(fields: [dealId], references: [id])
+  date          DateTime @default(now())
+  ticketsSold   Int
+  cashPaid      Float
+  cashCollected Float
+  profitLoss    Float
+  createdAt     DateTime @default(now())
+
+  @@index([dealId])
+}
+
+model Schedule1Record {
+  id             String   @id @default(cuid())
+  dealId         String   @unique
+  deal           Deal     @relation(fields: [dealId], references: [id])
+  closedDate     DateTime @default(now())
+  cashPrizes     Float
+  otherPrizes    Float
+  unsoldCount    Int
+  unsoldValue    Float
+  actualProfit   Float
+  retentionUntil DateTime
+}
+
+model Disbursement {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id])
+  date      DateTime @default(now())
+  payee     String
+  checkNum  String
+  amount    Float
+  category  String   // ticket_purchase | license_fee | indirect
+  quarter   Int
+  year      Int
+  createdAt DateTime @default(now())
+
+  @@index([orgId])
+}
+
+model GC7QReport {
+  id                   String   @id @default(cuid())
+  orgId                String
+  org                  Organization @relation(fields: [orgId], references: [id])
+  year                 Int
+  quarter              Int
+  values               String   // JSON blob of computed A/B/C/D line items
+  interestEarned       Float    @default(0) // C11 — not derivable from ledger data, entered manually per quarter
+  adjustments          Float    @default(0) // C13 — requires prior NYS Gaming Commission approval
+  adjustmentExplanation String?
+  status               String   @default("draft") // draft | filed
+  createdAt            DateTime @default(now())
+
+  signOffs SignOff[]
+
+  @@unique([orgId, year, quarter])
+  @@index([orgId])
+}
+
+model SignOff {
+  id       String   @id @default(cuid())
+  reportId String
+  report   GC7QReport @relation(fields: [reportId], references: [id])
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  role     String   // Head | Preparer | Member
+  signedAt DateTime @default(now())
+
+  @@unique([reportId, role])
+}
