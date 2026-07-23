@@ -1,8 +1,5 @@
-// Dev uses SQLite so the app runs with zero extra installs.
-// For production, switch provider to "postgresql" and set DATABASE_URL
-// to a Postgres connection string — model definitions below are unchanged.
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
