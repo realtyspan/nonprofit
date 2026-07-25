@@ -2,9 +2,22 @@ import React, { useState, useEffect, useCallback } from "react";
 import { colors, card, button, input as inputStyle, money, mono } from "../lib/tokens";
 import { api } from "../lib/api";
 
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Backdated entries are stored as UTC midnight with no real time-of-day —
+// show just the date for those instead of a misleading local midnight.
+function formatEntryDate(dateStr) {
+  const d = new Date(dateStr);
+  const isDateOnly = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0;
+  return isDateOnly ? d.toLocaleDateString(undefined, { timeZone: "UTC" }) : d.toLocaleString();
+}
+
 export default function Worksheet({ deals, onSaved }) {
   const active = deals.filter((d) => d.status === "active");
   const [inputs, setInputs] = useState({}); // { [dealId]: { ticketsSold, cashPaid } }
+  const [entryDate, setEntryDate] = useState(todayStr);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -46,11 +59,17 @@ export default function Worksheet({ deals, onSaved }) {
         const row = inputs[d.id];
         return row && (Number(row.ticketsSold) > 0 || Number(row.cashPaid) > 0);
       });
+      const dateOverride = entryDate !== todayStr() ? entryDate : undefined;
       for (const d of entries) {
         const row = rowFor(d);
-        await api.saveDailySale(d.id, { ticketsSold: row.ticketsSold, cashPaid: row.cashPaid });
+        await api.saveDailySale(d.id, {
+          ticketsSold: row.ticketsSold,
+          cashPaid: row.cashPaid,
+          ...(dateOverride ? { date: dateOverride } : {}),
+        });
       }
       setInputs({});
+      setEntryDate(todayStr());
       setSaved(true);
       onSaved();
       loadHistory();
@@ -65,6 +84,25 @@ export default function Worksheet({ deals, onSaved }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, padding: "14px 18px" }}>
+        <div>
+          <label htmlFor="entry-date" style={{ fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary, display: "block", marginBottom: 4 }}>
+            Entry date
+          </label>
+          <input
+            id="entry-date"
+            type="date"
+            style={{ ...inputStyle, width: 170 }}
+            value={entryDate}
+            max={todayStr()}
+            onChange={(e) => setEntryDate(e.target.value)}
+          />
+        </div>
+        <div style={{ fontSize: 12, color: colors.textSecondary, maxWidth: 360, lineHeight: 1.5 }}>
+          Defaults to today. If you're logging a machine check from a previous visit, set the date it actually happened.
+        </div>
+      </div>
+
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
         <div style={{ display: "grid", gridTemplateColumns: cols, padding: "12px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary, borderBottom: `1px solid ${colors.borderLight}` }}>
           <div>Game</div>
@@ -78,7 +116,12 @@ export default function Worksheet({ deals, onSaved }) {
           const row = rowFor(d);
           return (
             <div key={d.id} style={{ display: "grid", gridTemplateColumns: cols, padding: "12px 18px", alignItems: "center", borderBottom: `1px solid ${colors.borderLight}`, fontSize: 13.5 }}>
-              <div style={{ fontWeight: 600 }}>{d.name}</div>
+              <div>
+                <div style={{ fontWeight: 600 }}>{d.name}</div>
+                <div style={{ fontSize: 11.5, color: colors.textSecondary, fontFamily: mono, marginTop: 1 }}>
+                  {d.soldToDate.toLocaleString()} / {d.ticketCount.toLocaleString()} sold
+                </div>
+              </div>
               <input
                 style={inputStyle}
                 type="number"
@@ -134,9 +177,9 @@ export default function Worksheet({ deals, onSaved }) {
 
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10 }}>
         {error && <span style={{ color: colors.danger, fontSize: 12.5, fontWeight: 600 }}>{error}</span>}
-        {saved && <span style={{ color: colors.success, fontSize: 12.5, fontWeight: 600 }}>✓ Saved to daily log</span>}
+        {saved && <span style={{ color: colors.success, fontSize: 12.5, fontWeight: 600 }}>✓ Saved</span>}
         <button style={button.primary} onClick={save} disabled={saving || active.length === 0}>
-          {saving ? "Saving…" : "Save today's entries"}
+          {saving ? "Saving…" : "Save entries"}
         </button>
       </div>
 
@@ -152,7 +195,7 @@ export default function Worksheet({ deals, onSaved }) {
         </div>
         {history.map((h) => (
           <div key={h.id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1.2fr 1fr 1fr 1fr 1fr", padding: "10px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, alignItems: "center" }}>
-            <div style={{ fontFamily: mono, fontSize: 12 }}>{new Date(h.date).toLocaleString()}</div>
+            <div style={{ fontFamily: mono, fontSize: 12 }}>{formatEntryDate(h.date)}</div>
             <div style={{ fontWeight: 600 }}>{h.dealName}</div>
             <div style={{ fontFamily: mono }}>{h.ticketsSold}</div>
             <div style={{ fontFamily: mono }}>{money(h.cashPaid)}</div>

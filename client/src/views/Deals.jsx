@@ -249,8 +249,8 @@ function AddGameForm({ onCancel, onCreated, onError, error }) {
   return (
     <form onSubmit={submit} style={{ display: "grid", gridTemplateColumns: "1.2fr 0.9fr 0.9fr 0.8fr 0.8fr 0.8fr 0.9fr auto", gap: 10, alignItems: "end", padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}`, background: "#fafafa" }}>
       <Field label="Game name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
-      <Field label="Serial #"><input style={inputStyle} required value={form.serialNum} onChange={(e) => set("serialNum", e.target.value)} /></Field>
       <Field label="Form #"><input style={inputStyle} required value={form.formNum} onChange={(e) => set("formNum", e.target.value)} /></Field>
+      <Field label="Serial #"><input style={inputStyle} required value={form.serialNum} onChange={(e) => set("serialNum", e.target.value)} /></Field>
       <Field label="Ticket count"><input style={inputStyle} type="number" min="1" required value={form.ticketCount} onChange={(e) => set("ticketCount", e.target.value)} /></Field>
       <Field label="Ticket price"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.ticketPrice} onChange={(e) => set("ticketPrice", e.target.value)} /></Field>
       <Field label="Ideal payout"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.idealPayout} onChange={(e) => set("idealPayout", e.target.value)} /></Field>
@@ -311,8 +311,8 @@ function EditGameModal({ deal, onCancel, onSaved }) {
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <Field label="Game name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="Serial #"><input style={inputStyle} required value={form.serialNum} onChange={(e) => set("serialNum", e.target.value)} /></Field>
             <Field label="Form #"><input style={inputStyle} required value={form.formNum} onChange={(e) => set("formNum", e.target.value)} /></Field>
+            <Field label="Serial #"><input style={inputStyle} required value={form.serialNum} onChange={(e) => set("serialNum", e.target.value)} /></Field>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <Field label="Ticket count">

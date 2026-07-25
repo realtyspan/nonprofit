@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from "./lib/AuthContext";
 import { api } from "./lib/api";
 import { colors } from "./lib/tokens";
 import Sidebar from "./components/Sidebar";
+import Landing from "./views/Landing";
 import Login from "./views/Login";
 import Dashboard from "./views/Dashboard";
 import Worksheet from "./views/Worksheet";
@@ -14,13 +15,22 @@ import Profile from "./views/Profile";
 
 const TITLES = {
   dashboard: ["Overview", "At-a-glance compliance status"],
-  worksheet: ["Daily Sales Worksheet", "Log today's tickets sold and cash paid in prizes"],
+  worksheet: ["Sales Worksheet", "Log tickets sold and cash collected each time the machine is opened to retrieve funds and refill tickets"],
   deals: ["Deals & Schedule 1", "Open deals, prize threshold, and close-deal history"],
   ledger: ["Bank Ledger & Receipts", "Special Bell Jar Checking Account register"],
   reports: ["GC-7Q Reports", "Quarterly aggregator, PDF overlay, and sign-off"],
   team: ["Team", "Everyone with access to this organization"],
   profile: ["My Profile", "Update your details or change your password"],
 };
+
+function PublicGate() {
+  const [authView, setAuthView] = useState("landing"); // landing | login | signup
+
+  if (authView === "landing") {
+    return <Landing onGetStarted={() => setAuthView("signup")} onLogin={() => setAuthView("login")} />;
+  }
+  return <Login initialMode={authView} onBack={() => setAuthView("landing")} />;
+}
 
 function Shell() {
   const { session } = useAuth();
@@ -38,7 +48,7 @@ function Shell() {
     setLoading(false);
   }, [session, refreshDeals]);
 
-  if (!session) return <Login />;
+  if (!session) return <PublicGate />;
 
   const eligibleCount = deals.filter((d) => d.status === "active" && d.eligibleToClose).length;
   const [title, subtitle] = TITLES[view];

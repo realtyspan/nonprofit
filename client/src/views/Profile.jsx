@@ -67,7 +67,7 @@ function ProfileCard({ me, onSaved }) {
           <input style={{ ...inputStyle, background: "#f4f4f6", color: colors.textSecondary }} value={me.role} disabled />
         </Field>
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 12 }}>
-          <Field label="Title"><input style={inputStyle} placeholder="Treasurer" value={form.title} onChange={(e) => set("title", e.target.value)} /></Field>
+          <Field label="Title"><input style={inputStyle} placeholder="Chairperson" value={form.title} onChange={(e) => set("title", e.target.value)} /></Field>
           <Field label="Phone"><input style={inputStyle} placeholder="(555) 123-4567" value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
         </div>
         <Field label="Home address, city, and zip">

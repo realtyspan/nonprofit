@@ -111,12 +111,20 @@ router.post("/:id/activate", async (req, res) => {
   res.json(updated);
 });
 
-// Cashier worksheet save: one row per game for "today".
+// Cashier worksheet save: one row per game, normally for "today" but may be
+// backdated when someone logs a machine check after the fact.
 router.post("/:id/daily-sales", async (req, res) => {
-  const { ticketsSold, cashPaid } = req.body;
+  const { ticketsSold, cashPaid, date } = req.body;
   const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!deal) return res.status(404).json({ error: "Deal not found" });
   if (deal.status !== "active") return res.status(400).json({ error: "Deal is not active" });
+
+  let saleDate;
+  if (date) {
+    saleDate = new Date(date);
+    if (Number.isNaN(saleDate.getTime())) return res.status(400).json({ error: "Invalid entry date" });
+    if (saleDate.getTime() > Date.now()) return res.status(400).json({ error: "Entry date can't be in the future" });
+  }
 
   const { cashCollected, profitLoss } = dailyWorksheet(Number(ticketsSold), Number(cashPaid), deal.ticketPrice);
 
@@ -128,6 +136,7 @@ router.post("/:id/daily-sales", async (req, res) => {
         cashPaid: Number(cashPaid),
         cashCollected,
         profitLoss,
+        ...(saleDate ? { date: saleDate } : {}),
       },
     }),
     prisma.deal.update({

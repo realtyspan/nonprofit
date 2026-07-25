@@ -3,9 +3,9 @@ import { colors, card, button, input } from "../lib/tokens";
 import { useAuth } from "../lib/AuthContext";
 import logo from "../assets/logo.png";
 
-export default function Login() {
+export default function Login({ initialMode = "login", onBack }) {
   const { login, signupOrg } = useAuth();
-  const [mode, setMode] = useState("login"); // login | signup
+  const [mode, setMode] = useState(initialMode); // login | signup
   const [form, setForm] = useState({ email: "", password: "", orgName: "", name: "", licenseId: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -34,7 +34,10 @@ export default function Login() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: colors.bg }}>
       <form onSubmit={submit} style={{ ...card, width: 380, padding: 28, display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <div
+          style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, cursor: onBack ? "pointer" : "default" }}
+          onClick={onBack}
+        >
           <img src={logo} alt="Bell Jar Manager" style={{ width: 40, height: 40, objectFit: "contain" }} />
           <div style={{ fontWeight: 700, fontSize: 16, color: colors.textPrimary }}>Bell Jar Manager</div>
         </div>

@@ -6,7 +6,7 @@ import logo from "../assets/logo.png";
 
 const NAV_ITEMS = [
   { key: "dashboard", label: "Overview", icon: icons.grid },
-  { key: "worksheet", label: "Daily Sales Worksheet", icon: icons.table },
+  { key: "worksheet", label: "Sales Worksheet", icon: icons.table },
   { key: "deals", label: "Deals & Schedule 1", icon: icons.layers },
   { key: "ledger", label: "Bank Ledger & Receipts", icon: icons.bank },
   { key: "reports", label: "GC-7Q Reports", icon: icons.fileCheck },
