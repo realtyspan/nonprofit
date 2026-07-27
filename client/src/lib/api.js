@@ -73,6 +73,63 @@ export const api = {
 
   getOrg: () => request("/org"),
   updateOrg: (payload) => request("/org", { method: "PATCH", body: payload }),
+
+  listRentalSpaces: () => request("/rentals/spaces"),
+  createRentalSpace: (payload) => request("/rentals/spaces", { method: "POST", body: payload }),
+  updateRentalSpace: (id, payload) => request(`/rentals/spaces/${id}`, { method: "PATCH", body: payload }),
+
+  listRentalBookings: (status) => request(`/rentals/bookings${status ? `?status=${status}` : ""}`),
+  createRentalBooking: (payload) => request("/rentals/bookings", { method: "POST", body: payload }),
+  updateRentalBooking: (id, payload) => request(`/rentals/bookings/${id}`, { method: "PATCH", body: payload }),
+  confirmRentalBooking: (id, payload) => request(`/rentals/bookings/${id}/confirm`, { method: "POST", body: payload }),
+  declineRentalBooking: (id, declineReason) => request(`/rentals/bookings/${id}/decline`, { method: "POST", body: { declineReason } }),
+  cancelRentalBooking: (id) => request(`/rentals/bookings/${id}/cancel`, { method: "POST" }),
+  completeRentalBooking: (id) => request(`/rentals/bookings/${id}/complete`, { method: "POST" }),
+  signRentalBooking: (id, signedName, signatureImage) => request(`/rentals/bookings/${id}/sign`, { method: "POST", body: { signedName, signatureImage } }),
+  updateRentalPayment: (id, payload) => request(`/rentals/bookings/${id}/payment`, { method: "PATCH", body: payload }),
+  downloadRentalContractPdf: (id, renterName) => download(`/rentals/bookings/${id}/contract.pdf`, `Rental_${(renterName || "agreement").replace(/\s+/g, "_")}.pdf`),
+
+  listRentalBlocks: () => request("/rentals/blocks"),
+  createRentalBlock: (payload) => request("/rentals/blocks", { method: "POST", body: payload }),
+  updateRentalBlock: (id, payload) => request(`/rentals/blocks/${id}`, { method: "PATCH", body: payload }),
+  deleteRentalBlock: (id) => request(`/rentals/blocks/${id}`, { method: "DELETE" }),
+  getRentalBlockRecurrence: (id) => request(`/rentals/block-recurrences/${id}`),
+  updateRentalBlockRecurrence: (id, payload) => request(`/rentals/block-recurrences/${id}`, { method: "PATCH", body: payload }),
+  deleteRentalBlockRecurrence: (id) => request(`/rentals/block-recurrences/${id}`, { method: "DELETE" }),
+
+  listCalendarEvents: (start, end) => request(`/calendar/events?start=${start.toISOString()}&end=${end.toISOString()}`),
+  createCalendarEvent: (payload) => request("/calendar/events", { method: "POST", body: payload }),
+  updateCalendarEvent: (id, payload) => request(`/calendar/events/${id}`, { method: "PATCH", body: payload }),
+  deleteCalendarEvent: (id) => request(`/calendar/events/${id}`, { method: "DELETE" }),
+  getCalendarRecurrence: (id) => request(`/calendar/recurrences/${id}`),
+  updateCalendarRecurrence: (id, payload) => request(`/calendar/recurrences/${id}`, { method: "PATCH", body: payload }),
+  deleteCalendarRecurrence: (id) => request(`/calendar/recurrences/${id}`, { method: "DELETE" }),
+};
+
+// Unauthenticated endpoints for the public rental inquiry page — no token, separate base path.
+export const publicApi = {
+  async getRentalPage(slug) {
+    const res = await fetch(`/api/public/rentals/${slug}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Not found");
+    return data;
+  },
+  async submitRentalInquiry(slug, payload) {
+    const res = await fetch(`/api/public/rentals/${slug}/inquiries`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  },
+  async getCalendarPage(slug, start, end) {
+    const res = await fetch(`/api/public/calendar/${slug}?start=${start.toISOString()}&end=${end.toISOString()}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Not found");
+    return data;
+  },
 };
 
 export function saveSession(token, user) {

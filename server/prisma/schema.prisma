@@ -10,6 +10,7 @@ generator client {
 model Organization {
   id              String   @id @default(cuid())
   name            String
+  slug            String?  @unique // public-facing URL segment, shared across modules' public pages (rentals, calendar)
   licenseId       String?
   address         String?
   county          String?  // Schedule 1 / GC-7Q header field
@@ -19,10 +20,16 @@ model Organization {
   plan            String   @default("trial") // trial | active | canceled
   createdAt       DateTime @default(now())
 
-  users         User[]
-  deals         Deal[]
-  disbursements Disbursement[]
-  reports       GC7QReport[]
+  users          User[]
+  deals          Deal[]
+  disbursements  Disbursement[]
+  reports        GC7QReport[]
+  rentalSpaces           RentalSpace[]
+  rentalBookings         RentalBooking[]
+  rentalBlocks           RentalBlock[]
+  rentalBlockRecurrences RentalBlockRecurrence[]
+  calendarEvents         CalendarEvent[]
+  calendarRecurrences    CalendarRecurrence[]
 }
 
 model User {
@@ -137,4 +144,188 @@ model SignOff {
   signedAt DateTime @default(now())
 
   @@unique([reportId, role])
+}
+
+// --- Rental Space module ---
+// Modeled directly off the lodge's real "Facility Event Space Rental Agreement":
+// each space rents in a flat block (blockHours) plus a per-hour overage rate, with
+// a separate member/non-member rate, an optional bartender add-on with the same
+// block+overage shape, and a handful of itemized equipment fees.
+model RentalSpace {
+  id                   String   @id @default(cuid())
+  orgId                String
+  org                  Organization @relation(fields: [orgId], references: [id])
+  name                 String   // "Banquet Hall", "Pavilion", "Club Deck"
+  capacity             Int?
+  blockHours           Int      @default(4)
+  baseRateMember       Float    @default(0)
+  baseRateNonMember    Float    @default(0)
+  overageRateMember    Float    @default(0) // per hour beyond blockHours
+  overageRateNonMember Float    @default(0)
+  offersBartender      Boolean  @default(false)
+  bartenderBaseRate    Float    @default(0) // for blockHours
+  bartenderOverageRate Float    @default(0) // per additional hour
+  roundTableFee        Float    @default(0) // per 60" round table
+  longTableFee         Float    @default(0) // per 8' table
+  chairFee             Float    @default(0) // per chair
+  kitchenNoOvenFee     Float    @default(0)
+  kitchenWithOvenFee   Float    @default(0)
+  chafingDishFee       Float    @default(0) // per dish (sterno fee)
+  depositAmount        Float    @default(0) // default reservation deposit, applied toward the total
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  bookings          RentalBooking[]
+  blocks            RentalBlock[]
+  blockRecurrences  RentalBlockRecurrence[]
+
+  @@index([orgId])
+}
+
+model RentalBooking {
+  id                 String   @id @default(cuid())
+  orgId              String
+  org                Organization @relation(fields: [orgId], references: [id])
+  spaceId            String
+  space              RentalSpace @relation(fields: [spaceId], references: [id])
+  status             String   @default("inquiry") // inquiry | confirmed | completed | declined | cancelled
+  renterName         String
+  renterEmail        String
+  renterPhone        String?
+  renterAddress      String?
+  isMember           Boolean  @default(false)
+  eventType          String?
+  expectedGuests     Int?
+  startAt            DateTime
+  endAt              DateTime
+  wantsBartender     Boolean  @default(false)
+  roundTables        Int      @default(0)
+  longTables         Int      @default(0)
+  chairs             Int      @default(0)
+  kitchenUse         String?  // null | "no_oven" | "with_oven"
+  chafingDishes      Int      @default(0)
+  quotedTotal        Float?   // computed when confirmed
+  depositAmount      Float?
+  depositPaid        Boolean  @default(false)
+  depositMethod      String?  // cash | check
+  depositReceivedAt  DateTime?
+  depositReceiptNum  String?
+  balancePaid        Boolean  @default(false)
+  balanceMethod      String?
+  balancePaidAt      DateTime?
+  notes              String?
+  declineReason      String?
+  contractSignedName  String?  // printed name entered alongside the drawn signature
+  contractSignatureImage String? // base64 PNG data URL, drawn in-person on staff's device at signing
+  contractSignedIp    String?  // basic audit trail — no third-party e-sign vendor is used here
+  contractSignedAt    DateTime?
+  createdAt          DateTime @default(now())
+
+  @@index([orgId])
+  @@index([spaceId])
+}
+
+// Internal hold on a space for the lodge's own use — no renter/contract
+// involved. `visibleOnPublicCalendar` defaults true: a members-only meeting or
+// function still occupies the space, so anyone browsing the public calendar
+// should see it as unavailable, using `reason` as the shown label — the same
+// "safe by default" pattern as a confirmed rental (see calendarSync.js).
+model RentalBlock {
+  id                     String   @id @default(cuid())
+  orgId                  String
+  org                    Organization @relation(fields: [orgId], references: [id])
+  spaceId                String
+  space                  RentalSpace @relation(fields: [spaceId], references: [id])
+  startAt                DateTime
+  endAt                  DateTime
+  reason                 String?
+  visibleOnPublicCalendar Boolean @default(true)
+  recurrenceId           String?
+  recurrence             RentalBlockRecurrence? @relation(fields: [recurrenceId], references: [id])
+  createdAt              DateTime @default(now())
+
+  @@index([orgId])
+  @@index([spaceId])
+  @@index([recurrenceId])
+}
+
+// Recurrence rule for a standing internal commitment (e.g. a lodge's
+// twice-monthly meeting) — materialized into individual RentalBlock rows the
+// same way CalendarRecurrence works, for the same reason: editing or deleting
+// a single occurrence stays a plain row operation.
+model RentalBlockRecurrence {
+  id                     String   @id @default(cuid())
+  orgId                  String
+  org                    Organization @relation(fields: [orgId], references: [id])
+  spaceId                String
+  space                  RentalSpace @relation(fields: [spaceId], references: [id])
+  reason                 String?
+  visibleOnPublicCalendar Boolean @default(true)
+  startTime              String   // "HH:mm", applied to each generated occurrence
+  endTime                String
+  freq                   String   // daily | weekly | monthly
+  interval               Int      @default(1)
+  byWeekday              String?  // comma list, e.g. "MO,WE" for weekly; single code (e.g. "TU") when byWeekdayOrdinal is set
+  byWeekdayOrdinal        String?  // comma list, e.g. "2,4" for "2nd and 4th [byWeekday] of the month"; -1 = last
+  startDate              DateTime
+  endDate                DateTime
+  createdAt              DateTime @default(now())
+
+  blocks RentalBlock[]
+
+  @@index([orgId])
+  @@index([spaceId])
+}
+
+// --- Calendar module ---
+// The shared spine other modules publish onto (Rental bookings/blocks) plus
+// manually-created lodge events. Recurring events are materialized up front
+// (see server/src/lib/recurrence.js) into individual rows linked by
+// recurrenceId, rather than expanded at query time — that keeps "edit just
+// this occurrence" a plain single-row update instead of needing exception
+// tracking, at the cost of a bounded generation horizon (2 years / 500 rows).
+model CalendarEvent {
+  id            String   @id @default(cuid())
+  orgId         String
+  org           Organization @relation(fields: [orgId], references: [id])
+  title         String
+  description   String?
+  startAt       DateTime
+  endAt         DateTime
+  allDay        Boolean  @default(false)
+  source        String   @default("manual") // manual | rental-booking | rental-block
+  sourceId      String?  // originating record id, for sync/dedupe when the source changes
+  visibility    String   @default("internal") // public | internal
+  color         String?
+  recurrenceId  String?
+  recurrence    CalendarRecurrence? @relation(fields: [recurrenceId], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([orgId])
+  @@index([sourceId])
+  @@index([recurrenceId])
+}
+
+model CalendarRecurrence {
+  id          String   @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id])
+  title       String
+  description String?
+  startTime   String   // "HH:mm", applied to each generated occurrence
+  endTime     String
+  allDay      Boolean  @default(false)
+  visibility  String   @default("internal")
+  color       String?
+  freq        String   // daily | weekly | monthly
+  interval    Int      @default(1)
+  byWeekday   String?  // comma list, e.g. "MO,WE" for weekly; single code (e.g. "TU") when byWeekdayOrdinal is set
+  byWeekdayOrdinal String? // comma list, e.g. "2,4" for "2nd and 4th [byWeekday] of the month"; -1 = last
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+
+  events CalendarEvent[]
+
+  @@index([orgId])
 }
