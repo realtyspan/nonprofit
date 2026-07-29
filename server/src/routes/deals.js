@@ -1,10 +1,10 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
-const { requireAuth } = require("../lib/auth");
+const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
 const { dailyWorksheet, isEligibleToClose, prizePercent } = require("../lib/businessLogic");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, loadPermissions);
 
 // closeThreshold arrives from the client as a fraction (0.75-1.0). 75% is the
 // NYS minimum before a deal may legally be closed, so anything lower is rejected
@@ -19,7 +19,7 @@ function parseThreshold(value) {
 }
 
 // List active + closed deals for the org, with computed threshold info.
-router.get("/", async (req, res) => {
+router.get("/", requireReadAccess("bell-jar"), async (req, res) => {
   const deals = await prisma.deal.findMany({
     where: { orgId: req.user.orgId },
     include: { schedule1: true },
@@ -35,7 +35,7 @@ router.get("/", async (req, res) => {
   res.json(enriched);
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("bell-jar", "Helper"), async (req, res) => {
   const { name, serialNum, formNum, ticketCount, ticketPrice, idealPayout, closeThreshold } = req.body;
   if (!name || !serialNum || !formNum || !ticketCount || !ticketPrice || !idealPayout) {
     return res.status(400).json({ error: "Missing required deal fields" });
@@ -64,7 +64,7 @@ router.post("/", async (req, res) => {
 // touches soldToDate/prizesAwardedToDate, so correcting details after a game is
 // already on the machine can't disturb the running sales/prize totals. Closed
 // deals are locked (that's what Schedule 1 close-out + the audit trail is for).
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", requirePermission("bell-jar", "Helper"), async (req, res) => {
   const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!deal) return res.status(404).json({ error: "Deal not found" });
   if (deal.status === "closed") {
@@ -101,7 +101,7 @@ router.patch("/:id", async (req, res) => {
 
 // Puts a received game on the machine — the point at which it starts counting
 // toward daily sales / its close threshold.
-router.post("/:id/activate", async (req, res) => {
+router.post("/:id/activate", requirePermission("bell-jar", "Helper"), async (req, res) => {
   const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!deal) return res.status(404).json({ error: "Deal not found" });
   if (deal.status !== "received") {
@@ -113,7 +113,7 @@ router.post("/:id/activate", async (req, res) => {
 
 // Cashier worksheet save: one row per game, normally for "today" but may be
 // backdated when someone logs a machine check after the fact.
-router.post("/:id/daily-sales", async (req, res) => {
+router.post("/:id/daily-sales", requirePermission("bell-jar", "Helper"), async (req, res) => {
   const { ticketsSold, cashPaid, date } = req.body;
   const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!deal) return res.status(404).json({ error: "Deal not found" });
@@ -151,10 +151,24 @@ router.post("/:id/daily-sales", async (req, res) => {
   res.json(sale);
 });
 
-router.get("/:id/daily-sales", async (req, res) => {
+// Optional ?from=YYYY-MM-DD&to=YYYY-MM-DD bounds the query at the database level —
+// the Worksheet's "Recent entries" table defaults to a 90-day window instead of
+// pulling an org's entire sales history on every page load, and widens the query
+// as needed when the user picks a different date range rather than filtering an
+// already-fetched (and potentially huge) result set client-side.
+router.get("/:id/daily-sales", requireReadAccess("bell-jar"), async (req, res) => {
   const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!deal) return res.status(404).json({ error: "Deal not found" });
-  const sales = await prisma.dailySale.findMany({ where: { dealId: deal.id }, orderBy: { date: "desc" } });
+
+  const { from, to } = req.query;
+  const where = { dealId: deal.id };
+  if (from || to) {
+    where.date = {};
+    if (from) where.date.gte = new Date(from);
+    if (to) where.date.lte = new Date(`${to}T23:59:59.999Z`);
+  }
+
+  const sales = await prisma.dailySale.findMany({ where, orderBy: { date: "desc" } });
   res.json(sales);
 });
 

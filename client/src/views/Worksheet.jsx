@@ -6,6 +6,14 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function daysAgoStr(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+const DEFAULT_HISTORY_DAYS = 90;
+
 // Backdated entries are stored as UTC midnight with no real time-of-day —
 // show just the date for those instead of a misleading local midnight.
 function formatEntryDate(dateStr) {
@@ -22,20 +30,38 @@ export default function Worksheet({ deals, onSaved }) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [history, setHistory] = useState([]);
+  const [historyFrom, setHistoryFrom] = useState(() => daysAgoStr(DEFAULT_HISTORY_DAYS));
+  const [historyTo, setHistoryTo] = useState(todayStr);
+  const [historyGameId, setHistoryGameId] = useState(""); // "" = all games
 
+  // Bounded at the database level (see the /daily-sales route) so this pulls
+  // a 90-day window by default instead of an org's entire sales history —
+  // widening the date range re-queries rather than filtering a huge already-
+  // fetched set. The game filter is purely client-side since it doesn't
+  // change how much data needs to be fetched, just which rows are shown.
   const loadHistory = useCallback(() => {
     Promise.all(
-      deals.map((d) => api.listDailySales(d.id).then((rows) => rows.map((r) => ({ ...r, dealName: d.name }))))
+      deals.map((d) =>
+        api.listDailySales(d.id, { from: historyFrom, to: historyTo }).then((rows) => rows.map((r) => ({ ...r, dealName: d.name })))
+      )
     )
       .then((lists) => lists.flat().sort((a, b) => new Date(b.date) - new Date(a.date)))
       .then(setHistory)
       .catch(() => {});
-  }, [deals]);
+  }, [deals, historyFrom, historyTo]);
 
   useEffect(() => {
     loadHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deals.length]);
+  }, [deals.length, historyFrom, historyTo]);
+
+  const filteredHistory = historyGameId ? history.filter((h) => h.dealId === historyGameId) : history;
+
+  function resetHistoryFilters() {
+    setHistoryFrom(daysAgoStr(DEFAULT_HISTORY_DAYS));
+    setHistoryTo(todayStr());
+    setHistoryGameId("");
+  }
 
   function setField(dealId, field, value) {
     setInputs((prev) => ({ ...prev, [dealId]: { ...prev[dealId], [field]: value } }));
@@ -184,7 +210,24 @@ export default function Worksheet({ deals, onSaved }) {
       </div>
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "14px 18px", fontSize: 15, fontWeight: 700, borderBottom: `1px solid ${colors.borderLight}` }}>Recent entries</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>Recent entries</div>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+            <Field label="Game">
+              <select style={{ ...inputStyle, width: 170 }} value={historyGameId} onChange={(e) => setHistoryGameId(e.target.value)}>
+                <option value="">All games</option>
+                {deals.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </Field>
+            <Field label="From">
+              <input style={{ ...inputStyle, width: 145 }} type="date" value={historyFrom} max={historyTo} onChange={(e) => setHistoryFrom(e.target.value)} />
+            </Field>
+            <Field label="To">
+              <input style={{ ...inputStyle, width: 145 }} type="date" value={historyTo} min={historyFrom} max={todayStr()} onChange={(e) => setHistoryTo(e.target.value)} />
+            </Field>
+            <button style={button.ghost} onClick={resetHistoryFilters}>Reset</button>
+          </div>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1.2fr 1fr 1fr 1fr 1fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
           <div>Date &amp; time</div>
           <div>Game</div>
@@ -193,7 +236,7 @@ export default function Worksheet({ deals, onSaved }) {
           <div>Cash collected</div>
           <div>Profit / loss</div>
         </div>
-        {history.map((h) => (
+        {filteredHistory.map((h) => (
           <div key={h.id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1.2fr 1fr 1fr 1fr 1fr", padding: "10px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, alignItems: "center" }}>
             <div style={{ fontFamily: mono, fontSize: 12 }}>{formatEntryDate(h.date)}</div>
             <div style={{ fontWeight: 600 }}>{h.dealName}</div>
@@ -206,8 +249,21 @@ export default function Worksheet({ deals, onSaved }) {
             </div>
           </div>
         ))}
-        {history.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No entries logged yet.</div>}
+        {filteredHistory.length === 0 && (
+          <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>
+            {history.length === 0 ? "No entries in this date range." : "No entries for this game in this date range."}
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+      {label}
+      {children}
+    </label>
   );
 }

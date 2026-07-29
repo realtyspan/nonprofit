@@ -1,17 +1,33 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { colors } from "../lib/tokens";
 import { useAuth } from "../lib/AuthContext";
+import { api } from "../lib/api";
 
-export default function Sidebar({ module, view, setView, badges }) {
+function effectiveLabel(permissions, labels, moduleKey) {
+  if (!permissions) return "";
+  if (permissions.orgTier === "Owner") return labels?.ownerLabel || "Owner";
+  if (permissions.orgTier === "Viewer") return labels?.viewerLabel || "Viewer";
+  const tier = permissions.moduleGrants?.[moduleKey];
+  if (tier === "Admin") return labels?.adminLabel || "Admin";
+  if (tier === "Helper") return labels?.helperLabel || "Helper";
+  return "";
+}
+
+export default function Sidebar({ module, view, setView, badges, permissions }) {
   const { session } = useAuth();
   const user = session?.user;
+  const [labels, setLabels] = useState(null);
+
+  useEffect(() => {
+    api.getTierLabels().then(setLabels).catch(() => {});
+  }, []);
 
   return (
     <div style={{ width: 232, flex: "none", background: "#ffffff", borderRight: `1px solid ${colors.border}`, display: "flex", flexDirection: "column", padding: "18px 14px", gap: 18, position: "sticky", top: 0, height: "calc(100vh - 53px)" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "0 6px" }}>
         <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".05em", color: "#a3a3ac", textTransform: "uppercase" }}>{module.label}</div>
         <div style={{ fontSize: 11, color: colors.textSecondary }}>
-          {user?.name} <span style={{ color: colors.textTertiary }}>· {user?.role}</span>
+          {user?.name} <span style={{ color: colors.textTertiary }}>· {effectiveLabel(permissions, labels, module.key)}</span>
         </div>
       </div>
 

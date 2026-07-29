@@ -1,12 +1,12 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
-const { requireAuth, requireRole } = require("../lib/auth");
+const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
 const { generateOccurrences } = require("../lib/recurrence");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, loadPermissions);
 
-router.get("/events", async (req, res) => {
+router.get("/events", requireReadAccess("calendar"), async (req, res) => {
   const { start, end } = req.query;
   const where = { orgId: req.user.orgId };
   if (start && end) {
@@ -19,14 +19,14 @@ router.get("/events", async (req, res) => {
 
 // Fetches a recurring series' rule (not its materialized occurrences) so the
 // "edit entire series" form can be pre-filled with the current pattern.
-router.get("/recurrences/:id", async (req, res) => {
+router.get("/recurrences/:id", requireReadAccess("calendar"), async (req, res) => {
   const rec = await prisma.calendarRecurrence.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!rec) return res.status(404).json({ error: "Recurring event not found" });
   res.json(rec);
 });
 
 // One-off event, or the first materialization of a recurring series (recurrence provided in body).
-router.post("/events", requireRole("Head"), async (req, res) => {
+router.post("/events", requirePermission("calendar", "Admin"), async (req, res) => {
   const { title, description, startAt, endAt, allDay, visibility, color, recurrence } = req.body;
   if (!title || !startAt || !endAt) return res.status(400).json({ error: "Missing required fields" });
 
@@ -60,7 +60,7 @@ router.post("/events", requireRole("Head"), async (req, res) => {
 });
 
 // Edits a single occurrence in place — does not affect the rest of a series.
-router.patch("/events/:id", requireRole("Head"), async (req, res) => {
+router.patch("/events/:id", requirePermission("calendar", "Admin"), async (req, res) => {
   const event = await prisma.calendarEvent.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!event) return res.status(404).json({ error: "Event not found" });
   if (event.source !== "manual") return res.status(400).json({ error: "This event is managed by another module — edit it from there" });
@@ -73,7 +73,7 @@ router.patch("/events/:id", requireRole("Head"), async (req, res) => {
   res.json(updated);
 });
 
-router.delete("/events/:id", requireRole("Head"), async (req, res) => {
+router.delete("/events/:id", requirePermission("calendar", "Admin"), async (req, res) => {
   const event = await prisma.calendarEvent.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!event) return res.status(404).json({ error: "Event not found" });
   if (event.source !== "manual") return res.status(400).json({ error: "This event is managed by another module — remove it from there" });
@@ -84,7 +84,7 @@ router.delete("/events/:id", requireRole("Head"), async (req, res) => {
 // Edits the whole series: updates the rule and fully regenerates its occurrences.
 // Simpler than trying to preserve already-edited single occurrences on regen —
 // events here are informational, not an audit trail, so this tradeoff is fine.
-router.patch("/recurrences/:id", requireRole("Head"), async (req, res) => {
+router.patch("/recurrences/:id", requirePermission("calendar", "Admin"), async (req, res) => {
   const rec = await prisma.calendarRecurrence.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!rec) return res.status(404).json({ error: "Recurring event not found" });
 
@@ -109,7 +109,7 @@ router.patch("/recurrences/:id", requireRole("Head"), async (req, res) => {
   res.json({ recurrence: updated, events });
 });
 
-router.delete("/recurrences/:id", requireRole("Head"), async (req, res) => {
+router.delete("/recurrences/:id", requirePermission("calendar", "Admin"), async (req, res) => {
   const rec = await prisma.calendarRecurrence.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!rec) return res.status(404).json({ error: "Recurring event not found" });
   await prisma.calendarEvent.deleteMany({ where: { recurrenceId: rec.id } });

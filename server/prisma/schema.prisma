@@ -30,6 +30,10 @@ model Organization {
   rentalBlockRecurrences RentalBlockRecurrence[]
   calendarEvents         CalendarEvent[]
   calendarRecurrences    CalendarRecurrence[]
+  orgMemberships         OrgMembership[]
+  moduleGrants           ModuleGrant[]
+  tierLabel              TierLabel?
+  gc7qSignerDesignations GC7QSignerDesignation[]
 }
 
 model User {
@@ -46,7 +50,83 @@ model User {
   createdAt    DateTime @default(now())
 
   signOffs SignOff[]
+  orgMembership          OrgMembership?
+  moduleGrants           ModuleGrant[]
+  gc7qSignerDesignations GC7QSignerDesignation[]
 
+  @@index([orgId])
+}
+
+// Org-wide tier: Owner (technical administrator — manages users/permissions,
+// views everything, no automatic edit rights in any module) or Viewer
+// (grantable to any number of people — read-only everywhere, e.g. a lodge's
+// actual titled officer who wants visibility without doing data entry).
+// Mutually exclusive and at most one per user, enforced via @@unique(userId)
+// rather than left to application logic, since the zero-Owner guardrail
+// depends on being able to trust this table's shape.
+model OrgMembership {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier      String   // Owner | Viewer
+  createdAt DateTime @default(now())
+
+  @@index([orgId])
+}
+
+// Per-module tier: Admin ("committee chairman", full control of that module)
+// or Helper ("committee member", day-to-day entry but not finalize actions).
+// A user can hold any number of these — zero, one per module, or several
+// modules at once — independent of their org-wide tier (if any).
+model ModuleGrant {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module    String   // bell-jar | rentals | calendar
+  tier      String   // Admin | Helper
+  grantedBy String?  // audit trail only, not an authorization gate
+  createdAt DateTime @default(now())
+
+  @@unique([userId, module])
+  @@index([orgId])
+}
+
+// Purely cosmetic per-org display-label overrides for the four tier names
+// (e.g. an Elks lodge relabeling Owner as "Exalted Ruler"). One label pair
+// per org for Admin/Helper — auto-composed with a module's own display name
+// in the UI ("Bell Jar " + adminLabel), so no per-module label table is
+// needed. Never read by any permission check — behavior always keys off
+// OrgMembership.tier / ModuleGrant.tier, not these strings.
+model TierLabel {
+  id          String   @id @default(cuid())
+  orgId       String   @unique
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ownerLabel  String?
+  viewerLabel String?
+  adminLabel  String?
+  helperLabel String?
+  updatedAt   DateTime @updatedAt
+}
+
+// Dedicated signer for one of the GC-7Q form's 3 legally-specific signature
+// slots (Head | Preparer | Member) — separate from module tiers since the
+// real form requires specific named officer signatures, independent of who
+// does day-to-day Bell Jar data entry. Assignable by the bell-jar module's
+// Admin to any user, org-level (persists until reassigned, not per-quarter).
+model GC7QSignerDesignation {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slot      String   // Head | Preparer | Member — same values as SignOff.role
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, slot])
   @@index([orgId])
 }
 

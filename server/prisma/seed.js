@@ -1,5 +1,6 @@
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
+const { backfillUserPermissions } = require("./backfill-permissions");
 
 const prisma = new PrismaClient();
 
@@ -15,6 +16,10 @@ async function main() {
     prisma.user.create({ data: { orgId: org.id, name: "Pat Preparer", email: "preparer@lodge2022.test", passwordHash, role: "Preparer" } }),
     prisma.user.create({ data: { orgId: org.id, name: "Cody Cashier", email: "cashier@lodge2022.test", passwordHash, role: "Cashier" } }),
   ]);
+
+  for (const user of [head, chair, preparer, cashier]) {
+    await backfillUserPermissions(prisma, user);
+  }
 
   await prisma.deal.create({
     data: {

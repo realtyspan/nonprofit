@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
 import { api } from "./lib/api";
 import { colors } from "./lib/tokens";
-import { MODULES } from "./lib/modules";
+import { MODULES, filterModulesForUser } from "./lib/modules";
 import TopBar from "./components/TopBar";
 import Sidebar from "./components/Sidebar";
 import Landing from "./views/Landing";
@@ -32,8 +32,9 @@ function PublicGate() {
 
 function Shell() {
   const { session } = useAuth();
-  const [activeModuleKey, setActiveModuleKey] = useState(MODULES[0].key);
-  const [view, setView] = useState(MODULES[0].navItems[0].key);
+  const [permissions, setPermissions] = useState(null);
+  const [activeModuleKey, setActiveModuleKey] = useState(null);
+  const [view, setView] = useState(null);
   const [deals, setDeals] = useState([]);
   const [rentalSpaces, setRentalSpaces] = useState([]);
   const [rentalInquiryCount, setRentalInquiryCount] = useState(0);
@@ -48,16 +49,45 @@ function Shell() {
     api.listRentalBookings("inquiry").then((rows) => setRentalInquiryCount(rows.length)).catch(() => {});
   }, []);
 
+  const refreshPermissions = useCallback(() => {
+    return api.getMyPermissions().then(setPermissions).catch(() => {});
+  }, []);
+
+  // Keyed on the logged-in user's id, not just `session` truthiness — Shell
+  // itself never unmounts across a login/logout cycle (AuthProvider wraps it
+  // once), so without this, switching accounts would keep the previous
+  // user's activeModuleKey/view around and land them on a module or screen
+  // that belongs to the account they just left instead of their own.
+  const userId = session?.user?.id;
   useEffect(() => {
     if (!session) return;
+    setActiveModuleKey(null);
+    setView(null);
+    setLoading(true);
     refreshDeals();
     refreshRentals();
-    setLoading(false);
-  }, [session, refreshDeals, refreshRentals]);
+    refreshPermissions().then(() => setLoading(false));
+  }, [userId, refreshDeals, refreshRentals, refreshPermissions]);
+
+  // Once permissions load, land on the user's first visible module — a
+  // no-grant user (or one still mid-onboarding) has no modules at all and
+  // lands on Profile instead.
+  useEffect(() => {
+    if (!permissions || activeModuleKey !== null) return;
+    const visible = filterModulesForUser(MODULES, permissions);
+    if (visible.length) {
+      setActiveModuleKey(visible[0].key);
+      setView(visible[0].navItems[0].key);
+    } else {
+      setView("profile");
+    }
+  }, [permissions, activeModuleKey]);
 
   if (!session) return <PublicGate />;
+  if (loading || view === null) return null;
 
-  const activeModule = MODULES.find((m) => m.key === activeModuleKey);
+  const visibleModules = filterModulesForUser(MODULES, permissions);
+  const activeModule = visibleModules.find((m) => m.key === activeModuleKey);
   const eligibleCount = deals.filter((d) => d.status === "active" && d.eligibleToClose).length;
   const moduleBadges = { "bell-jar": eligibleCount, rentals: rentalInquiryCount };
   const navBadges =
@@ -65,24 +95,28 @@ function Shell() {
 
   function switchModule(key) {
     setActiveModuleKey(key);
-    setView(MODULES.find((m) => m.key === key).navItems[0].key);
+    setView(visibleModules.find((m) => m.key === key).navItems[0].key);
   }
 
-  const navItem = activeModule.navItems.find((n) => n.key === view);
-  const title = view === "profile" ? "My Profile" : navItem?.title;
-  const subtitle = view === "profile" ? "Update your details or change your password" : navItem?.subtitle;
+  const navItem = activeModule?.navItems.find((n) => n.key === view);
+  const title = view === "profile" ? "My Profile" : view === "team" ? "Team" : navItem?.title;
+  const subtitle =
+    view === "profile" ? "Update your details or change your password"
+    : view === "team" ? "Everyone with access to this organization"
+    : navItem?.subtitle;
 
   return (
     <div style={{ minHeight: "100vh", background: colors.bg, color: colors.textPrimary }}>
       <TopBar
-        modules={MODULES}
+        modules={visibleModules}
         activeModuleKey={activeModuleKey}
         onSwitchModule={switchModule}
         moduleBadges={moduleBadges}
         onOpenProfile={() => setView("profile")}
+        onOpenTeam={() => setView("team")}
       />
       <div style={{ display: "flex" }}>
-        <Sidebar module={activeModule} view={view} setView={setView} badges={navBadges} />
+        {activeModule && <Sidebar module={activeModule} view={view} setView={setView} badges={navBadges} permissions={permissions} />}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "18px 32px", borderBottom: `1px solid ${colors.border}`, background: "#fff" }}>
             <div style={{ fontSize: 19, fontWeight: 700, color: colors.textPrimary }}>{title}</div>
@@ -90,21 +124,17 @@ function Shell() {
           </div>
 
           <div style={{ flex: 1, padding: "28px 32px 60px", overflow: "auto" }}>
-            {!loading && (
-              <>
-                {activeModuleKey === "bell-jar" && view === "dashboard" && <Dashboard deals={deals} />}
-                {activeModuleKey === "bell-jar" && view === "worksheet" && <Worksheet deals={deals} onSaved={refreshDeals} />}
-                {activeModuleKey === "bell-jar" && view === "deals" && <Deals deals={deals} onChanged={refreshDeals} />}
-                {activeModuleKey === "bell-jar" && view === "ledger" && <Ledger />}
-                {activeModuleKey === "bell-jar" && view === "reports" && <Reports />}
-                {activeModuleKey === "bell-jar" && view === "team" && <Team />}
-                {activeModuleKey === "rentals" && view === "bookings" && <RentalBookings spaces={rentalSpaces} onChanged={refreshRentals} />}
-                {activeModuleKey === "rentals" && view === "spaces" && <RentalSpaces spaces={rentalSpaces} onChanged={refreshRentals} />}
-                {activeModuleKey === "rentals" && view === "blocks" && <RentalBlocks spaces={rentalSpaces} />}
-                {activeModuleKey === "calendar" && view === "month" && <CalendarView />}
-                {view === "profile" && <Profile />}
-              </>
-            )}
+            {activeModuleKey === "bell-jar" && view === "dashboard" && <Dashboard deals={deals} />}
+            {activeModuleKey === "bell-jar" && view === "worksheet" && <Worksheet deals={deals} onSaved={refreshDeals} />}
+            {activeModuleKey === "bell-jar" && view === "deals" && <Deals deals={deals} onChanged={refreshDeals} permissions={permissions} />}
+            {activeModuleKey === "bell-jar" && view === "ledger" && <Ledger />}
+            {activeModuleKey === "bell-jar" && view === "reports" && <Reports permissions={permissions} />}
+            {activeModuleKey === "rentals" && view === "bookings" && <RentalBookings spaces={rentalSpaces} onChanged={refreshRentals} />}
+            {activeModuleKey === "rentals" && view === "spaces" && <RentalSpaces spaces={rentalSpaces} onChanged={refreshRentals} />}
+            {activeModuleKey === "rentals" && view === "blocks" && <RentalBlocks spaces={rentalSpaces} />}
+            {activeModuleKey === "calendar" && view === "month" && <CalendarView />}
+            {view === "team" && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}
+            {view === "profile" && <Profile />}
           </div>
         </div>
       </div>

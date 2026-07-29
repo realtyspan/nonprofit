@@ -1,20 +1,11 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
-const { requireAuth, requireRole } = require("../lib/auth");
+const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
 const { computeGC7Q } = require("../lib/businessLogic");
 const { fillGC7QPdf } = require("../lib/gc7qPdf");
 
 const router = express.Router();
-router.use(requireAuth);
-
-// Who may sign each of the 3 sign-off slots (per prototype's role model —
-// Chairperson stands in for Head + Member in Charge; Preparer signs their own row).
-function canSign(userRole, slotRole) {
-  if (slotRole === "Preparer") return userRole === "Preparer";
-  if (slotRole === "Head") return userRole === "Head" || userRole === "Chairperson";
-  if (slotRole === "Member") return userRole === "Chairperson";
-  return false;
-}
+router.use(requireAuth, loadPermissions);
 
 function previousQuarter(year, quarter) {
   return quarter === 1 ? { year: year - 1, quarter: 4 } : { year, quarter: quarter - 1 };
@@ -74,7 +65,7 @@ async function getReportValues(orgId, year, quarter, existing) {
   return buildReport(orgId, year, quarter);
 }
 
-router.get("/:year/:quarter", async (req, res) => {
+router.get("/:year/:quarter", requireReadAccess("bell-jar"), async (req, res) => {
   const year = Number(req.params.year);
   const quarter = Number(req.params.quarter);
 
@@ -98,7 +89,7 @@ router.get("/:year/:quarter", async (req, res) => {
 
 // Sets the per-quarter manual inputs (C11 interest earned, C13 adjustments) that
 // aren't derivable from any ledger/deal data, then recomputes and persists.
-router.patch("/:year/:quarter/inputs", requireRole("Head", "Chairperson", "Preparer"), async (req, res) => {
+router.patch("/:year/:quarter/inputs", requirePermission("bell-jar", "Helper"), async (req, res) => {
   const year = Number(req.params.year);
   const quarter = Number(req.params.quarter);
   const { interestEarned, adjustments, adjustmentExplanation } = req.body;
@@ -138,7 +129,7 @@ router.patch("/:year/:quarter/inputs", requireRole("Head", "Chairperson", "Prepa
 });
 
 // Fills the real NYS GC-7Q form with this quarter's computed values + sign-off info.
-router.get("/:year/:quarter/pdf", async (req, res) => {
+router.get("/:year/:quarter/pdf", requireReadAccess("bell-jar"), async (req, res) => {
   const year = Number(req.params.year);
   const quarter = Number(req.params.quarter);
 
@@ -182,12 +173,15 @@ router.get("/:year/:quarter/pdf", async (req, res) => {
 });
 
 router.post("/:year/:quarter/sign", async (req, res) => {
-  const { role } = req.body; // "Head" | "Preparer" | "Member"
+  const { role } = req.body; // "Head" | "Preparer" | "Member" — a GC-7Q signature slot, not a module tier
   if (!["Head", "Preparer", "Member"].includes(role)) {
     return res.status(400).json({ error: "role must be Head, Preparer, or Member" });
   }
-  if (!canSign(req.user.role, role)) {
-    return res.status(403).json({ error: `Your role cannot sign the ${role} slot` });
+  const designation = await prisma.gC7QSignerDesignation.findUnique({
+    where: { orgId_slot: { orgId: req.user.orgId, slot: role } },
+  });
+  if (!designation || designation.userId !== req.user.userId) {
+    return res.status(403).json({ error: `You are not the designated signer for the ${role} slot` });
   }
 
   const year = Number(req.params.year);
@@ -227,7 +221,7 @@ router.post("/:year/:quarter/sign", async (req, res) => {
 // For a report already mailed to the Commission, correct it instead via a C13
 // adjustment on a later quarter's report (see the "Adjustments" field) —
 // don't rewrite a filing that's already gone out.
-router.post("/:year/:quarter/unlock", requireRole("Head", "Chairperson"), async (req, res) => {
+router.post("/:year/:quarter/unlock", requirePermission("bell-jar", "Admin"), async (req, res) => {
   const year = Number(req.params.year);
   const quarter = Number(req.params.quarter);
 

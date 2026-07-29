@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money, mono } from "../lib/tokens";
 import { api } from "../lib/api";
-import { useAuth } from "../lib/AuthContext";
 
 function formatPct(fraction) {
   return `${Math.round((fraction ?? 0.75) * 100)}%`;
 }
 
-export default function Deals({ deals, onChanged }) {
-  const { session } = useAuth();
-  const isChair = session.user.role === "Chairperson";
+export default function Deals({ deals, onChanged, permissions }) {
+  const isBellJarAdmin = permissions?.moduleGrants?.["bell-jar"] === "Admin";
   const [history, setHistory] = useState([]);
   const [closing, setClosing] = useState(null); // deal being closed
   const [error, setError] = useState("");
@@ -109,9 +107,9 @@ export default function Deals({ deals, onChanged }) {
             <div style={{ display: "flex", gap: 8 }}>
               <button style={button.ghost} onClick={() => setEditingDeal(d)}>Edit</button>
               <button
-                style={d.eligibleToClose && isChair ? button.primary : button.disabled}
-                disabled={!d.eligibleToClose || !isChair}
-                title={!isChair ? "Only a Chairperson can close a deal" : !d.eligibleToClose ? `Deal must reach ${formatPct(d.closeThreshold)} of ideal prize payout` : ""}
+                style={d.eligibleToClose && isBellJarAdmin ? button.primary : button.disabled}
+                disabled={!d.eligibleToClose || !isBellJarAdmin}
+                title={!isBellJarAdmin ? "Only a Bell Jar Admin can close a deal" : !d.eligibleToClose ? `Deal must reach ${formatPct(d.closeThreshold)} of ideal prize payout` : ""}
                 onClick={() => setClosing(d)}
               >
                 Close deal

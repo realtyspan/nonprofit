@@ -16,6 +16,19 @@ async function request(path, { method = "GET", body } = {}) {
   });
 
   const data = await res.json().catch(() => ({}));
+  // A 401 means the token itself is missing/invalid/expired — nothing short of
+  // logging back in fixes that, so force back to the login screen right away
+  // instead of leaving the app in a half-authenticated state.
+  if (res.status === 401) {
+    clearSession();
+    window.location.reload();
+    throw new Error("Session expired — please log in again");
+  }
+  if (res.status === 403) {
+    const err = new Error(data.error || "You don't have access to do that");
+    err.isForbidden = true;
+    throw err;
+  }
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;
 }
@@ -51,12 +64,27 @@ export const api = {
   updateMe: (payload) => request("/auth/me", { method: "PATCH", body: payload }),
   changePassword: (payload) => request("/auth/change-password", { method: "POST", body: payload }),
 
+  getMyPermissions: () => request("/permissions/me"),
+  setOrgTier: (userId, tier) => request(`/permissions/org-tier/${userId}`, { method: "PATCH", body: { tier } }),
+  setModuleGrant: (userId, module, tier) => request(`/permissions/module-grant/${userId}/${module}`, { method: "PUT", body: { tier } }),
+  removeModuleGrant: (userId, module) => request(`/permissions/module-grant/${userId}/${module}`, { method: "DELETE" }),
+  getTierLabels: () => request("/permissions/labels"),
+  updateTierLabels: (payload) => request("/permissions/labels", { method: "PATCH", body: payload }),
+  getGC7QSigners: () => request("/permissions/gc7q-signers"),
+  assignGC7QSigner: (slot, userId) => request(`/permissions/gc7q-signers/${slot}`, { method: "PUT", body: { userId } }),
+
   listDeals: () => request("/deals"),
   createDeal: (payload) => request("/deals", { method: "POST", body: payload }),
   updateDeal: (dealId, payload) => request(`/deals/${dealId}`, { method: "PATCH", body: payload }),
   activateDeal: (dealId) => request(`/deals/${dealId}/activate`, { method: "POST" }),
   saveDailySale: (dealId, payload) => request(`/deals/${dealId}/daily-sales`, { method: "POST", body: payload }),
-  listDailySales: (dealId) => request(`/deals/${dealId}/daily-sales`),
+  listDailySales: (dealId, { from, to } = {}) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const qs = params.toString();
+    return request(`/deals/${dealId}/daily-sales${qs ? `?${qs}` : ""}`);
+  },
 
   listSchedule1: () => request("/schedule1"),
   closeDeal: (dealId, unsoldCount) => request(`/schedule1/${dealId}/close`, { method: "POST", body: { unsoldCount } }),

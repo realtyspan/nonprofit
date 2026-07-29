@@ -1,13 +1,24 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const prisma = require("../lib/prisma");
-const { signToken, requireAuth, requireRole } = require("../lib/auth");
+const { signToken, requireAuth, loadPermissions } = require("../lib/auth");
+const { MODULES } = require("../../prisma/backfill-permissions");
 
 const router = express.Router();
 
-const VALID_ROLES = ["Cashier", "Chairperson", "Preparer", "Head"];
+// Legacy flat roles, kept only so an invite from a not-yet-updated client
+// still works during rollout — mapped through the exact same table the
+// one-time backfill script used, so behavior stays consistent either way.
+const LEGACY_ROLE_GRANTS = {
+  Head: { orgTier: "Owner", moduleGrants: MODULES.map((module) => ({ module, tier: "Admin" })) },
+  Chairperson: { orgTier: null, moduleGrants: [{ module: "bell-jar", tier: "Helper" }] },
+  Preparer: { orgTier: null, moduleGrants: [{ module: "bell-jar", tier: "Helper" }] },
+  Cashier: { orgTier: null, moduleGrants: [{ module: "bell-jar", tier: "Helper" }] },
+};
 
-// Creates a brand new organization (tenant) + its first user (Head).
+// Creates a brand new organization (tenant) + its first user, who becomes the
+// org's technical Owner (administers users/permissions, views everything —
+// see server/src/lib/auth.js for what Owner does and doesn't grant by default).
 // licenseId (the NYS Games of Chance license #) is optional here — required to file
 // but a lodge may not have it in hand yet when first setting up; it can be added or
 // updated later from the org profile (Reports > Form details).
@@ -22,40 +33,81 @@ router.post("/signup-org", async (req, res) => {
   const org = await prisma.organization.create({ data: { name: orgName, licenseId: licenseId || null } });
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
-    data: { orgId: org.id, name, email, passwordHash, role: "Head" },
+    data: { orgId: org.id, name, email, passwordHash, role: "Head" }, // role column is a frozen legacy field, see auth.js dual-read note
   });
+  await prisma.orgMembership.create({ data: { orgId: org.id, userId: user.id, tier: "Owner" } });
 
   const token = signToken(user);
-  res.json({ token, user: { ...publicUser(user), orgName: org.name }, org });
+  res.json({ token, user: { ...(await publicUser(user)), orgName: org.name }, org });
 });
 
-// Adds a user to the caller's own org. Only Head/Chairperson may invite,
-// and orgId always comes from the authenticated caller — never from the request body —
-// so one tenant can never create users in another tenant.
-router.post("/invite", requireAuth, requireRole("Head", "Chairperson"), async (req, res) => {
+// Adds a user to the caller's own org, and grants them an org tier and/or
+// module grants. Delegation rule: an Owner may set anything (org tier, any
+// module at any level); a plain module Admin may only grant Helper, and only
+// within modules they themselves administer — enforced below, never trusted
+// from the client alone. orgId always comes from the authenticated caller,
+// never the request body, so one tenant can never create users in another.
+//
+// Accepts either the new shape ({ orgTier, moduleGrants }) or the legacy flat
+// `role` string, mapped through LEGACY_ROLE_GRANTS above — a safety net for a
+// client that hasn't been updated to the new invite form yet.
+router.post("/invite", requireAuth, loadPermissions, async (req, res) => {
   const { name, email, password, role } = req.body;
-  if (!name || !email || !password || !role) {
-    return res.status(400).json({ error: "name, email, password, role are required" });
+  let { orgTier, moduleGrants } = req.body;
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: "name, email, password are required" });
   }
-  if (!VALID_ROLES.includes(role)) {
-    return res.status(400).json({ error: `role must be one of ${VALID_ROLES.join(", ")}` });
+
+  if (orgTier === undefined && moduleGrants === undefined && role !== undefined) {
+    const legacy = LEGACY_ROLE_GRANTS[role];
+    if (!legacy) return res.status(400).json({ error: `role must be one of ${Object.keys(LEGACY_ROLE_GRANTS).join(", ")}` });
+    orgTier = legacy.orgTier;
+    moduleGrants = legacy.moduleGrants;
   }
+  orgTier = orgTier || null;
+  moduleGrants = moduleGrants || [];
+
+  const isOwner = req.orgTier === "Owner";
+  if (!isOwner) {
+    if (orgTier) return res.status(403).json({ error: "Only an Owner can set Owner/Viewer" });
+    for (const g of moduleGrants) {
+      if (g.tier === "Admin") return res.status(403).json({ error: "Only an Owner can appoint a module Admin" });
+      if (req.moduleGrants[g.module] !== "Admin") return res.status(403).json({ error: `You are not Admin of ${g.module}` });
+    }
+    if (moduleGrants.length === 0) {
+      return res.status(403).json({ error: "Only an Owner or a module Admin may invite" });
+    }
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return res.status(409).json({ error: "Email already in use" });
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({ data: { orgId: req.user.orgId, name, email, passwordHash, role } });
-  res.json({ user: publicUser(user) });
+  const user = await prisma.user.create({
+    data: { orgId: req.user.orgId, name, email, passwordHash, role: "Cashier" }, // role column is a frozen legacy field, see auth.js dual-read note
+  });
+
+  if (orgTier) {
+    await prisma.orgMembership.create({ data: { orgId: req.user.orgId, userId: user.id, tier: orgTier } });
+  }
+  for (const g of moduleGrants) {
+    await prisma.moduleGrant.create({
+      data: { orgId: req.user.orgId, userId: user.id, module: g.module, tier: g.tier, grantedBy: req.user.userId },
+    });
+  }
+
+  res.json({ user: await publicUser(user) });
 });
 
-// Lists teammates in the caller's own org. Any authenticated role can view the roster;
-// only invite (above) is restricted to Head/Chairperson.
+// Lists teammates in the caller's own org, including their current org tier
+// and module grants, so the Team screen can render and manage them. Any
+// authenticated user can view the roster; only invite (above) is restricted.
 router.get("/users", requireAuth, async (req, res) => {
   const users = await prisma.user.findMany({
     where: { orgId: req.user.orgId },
     orderBy: { createdAt: "asc" },
   });
-  res.json(users.map(publicUser));
+  res.json(await Promise.all(users.map(publicUser)));
 });
 
 router.post("/login", async (req, res) => {
@@ -67,15 +119,15 @@ router.post("/login", async (req, res) => {
   if (!ok) return res.status(401).json({ error: "Invalid credentials" });
 
   const token = signToken(user);
-  res.json({ token, user: { ...publicUser(user), orgName: user.org.name } });
+  res.json({ token, user: { ...(await publicUser(user)), orgName: user.org.name } });
 });
 
-// Own-profile view/edit. Role is intentionally not editable here — role changes
-// are an org-admin action (invite flow), not self-service.
+// Own-profile view/edit. Role is intentionally not editable here — permission
+// changes are an org-admin action (Team screen), not self-service.
 router.get("/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
   if (!user) return res.status(404).json({ error: "User not found" });
-  res.json(publicUser(user));
+  res.json(await publicUser(user));
 });
 
 router.patch("/me", requireAuth, async (req, res) => {
@@ -93,7 +145,7 @@ router.patch("/me", requireAuth, async (req, res) => {
     where: { id: req.user.userId },
     data: { name, email, title: title || null, phone: phone || null, homeAddress: homeAddress || null },
   });
-  res.json(publicUser(updated));
+  res.json(await publicUser(updated));
 });
 
 // Changes the caller's own password — requires the current password, not an
@@ -117,13 +169,23 @@ router.post("/change-password", requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-function publicUser(user) {
+// Joins in the new permission model for API responses. `role` is kept only as
+// a frozen legacy field (see the dual-read note in server/src/lib/auth.js) —
+// nothing should read it going forward; orgTier/moduleGrants are the source
+// of truth now.
+async function publicUser(user) {
+  const [membership, grants] = await Promise.all([
+    prisma.orgMembership.findUnique({ where: { userId: user.id } }),
+    prisma.moduleGrant.findMany({ where: { userId: user.id } }),
+  ]);
   return {
     id: user.id,
     orgId: user.orgId,
     name: user.name,
     email: user.email,
     role: user.role,
+    orgTier: membership?.tier || null,
+    moduleGrants: Object.fromEntries(grants.map((g) => [g.module, g.tier])),
     title: user.title,
     phone: user.phone,
     homeAddress: user.homeAddress,

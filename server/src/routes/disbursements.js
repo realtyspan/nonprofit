@@ -1,14 +1,14 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
-const { requireAuth } = require("../lib/auth");
+const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
 const { quarterOf } = require("../lib/businessLogic");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, loadPermissions);
 
 const VALID_CATEGORIES = ["ticket_purchase", "license_fee", "indirect"];
 
-router.get("/", async (req, res) => {
+router.get("/", requireReadAccess("bell-jar"), async (req, res) => {
   const rows = await prisma.disbursement.findMany({
     where: { orgId: req.user.orgId },
     orderBy: { date: "desc" },
@@ -16,7 +16,7 @@ router.get("/", async (req, res) => {
   res.json(rows);
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("bell-jar", "Helper"), async (req, res) => {
   const { date, payee, checkNum, amount, category } = req.body;
   if (!payee || !checkNum || amount === undefined || !category) {
     return res.status(400).json({ error: "payee, checkNum, amount, category are required" });

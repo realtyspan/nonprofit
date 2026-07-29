@@ -1,17 +1,24 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
-const { requireAuth, requireRole } = require("../lib/auth");
+const { requireAuth, loadPermissions, requireOwner, requirePermission } = require("../lib/auth");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, loadPermissions);
 
 router.get("/", async (req, res) => {
   const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
   res.json(org);
 });
 
-// Only Head/Chairperson may edit the org's compliance-form profile (county, license #, etc).
-router.patch("/", requireRole("Head", "Chairperson"), async (req, res) => {
+// The org's compliance-form profile (county, license #, etc.) and its public
+// slug both live here — either the technical Owner or the Bell Jar module's
+// Admin may edit it, since both have legitimate reason to (Owner for org
+// identity/slug, Bell Jar Admin for the compliance header fields).
+function requireOwnerOrBellJarAdmin(req, res, next) {
+  if (req.orgTier === "Owner") return next();
+  return requirePermission("bell-jar", "Admin")(req, res, next);
+}
+router.patch("/", requireOwnerOrBellJarAdmin, async (req, res) => {
   const { county, municipality, licenseCategory, licenseLast5, licenseId, address, slug } = req.body;
 
   if (slug !== undefined && slug !== null && slug !== "") {

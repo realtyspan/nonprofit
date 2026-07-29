@@ -27,7 +27,7 @@ const FEATURES = [
   {
     icon: icons.users,
     title: "Team & Roles",
-    body: "Cashier, Chairperson, Preparer, Head — each person sees exactly what their role needs, nothing more.",
+    body: "Assign an Owner to manage access, a Chairman for each committee, and helpers to assist — everyone sees exactly what their role needs, nothing more.",
   },
   {
     icon: icons.userCircle,

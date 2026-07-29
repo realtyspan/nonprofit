@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money, mono } from "../lib/tokens";
 import { api } from "../lib/api";
-import { useAuth } from "../lib/AuthContext";
 
 function currentQuarter() {
   const now = new Date();
@@ -31,15 +30,11 @@ function roleLabel(r) {
   if (r === "Preparer") return "Report Preparer";
   return "Member in Charge";
 }
-function canSign(userRole, slotRole) {
-  if (slotRole === "Preparer") return userRole === "Preparer";
-  if (slotRole === "Head") return userRole === "Head" || userRole === "Chairperson";
-  if (slotRole === "Member") return userRole === "Chairperson";
-  return false;
-}
 
-export default function Reports() {
-  const { session } = useAuth();
+export default function Reports({ permissions }) {
+  const isBellJarAdmin = permissions?.moduleGrants?.["bell-jar"] === "Admin";
+  const canEditInputs = !!permissions?.moduleGrants?.["bell-jar"];
+  const canEditOrgProfile = permissions?.orgTier === "Owner" || isBellJarAdmin;
   const cq = currentQuarter();
   const [year, setYear] = useState(cq.year);
   const [quarter, setQuarter] = useState(cq.quarter);
@@ -169,7 +164,7 @@ export default function Reports() {
         </select>
         {v.zeroFiling && <span style={pill("#f0f0f3", colors.textSecondary)}>Zero-filing (no deals closed)</span>}
         <span style={pill(report.status === "filed" ? colors.successBg : "#f0f0f3", report.status === "filed" ? colors.success : colors.textSecondary)}>{report.status === "filed" ? "Filed" : "Draft"}</span>
-        {report.status === "filed" && ["Head", "Chairperson"].includes(session.user.role) && !confirmingUnlock && (
+        {report.status === "filed" && isBellJarAdmin && !confirmingUnlock && (
           <button style={button.ghost} onClick={() => setConfirmingUnlock(true)}>Unlock for correction</button>
         )}
       </div>
@@ -204,13 +199,13 @@ export default function Reports() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          {org && <OrgProfileCard org={org} canEdit={["Head", "Chairperson"].includes(session.user.role)} onSaved={setOrg} />}
+          {org && <OrgProfileCard org={org} canEdit={canEditOrgProfile} onSaved={setOrg} />}
 
           <CarryforwardCard
             year={year}
             quarter={quarter}
             report={report}
-            canEdit={["Head", "Chairperson", "Preparer"].includes(session.user.role) && report.status !== "filed"}
+            canEdit={canEditInputs && report.status !== "filed"}
             onSaved={refresh}
           />
 
@@ -241,7 +236,7 @@ export default function Reports() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {SIGNOFF_ROLES.map((r) => {
                 const signed = signedRoles.has(r);
-                const allowed = canSign(session.user.role, r);
+                const allowed = !!permissions?.gc7qSignerSlots?.includes(r);
                 return (
                   <div key={r} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", borderRadius: 8, background: "#fafafa" }}>
                     <span style={{ fontSize: 13, fontWeight: 500 }}>{roleLabel(r)}</span>

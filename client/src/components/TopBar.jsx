@@ -3,7 +3,7 @@ import { colors } from "../lib/tokens";
 import { useAuth } from "../lib/AuthContext";
 import logo from "../assets/logo.png";
 
-export default function TopBar({ modules, activeModuleKey, onSwitchModule, moduleBadges, onOpenProfile }) {
+export default function TopBar({ modules, activeModuleKey, onSwitchModule, moduleBadges, onOpenProfile, onOpenTeam }) {
   const { session, logout } = useAuth();
   const user = session?.user;
 
@@ -44,6 +44,12 @@ export default function TopBar({ modules, activeModuleKey, onSwitchModule, modul
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button
+          onClick={onOpenTeam}
+          style={{ background: "transparent", border: "none", color: colors.textSecondary, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+        >
+          Team
+        </button>
         <button
           onClick={onOpenProfile}
           title="My Profile"

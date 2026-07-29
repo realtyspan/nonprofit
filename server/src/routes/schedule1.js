@@ -1,14 +1,14 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
-const { requireAuth, requireRole } = require("../lib/auth");
+const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
 const { closeDeal, isEligibleToClose } = require("../lib/businessLogic");
 const { fillSchedule1Pdf } = require("../lib/schedule1Pdf");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, loadPermissions);
 
 // Closed-deal audit history for the org.
-router.get("/", async (req, res) => {
+router.get("/", requireReadAccess("bell-jar"), async (req, res) => {
   const records = await prisma.schedule1Record.findMany({
     where: { deal: { orgId: req.user.orgId } },
     include: { deal: true },
@@ -18,7 +18,7 @@ router.get("/", async (req, res) => {
 });
 
 // Fills the real NYS Schedule 1 form with every deal closed in the given quarter.
-router.get("/:year/:quarter/pdf", async (req, res) => {
+router.get("/:year/:quarter/pdf", requireReadAccess("bell-jar"), async (req, res) => {
   const year = Number(req.params.year);
   const quarter = Number(req.params.quarter);
 
@@ -70,9 +70,10 @@ router.get("/:year/:quarter/pdf", async (req, res) => {
   res.send(Buffer.from(pdfBytes));
 });
 
-// Only a Chairperson may close a deal, and only once it's crossed its close threshold
-// (75% minimum, org-configurable higher per deal).
-router.post("/:dealId/close", requireRole("Chairperson"), async (req, res) => {
+// Only the Bell Jar module's Admin may close a deal (a finalize action, same tier
+// as confirming a rental), and only once it's crossed its close threshold (75%
+// minimum, org-configurable higher per deal).
+router.post("/:dealId/close", requirePermission("bell-jar", "Admin"), async (req, res) => {
   const { unsoldCount } = req.body;
   if (unsoldCount === undefined || Number(unsoldCount) < 0) {
     return res.status(400).json({ error: "unsoldCount (N) is required and must be >= 0" });
