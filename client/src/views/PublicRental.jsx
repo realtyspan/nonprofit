@@ -9,7 +9,7 @@ const MS_PER_HOUR = 1000 * 60 * 60;
 const EMPTY_FORM = {
   spaceId: "", renterName: "", renterEmail: "", renterPhone: "", renterAddress: "",
   isMember: false, eventType: "", expectedGuests: "", startAt: "", endAt: "",
-  wantsBartender: false, roundTables: "", longTables: "", chairs: "", kitchenUse: "", chafingDishes: "", notes: "",
+  roundTables: "", longTables: "", chairs: "", kitchenUse: "", chafingDishes: "", notes: "",
   website: "", // honeypot — real visitors never see this field
 };
 
@@ -148,13 +148,6 @@ export default function PublicRental({ slug, embed }) {
                     <div style={{ fontSize: 12, color: colors.warning, background: colors.warningBg, borderRadius: 8, padding: 10 }}>
                       Heads up — this time overlaps a date the Lodge already has booked or held. You can still submit; we'll confirm actual availability.
                     </div>
-                  )}
-
-                  {space.offersBartender && (
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                      <input type="checkbox" checked={form.wantsBartender} onChange={(e) => set("wantsBartender", e.target.checked)} />
-                      Add bartender service
-                    </label>
                   )}
 
                   <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", color: t.textSecondary, marginTop: 6 }}>Equipment (optional)</div>

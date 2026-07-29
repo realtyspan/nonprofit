@@ -147,14 +147,18 @@ export default function RentalBookings({ spaces, onChanged }) {
 function ReviewModal({ booking, onCancel, onDone }) {
   const [deposit, setDeposit] = useState(booking.space?.depositAmount ?? 0);
   const [declineReason, setDeclineReason] = useState("");
+  const [wantsBartender, setWantsBartender] = useState(booking.wantsBartender || false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const quote = computeRentalQuote(booking.space, booking);
+  const quote = computeRentalQuote(booking.space, { ...booking, wantsBartender });
 
   async function confirm() {
     setError("");
     setBusy(true);
     try {
+      if (wantsBartender !== booking.wantsBartender) {
+        await api.updateRentalBooking(booking.id, { wantsBartender });
+      }
       await api.confirmRentalBooking(booking.id, { depositAmount: Number(deposit) });
       onDone();
     } catch (err) {
@@ -189,10 +193,17 @@ function ReviewModal({ booking, onCancel, onDone }) {
           {booking.eventType && `${booking.eventType} · `}{booking.expectedGuests ?? "—"} guests · {booking.isMember ? "Member" : "Non-member"} rate
         </div>
 
+        {booking.space?.offersBartender && (
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 14 }}>
+            <input type="checkbox" checked={wantsBartender} onChange={(e) => setWantsBartender(e.target.checked)} />
+            Add bartender service
+          </label>
+        )}
+
         {quote && (
           <div style={{ background: "#fafafa", borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginBottom: 14 }}>
             <Row label="Space" value={money(quote.spaceCost)} />
-            {booking.wantsBartender && <Row label="Bartender" value={money(quote.bartenderCost)} />}
+            {wantsBartender && <Row label="Bartender" value={money(quote.bartenderCost)} />}
             {quote.equipmentCost > 0 && <Row label="Equipment / kitchen" value={money(quote.equipmentCost)} />}
             <div style={{ borderTop: `1px solid ${colors.border}`, marginTop: 4, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
               <span>Total</span>
