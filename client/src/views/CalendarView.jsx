@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { colors, card, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import CalendarGrid from "../components/CalendarGrid";
+import CalendarWeekGrid from "../components/CalendarWeekGrid";
 import PublicLinkBox from "../components/PublicLinkBox";
 
 const WEEKDAYS = [
@@ -25,42 +26,85 @@ function toDateInput(date) {
 function hhmm(datetimeLocal) {
   return datetimeLocal.slice(11, 16);
 }
+function startOfWeek(d) {
+  const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  r.setDate(r.getDate() - r.getDay());
+  return r;
+}
+function addDays(d, n) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
 
 export default function CalendarView({ rentalSpaces = [], permissions }) {
   const canManageRentals = permissions?.orgTier === "Owner" || permissions?.moduleGrants?.rentals === "Admin";
-  const [month, setMonth] = useState(() => new Date());
+  const [viewMode, setViewMode] = useState("month"); // "month" | "week"
+  const [month, setMonth] = useState(() => new Date()); // anchor date — a day within the displayed month or week
   const [events, setEvents] = useState([]);
   const [formState, setFormState] = useState(null); // { mode: "new"|"editOne"|"editSeries", event?, defaultDate? }
   const [detailEvent, setDetailEvent] = useState(null);
 
   const refresh = useCallback(() => {
-    const rangeStart = new Date(month.getFullYear(), month.getMonth(), -7);
-    const rangeEnd = new Date(month.getFullYear(), month.getMonth() + 1, 7);
+    let rangeStart, rangeEnd;
+    if (viewMode === "week") {
+      rangeStart = startOfWeek(month);
+      rangeEnd = addDays(rangeStart, 7);
+    } else {
+      rangeStart = new Date(month.getFullYear(), month.getMonth(), -7);
+      rangeEnd = new Date(month.getFullYear(), month.getMonth() + 1, 7);
+    }
     api.listCalendarEvents(rangeStart, rangeEnd).then(setEvents).catch(() => {});
-  }, [month]);
+  }, [month, viewMode]);
 
   useEffect(refresh, [refresh]);
 
-  function changeMonth(delta) {
-    setMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
+  function changePeriod(delta) {
+    if (viewMode === "week") {
+      setMonth((m) => addDays(m, delta * 7));
+    } else {
+      setMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
+    }
   }
+
+  const viewToggleBtn = (mode, label) => ({
+    padding: "6px 14px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600,
+    background: viewMode === mode ? "#fff" : "transparent",
+    boxShadow: viewMode === mode ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+    color: viewMode === mode ? colors.textPrimary : colors.textSecondary,
+  });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <PublicLinkBox basePath="calendar" embedBasePath="calendar/embed" embedTitle="Calendar" description="Set a link so you can view or embed this calendar (public events only) on your website." />
 
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 3, background: colors.bg, borderRadius: 9, padding: 3 }}>
+          <button type="button" onClick={() => setViewMode("month")} style={viewToggleBtn("month")}>Month</button>
+          <button type="button" onClick={() => setViewMode("week")} style={viewToggleBtn("week")}>Week</button>
+        </div>
         <button style={button.primary} onClick={() => setFormState({ mode: "new" })}>+ Add event</button>
       </div>
 
-      <CalendarGrid
-        month={month}
-        events={events}
-        onPrevMonth={() => changeMonth(-1)}
-        onNextMonth={() => changeMonth(1)}
-        onSelectDay={(day) => setFormState({ mode: "new", defaultDate: day })}
-        onSelectEvent={(e) => setDetailEvent(e)}
-      />
+      {viewMode === "month" ? (
+        <CalendarGrid
+          month={month}
+          events={events}
+          onPrevMonth={() => changePeriod(-1)}
+          onNextMonth={() => changePeriod(1)}
+          onSelectDay={(day) => setFormState({ mode: "new", defaultDate: day })}
+          onSelectEvent={(e) => setDetailEvent(e)}
+        />
+      ) : (
+        <CalendarWeekGrid
+          anchorDate={month}
+          events={events}
+          onPrevWeek={() => changePeriod(-1)}
+          onNextWeek={() => changePeriod(1)}
+          onSelectDay={(day) => setFormState({ mode: "new", defaultDate: day })}
+          onSelectEvent={(e) => setDetailEvent(e)}
+        />
+      )}
 
       <div style={{ fontSize: 11.5, color: colors.textSecondary, display: "flex", gap: 16 }}>
         <Legend color={colors.successBg} label="Lodge events" />
@@ -197,7 +241,12 @@ function EventFormModal({ state, rentalSpaces, canManageRentals, onCancel, onSav
   const { mode, event, defaultDate } = state;
   const isSeries = mode === "editSeries";
   const start = defaultDate ? new Date(defaultDate) : event ? new Date(event.startAt) : new Date();
-  start.setHours(start.getHours() || 18, start.getMinutes(), 0, 0);
+  // Rounded to the nearest half hour so a brand-new event's default time
+  // satisfies the 30-minute step on the Start/End inputs below — otherwise
+  // the browser blocks submission on a step mismatch before it ever reaches
+  // this form's own validation. A no-op for defaultDate/existing-event paths,
+  // which already land on :00 or get overridden by the real saved time.
+  start.setHours(start.getHours() || 18, start.getMinutes() < 30 ? 0 : 30, 0, 0);
   const end = new Date(start.getTime() + 60 * 60 * 1000);
 
   const [title, setTitle] = useState(event?.title || "");
@@ -327,8 +376,8 @@ function EventFormModal({ state, rentalSpaces, canManageRentals, onCancel, onSav
         </label>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label="Start"><input style={inputStyle} type="datetime-local" required value={startAt} onChange={(e) => setStartAt(e.target.value)} /></Field>
-          <Field label="End"><input style={inputStyle} type="datetime-local" required value={endAt} onChange={(e) => setEndAt(e.target.value)} /></Field>
+          <Field label="Start"><input style={inputStyle} type="datetime-local" step="1800" required value={startAt} onChange={(e) => setStartAt(e.target.value)} /></Field>
+          <Field label="End"><input style={inputStyle} type="datetime-local" step="1800" required value={endAt} onChange={(e) => setEndAt(e.target.value)} /></Field>
         </div>
 
         {showRentalSpaceOption && (
