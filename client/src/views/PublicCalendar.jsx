@@ -95,8 +95,16 @@ function EventInfoModal({ event, theme, onClose }) {
         style={{ width: 340, maxWidth: "100%", background: t.surface || "#fff", color: t.textPrimary, borderRadius: 14, padding: 20, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }}
       >
         <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{event.title}</div>
-        <div style={{ fontSize: 13, color: t.textSecondary, marginBottom: event.description ? 12 : 0 }}>{formatTimeRange(event)}</div>
-        {event.description && <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>{event.description}</div>}
+        <div style={{ fontSize: 13, color: t.textSecondary, marginBottom: 4 }}>{formatTimeRange(event)}</div>
+        {event.location && <div style={{ fontSize: 13, color: t.textSecondary, marginBottom: 12 }}>📍 {event.location}</div>}
+        {event.description && <div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{event.description}</div>}
+        {event.linkUrl && (
+          <div style={{ marginTop: 10 }}>
+            <a href={event.linkUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: t.accent, fontWeight: 600 }}>
+              More info ↗
+            </a>
+          </div>
+        )}
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
           <button
             onClick={onClose}

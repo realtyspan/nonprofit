@@ -26,7 +26,8 @@ function hhmm(datetimeLocal) {
   return datetimeLocal.slice(11, 16);
 }
 
-export default function CalendarView() {
+export default function CalendarView({ rentalSpaces = [], permissions }) {
+  const canManageRentals = permissions?.orgTier === "Owner" || permissions?.moduleGrants?.rentals === "Admin";
   const [month, setMonth] = useState(() => new Date());
   const [events, setEvents] = useState([]);
   const [formState, setFormState] = useState(null); // { mode: "new"|"editOne"|"editSeries", event?, defaultDate? }
@@ -70,6 +71,7 @@ export default function CalendarView() {
       {detailEvent && (
         <EventDetailModal
           event={detailEvent}
+          rentalSpaces={rentalSpaces}
           onClose={() => setDetailEvent(null)}
           onEdit={(mode) => { setFormState({ mode, event: detailEvent }); setDetailEvent(null); }}
           onDeleted={() => { setDetailEvent(null); refresh(); }}
@@ -79,6 +81,8 @@ export default function CalendarView() {
       {formState && (
         <EventFormModal
           state={formState}
+          rentalSpaces={rentalSpaces}
+          canManageRentals={canManageRentals}
           onCancel={() => setFormState(null)}
           onSaved={() => { setFormState(null); refresh(); }}
         />
@@ -96,9 +100,12 @@ function Legend({ color, label }) {
   );
 }
 
-function EventDetailModal({ event, onClose, onEdit, onDeleted }) {
+function EventDetailModal({ event, rentalSpaces, onClose, onEdit, onDeleted }) {
   const isManual = event.source === "manual";
   const isRecurring = !!event.recurrenceId;
+  const usedSpaceNames = (event.rentalSpaceIds || [])
+    .map((id) => rentalSpaces.find((s) => s.id === id)?.name)
+    .filter(Boolean);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -127,7 +134,24 @@ function EventDetailModal({ event, onClose, onEdit, onDeleted }) {
       <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 4 }}>
         {new Date(event.startAt).toLocaleString()} – {new Date(event.endAt).toLocaleTimeString()}
       </div>
-      {event.description && <div style={{ fontSize: 13, marginBottom: 10 }}>{event.description}</div>}
+      {event.location && (
+        <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 4 }}>📍 {event.location}</div>
+      )}
+      {event.description && (
+        <div style={{ fontSize: 13, marginBottom: 10, whiteSpace: "pre-wrap" }}>{event.description}</div>
+      )}
+      {event.linkUrl && (
+        <div style={{ marginBottom: 10 }}>
+          <a href={event.linkUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: colors.accent, fontWeight: 600 }}>
+            More info ↗
+          </a>
+        </div>
+      )}
+      {usedSpaceNames.length > 0 && (
+        <div style={{ fontSize: 11.5, color: colors.textTertiary, marginBottom: 10 }}>
+          Uses: {usedSpaceNames.join(", ")} — shown as unavailable for rental during this time.
+        </div>
+      )}
       {!isManual && (
         <div style={{ fontSize: 11.5, color: colors.textTertiary, marginBottom: 10 }}>
           Managed by the {event.source === "rental-booking" ? "Rental Space" : "Rental Space"} module — edit it from there.
@@ -169,7 +193,7 @@ function EventDetailModal({ event, onClose, onEdit, onDeleted }) {
   );
 }
 
-function EventFormModal({ state, onCancel, onSaved }) {
+function EventFormModal({ state, rentalSpaces, canManageRentals, onCancel, onSaved }) {
   const { mode, event, defaultDate } = state;
   const isSeries = mode === "editSeries";
   const start = defaultDate ? new Date(defaultDate) : event ? new Date(event.startAt) : new Date();
@@ -178,11 +202,14 @@ function EventFormModal({ state, onCancel, onSaved }) {
 
   const [title, setTitle] = useState(event?.title || "");
   const [description, setDescription] = useState(event?.description || "");
+  const [location, setLocation] = useState(event?.location || "");
+  const [linkUrl, setLinkUrl] = useState(event?.linkUrl || "");
   const [allDay, setAllDay] = useState(event?.allDay || false);
   const [startAt, setStartAt] = useState(toLocalInput(event?.startAt || start));
   const [endAt, setEndAt] = useState(toLocalInput(event?.endAt || end));
   const [visibility, setVisibility] = useState(event?.visibility || "internal");
   const [repeats, setRepeats] = useState(mode === "editSeries");
+  const [rentalSpaceIds, setRentalSpaceIds] = useState(event?.rentalSpaceIds || []);
   const [freq, setFreq] = useState("weekly");
   const [interval, setIntervalVal] = useState(1);
   const [byWeekday, setByWeekday] = useState([]);
@@ -199,6 +226,8 @@ function EventFormModal({ state, onCancel, onSaved }) {
       api.getCalendarRecurrence(event.recurrenceId).then((rec) => {
         setTitle(rec.title);
         setDescription(rec.description || "");
+        setLocation(rec.location || "");
+        setLinkUrl(rec.linkUrl || "");
         setAllDay(rec.allDay);
         setVisibility(rec.visibility);
         setFreq(rec.freq);
@@ -226,6 +255,15 @@ function EventFormModal({ state, onCancel, onSaved }) {
   function toggleOrdinal(v) {
     setMonthlyOrdinals((cur) => (cur.includes(v) ? cur.filter((o) => o !== v) : [...cur, v]));
   }
+  function toggleRentalSpace(id) {
+    setRentalSpaceIds((cur) => (cur.includes(id) ? cur.filter((s) => s !== id) : [...cur, id]));
+  }
+
+  // Only a genuinely one-off event can block a rental space — a recurring
+  // room commitment already has its own tool (Rental Space > Internal
+  // Blocks recurrence), so this option is hidden for anything repeating.
+  const isOneOff = !repeats && mode !== "editSeries" && !event?.recurrenceId;
+  const showRentalSpaceOption = isOneOff && canManageRentals && rentalSpaces.length > 0;
 
   function recurrenceFields() {
     if (freq === "monthly" && monthlyMode === "weekday") {
@@ -239,7 +277,7 @@ function EventFormModal({ state, onCancel, onSaved }) {
     setError("");
     setBusy(true);
     try {
-      const basePayload = { title, description, allDay, visibility };
+      const basePayload = { title, description, location, linkUrl, allDay, visibility };
       if (mode === "new" && repeats) {
         await api.createCalendarEvent({
           ...basePayload,
@@ -247,9 +285,9 @@ function EventFormModal({ state, onCancel, onSaved }) {
           recurrence: { ...recurrenceFields(), startDate: startAt.slice(0, 10), endDate: repeatUntil, startTime: hhmm(startAt), endTime: hhmm(endAt) },
         });
       } else if (mode === "new") {
-        await api.createCalendarEvent({ ...basePayload, startAt, endAt });
+        await api.createCalendarEvent({ ...basePayload, startAt, endAt, rentalSpaceIds: showRentalSpaceOption ? rentalSpaceIds : [] });
       } else if (mode === "editOne") {
-        await api.updateCalendarEvent(event.id, { ...basePayload, startAt, endAt });
+        await api.updateCalendarEvent(event.id, { ...basePayload, startAt, endAt, rentalSpaceIds: isOneOff ? rentalSpaceIds : undefined });
       } else if (mode === "editSeries") {
         await api.updateCalendarRecurrence(event.recurrenceId, {
           ...basePayload, ...recurrenceFields(),
@@ -274,7 +312,14 @@ function EventFormModal({ state, onCancel, onSaved }) {
         </div>
 
         <Field label="Title"><input style={inputStyle} required value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
-        <Field label="Description"><input style={inputStyle} value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
+        <Field label="Description">
+          <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical", fontFamily: "inherit" }} value={description} onChange={(e) => setDescription(e.target.value)} />
+        </Field>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <Field label="Location (optional)"><input style={inputStyle} value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Leave blank if at the lodge" /></Field>
+          <Field label="Link (optional)"><input style={inputStyle} type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" /></Field>
+        </div>
 
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
           <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
@@ -285,6 +330,26 @@ function EventFormModal({ state, onCancel, onSaved }) {
           <Field label="Start"><input style={inputStyle} type="datetime-local" required value={startAt} onChange={(e) => setStartAt(e.target.value)} /></Field>
           <Field label="End"><input style={inputStyle} type="datetime-local" required value={endAt} onChange={(e) => setEndAt(e.target.value)} /></Field>
         </div>
+
+        {showRentalSpaceOption && (
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+            <input type="checkbox" checked={rentalSpaceIds.length > 0} onChange={(e) => setRentalSpaceIds(e.target.checked ? [rentalSpaces[0].id] : [])} />
+            This event uses a rental space
+          </label>
+        )}
+        {showRentalSpaceOption && rentalSpaceIds.length > 0 && (
+          <div style={{ border: `1px solid ${colors.borderLight}`, borderRadius: 10, padding: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b", marginBottom: 8 }}>Which space(s)? Shown as unavailable to renters for this time.</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {rentalSpaces.map((s) => (
+                <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                  <input type="checkbox" checked={rentalSpaceIds.includes(s.id)} onChange={() => toggleRentalSpace(s.id)} />
+                  {s.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         <Field label="Visibility">
           <select style={inputStyle} value={visibility} onChange={(e) => setVisibility(e.target.value)}>

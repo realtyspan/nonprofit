@@ -52,6 +52,7 @@ export default function RentalBlocks({ spaces }) {
           <div style={{ color: colors.textSecondary }}>{b.reason || "—"}</div>
           <div style={{ display: "flex", gap: 6 }}>
             {b.recurrenceId && <span style={pill("#f0f0f3", colors.textSecondary)}>Repeats</span>}
+            {b.calendarEventId && <span style={pill(colors.indigoBg, colors.indigo)}>From Calendar</span>}
             <span style={pill(b.visibleOnPublicCalendar ? colors.indigoBg : "#f0f0f3", b.visibleOnPublicCalendar ? colors.indigo : colors.textSecondary)}>
               {b.visibleOnPublicCalendar ? "Public" : "Internal only"}
             </span>
@@ -83,6 +84,7 @@ export default function RentalBlocks({ spaces }) {
 
 function BlockDetailModal({ block, onClose, onEdit, onDeleted }) {
   const isRecurring = !!block.recurrenceId;
+  const isFromCalendar = !!block.calendarEventId;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -125,7 +127,13 @@ function BlockDetailModal({ block, onClose, onEdit, onDeleted }) {
 
       {error && <div style={{ color: colors.danger, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
 
-      {!confirmDelete && (
+      {isFromCalendar && (
+        <div style={{ fontSize: 11.5, color: colors.textTertiary, marginBottom: 10 }}>
+          Managed by the Calendar module — edit or remove the event there.
+        </div>
+      )}
+
+      {!isFromCalendar && !confirmDelete && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {isRecurring ? (
             <>
@@ -139,7 +147,7 @@ function BlockDetailModal({ block, onClose, onEdit, onDeleted }) {
         </div>
       )}
 
-      {confirmDelete && (
+      {!isFromCalendar && confirmDelete && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {isRecurring ? (
             <>

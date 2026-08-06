@@ -304,6 +304,7 @@ router.post("/blocks", requirePermission("rentals", "Admin"), async (req, res) =
 router.patch("/blocks/:id", requirePermission("rentals", "Admin"), async (req, res) => {
   const block = await prisma.rentalBlock.findFirst({ where: { id: req.params.id, orgId: req.user.orgId }, include: { space: true } });
   if (!block) return res.status(404).json({ error: "Block not found" });
+  if (block.calendarEventId) return res.status(400).json({ error: "This block is managed by a Calendar event — edit it from there" });
 
   const { reason, visibleOnPublicCalendar, startAt, endAt } = req.body;
   const newStart = startAt ? new Date(startAt) : block.startAt;
@@ -325,6 +326,7 @@ router.patch("/blocks/:id", requirePermission("rentals", "Admin"), async (req, r
 router.delete("/blocks/:id", requirePermission("rentals", "Admin"), async (req, res) => {
   const block = await prisma.rentalBlock.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!block) return res.status(404).json({ error: "Block not found" });
+  if (block.calendarEventId) return res.status(400).json({ error: "This block is managed by a Calendar event — remove it from there" });
   await prisma.rentalBlock.delete({ where: { id: block.id } });
   await removeCalendarEventFor("rental-block", block.id);
   res.json({ ok: true });

@@ -22,13 +22,17 @@ router.get("/:slug", async (req, res) => {
 
   const events = await prisma.calendarEvent.findMany({
     where,
-    select: { id: true, title: true, description: true, startAt: true, endAt: true, allDay: true, color: true, source: true },
+    select: { id: true, title: true, description: true, location: true, linkUrl: true, startAt: true, endAt: true, allDay: true, color: true, source: true },
     orderBy: { startAt: "asc" },
   });
 
-  const sanitized = events.map(({ source, description, ...rest }) => ({
+  // Same source-aware stripping as description — a rental booking's fields
+  // hold internal-admin context, not something written knowing it'd be public.
+  const sanitized = events.map(({ source, description, location, linkUrl, ...rest }) => ({
     ...rest,
     description: source === "rental-booking" ? null : description,
+    location: source === "rental-booking" ? null : location,
+    linkUrl: source === "rental-booking" ? null : linkUrl,
   }));
 
   res.json({ orgName: org.name, events: sanitized });

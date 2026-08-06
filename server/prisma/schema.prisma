@@ -322,11 +322,19 @@ model RentalBlock {
   visibleOnPublicCalendar Boolean @default(true)
   recurrenceId           String?
   recurrence             RentalBlockRecurrence? @relation(fields: [recurrenceId], references: [id])
+  // Set when this block was spawned by checking "this event uses a rental
+  // space" on a one-off Calendar event, rather than created directly from
+  // Rental Space > Internal Blocks. The calendar event is the source of
+  // truth in that case — deleting it removes the blocks it spawned, and the
+  // Internal Blocks list shows these as read-only ("edit from Calendar").
+  calendarEventId        String?
+  calendarEvent          CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
   createdAt              DateTime @default(now())
 
   @@index([orgId])
   @@index([spaceId])
   @@index([recurrenceId])
+  @@index([calendarEventId])
 }
 
 // Recurrence rule for a standing internal commitment (e.g. a lodge's
@@ -370,6 +378,8 @@ model CalendarEvent {
   org           Organization @relation(fields: [orgId], references: [id])
   title         String
   description   String?
+  location      String?  // freeform — off-site address, or blank/implied "at the lodge"
+  linkUrl       String?  // link back to a related website/page (flyer, signup form, event page)
   startAt       DateTime
   endAt         DateTime
   allDay        Boolean  @default(false)
@@ -379,6 +389,7 @@ model CalendarEvent {
   color         String?
   recurrenceId  String?
   recurrence    CalendarRecurrence? @relation(fields: [recurrenceId], references: [id])
+  rentalBlocks  RentalBlock[]        // blocks spawned when this one-off event "uses a rental space"
   createdAt     DateTime @default(now())
 
   @@index([orgId])
@@ -392,6 +403,8 @@ model CalendarRecurrence {
   org         Organization @relation(fields: [orgId], references: [id])
   title       String
   description String?
+  location    String?
+  linkUrl     String?
   startTime   String   // "HH:mm", applied to each generated occurrence
   endTime     String
   allDay      Boolean  @default(false)
