@@ -132,6 +132,44 @@ export const api = {
   getCalendarRecurrence: (id) => request(`/calendar/recurrences/${id}`),
   updateCalendarRecurrence: (id, payload) => request(`/calendar/recurrences/${id}`, { method: "PATCH", body: payload }),
   deleteCalendarRecurrence: (id) => request(`/calendar/recurrences/${id}`, { method: "DELETE" }),
+
+  listRaffleGames: () => request("/raffle/games"),
+  createRaffleGame: (payload) => request("/raffle/games", { method: "POST", body: payload }),
+  getRaffleGame: (gameId) => request(`/raffle/games/${gameId}`),
+  closeRaffleGame: (gameId) => request(`/raffle/games/${gameId}/close`, { method: "POST" }),
+  reopenRaffleGame: (gameId) => request(`/raffle/games/${gameId}/reopen`, { method: "POST" }),
+
+  listRaffleTickets: (gameId) => request(`/raffle/games/${gameId}/tickets`),
+  getRaffleTicketHistory: (gameId, number) => request(`/raffle/games/${gameId}/tickets/${number}/history`),
+  recordRaffleTicket: (gameId, number, payload) => request(`/raffle/games/${gameId}/tickets/${number}/record`, { method: "POST", body: payload }),
+  releaseRaffleTicket: (gameId, number) => request(`/raffle/games/${gameId}/tickets/${number}/release`, { method: "POST" }),
+  markRaffleTicketSold: (gameId, number, payload) => request(`/raffle/games/${gameId}/tickets/${number}/mark-sold`, { method: "POST", body: payload }),
+  markRaffleTicketFundsReceived: (gameId, number, payload) => request(`/raffle/games/${gameId}/tickets/${number}/mark-funds-received`, { method: "POST", body: payload }),
+  bulkMarkRaffleFundsReceived: (gameId, payload) => request(`/raffle/games/${gameId}/tickets/bulk-mark-funds-received`, { method: "POST", body: payload }),
+  assignRaffleTickets: (gameId, ticketNumbers, sellerId) => request(`/raffle/games/${gameId}/tickets/assign`, { method: "POST", body: { ticketNumbers, sellerId } }),
+  unassignRaffleTickets: (gameId, ticketNumbers) => request(`/raffle/games/${gameId}/tickets/unassign`, { method: "POST", body: { ticketNumbers } }),
+  sendRaffleConfirmation: (gameId, number) => request(`/raffle/games/${gameId}/tickets/${number}/send-confirmation`, { method: "POST" }),
+  sendRaffleETicket: (gameId, number) => request(`/raffle/games/${gameId}/tickets/${number}/send-eticket`, { method: "POST" }),
+
+  listRaffleLog: (gameId) => request(`/raffle/games/${gameId}/log`),
+  getRaffleStats: (gameId) => request(`/raffle/games/${gameId}/stats`),
+
+  listRaffleDrawings: (gameId) => request(`/raffle/games/${gameId}/drawings`),
+  createRaffleDrawing: (gameId, payload) => request(`/raffle/games/${gameId}/drawings`, { method: "POST", body: payload }),
+  updateRaffleDrawing: (gameId, id, payload) => request(`/raffle/games/${gameId}/drawings/${id}`, { method: "PATCH", body: payload }),
+  deleteRaffleDrawing: (gameId, id) => request(`/raffle/games/${gameId}/drawings/${id}`, { method: "DELETE" }),
+  getRaffleDrawingEligible: (gameId, id) => request(`/raffle/games/${gameId}/drawings/${id}/eligible`),
+  drawRaffleDrawing: (gameId, id) => request(`/raffle/games/${gameId}/drawings/${id}/draw`, { method: "POST" }),
+  drawRaffleDrawingManual: (gameId, id, ticketNumber) => request(`/raffle/games/${gameId}/drawings/${id}/draw-manual`, { method: "POST", body: { ticketNumber } }),
+  clearRaffleDrawing: (gameId, id) => request(`/raffle/games/${gameId}/drawings/${id}/clear`, { method: "POST" }),
+
+  listRaffleRenewalCalls: (gameId) => request(`/raffle/games/${gameId}/renewal-calls`),
+  logRaffleRenewalCall: (gameId, ticketNumber, note) => request(`/raffle/games/${gameId}/renewal-calls`, { method: "POST", body: { ticketNumber, note } }),
+
+  listRaffleCheckIns: (gameId) => request(`/raffle/games/${gameId}/checkins`),
+  toggleRaffleCheckIn: (gameId, ticketNumber, hasGuest) => request(`/raffle/games/${gameId}/checkins/${ticketNumber}`, { method: "POST", body: { hasGuest } }),
+
+  sendRaffleReminders: (gameId) => request(`/raffle/games/${gameId}/reminders/send`, { method: "POST" }),
 };
 
 // Unauthenticated endpoints for the public rental inquiry page — no token, separate base path.

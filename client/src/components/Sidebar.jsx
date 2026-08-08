@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { colors } from "../lib/tokens";
 import { useAuth } from "../lib/AuthContext";
 import { api } from "../lib/api";
+import { filterNavItemsForUser } from "../lib/modules";
 
 function effectiveLabel(permissions, labels, moduleKey) {
   if (!permissions) return "";
@@ -10,6 +11,7 @@ function effectiveLabel(permissions, labels, moduleKey) {
   const tier = permissions.moduleGrants?.[moduleKey];
   if (tier === "Admin") return labels?.adminLabel || "Admin";
   if (tier === "Helper") return labels?.helperLabel || "Helper";
+  if (tier === "Viewer") return "Viewer";
   return "";
 }
 
@@ -32,7 +34,7 @@ export default function Sidebar({ module, view, setView, badges, permissions }) 
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "0 4px", flex: 1 }}>
-        {module.navItems.map((item) => {
+        {filterNavItemsForUser(module.navItems, permissions, module.key).map((item) => {
           const active = view === item.key;
           const badge = badges?.[item.key];
           return (

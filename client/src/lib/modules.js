@@ -35,7 +35,41 @@ export const MODULES = [
       { key: "month", label: "Calendar", icon: icons.calendar, title: "Calendar", subtitle: "Lodge events plus everything published from other modules" },
     ],
   },
+  {
+    key: "raffle",
+    label: "Raffle",
+    icon: icons.ticket,
+    navItems: [
+      { key: "grid", label: "Ticket Grid", icon: icons.ticket, title: "Ticket Grid", subtitle: "Record sales, reservations, and payments" },
+      { key: "checkin", label: "Check-In", icon: icons.checkCircle, title: "Check-In", subtitle: "Check in ticket holders on drawing night" },
+      { key: "renewals", label: "Renewals", icon: icons.phoneCall, title: "Renewals", subtitle: "Track outreach calls to last year's buyers" },
+      { key: "sellers", label: "Sellers", icon: icons.users, title: "Sellers", subtitle: "Everyone with raffle access and their sales" },
+      { key: "log", label: "Activity Log", icon: icons.fileCheck, title: "Activity Log", subtitle: "Every ticket state change, in order" },
+      { key: "report", label: "Report", icon: icons.table, title: "Report", subtitle: "Sales and revenue summary", requiresTier: "Admin" },
+      { key: "drawings", label: "Drawings", icon: icons.dice, title: "Drawings", subtitle: "Set up drawings and draw winners", requiresTier: "Admin" },
+      { key: "deposit", label: "Deposit", icon: icons.bank, title: "Deposit", subtitle: "Batch-record funds received from sellers", requiresTier: "Admin" },
+      { key: "assign", label: "Assign", icon: icons.sliders, title: "Assign", subtitle: "Assign ticket ranges to sellers", requiresTier: "Admin" },
+    ],
+  },
 ];
+
+// Strict per-module tier check, same convention every view already uses
+// (e.g. Deals.jsx's isBellJarAdmin) — no org-wide Owner passthrough, matching
+// the server's philosophy that Owner administers but doesn't auto-inherit
+// module edit rights (see server/src/lib/auth.js).
+const TIER_LEVEL = { Viewer: 1, Helper: 2, Admin: 3 };
+export function hasModuleTier(permissions, moduleKey, minTier) {
+  const tier = permissions?.moduleGrants?.[moduleKey];
+  return !!tier && TIER_LEVEL[tier] >= TIER_LEVEL[minTier];
+}
+
+// Filters a module's navItems down to the ones the caller's tier can use —
+// org-wide Owner/Viewer still see everything (they see every module at all
+// per filterModulesForUser below), same read-everything spirit as the server.
+export function filterNavItemsForUser(navItems, permissions, moduleKey) {
+  if (permissions?.orgTier === "Owner" || permissions?.orgTier === "Viewer") return navItems;
+  return navItems.filter((item) => !item.requiresTier || hasModuleTier(permissions, moduleKey, item.requiresTier));
+}
 
 // A module is visible if the user is an org-wide Owner/Viewer (see everything,
 // at least read-only) or holds any grant (Admin or Helper) in that module.

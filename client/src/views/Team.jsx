@@ -122,6 +122,7 @@ function UserRow({ user, isOwner, adminModules, isSelf, onChange }) {
                 }}
               >
                 <option value="">—</option>
+                <option value="Viewer">Viewer</option>
                 <option value="Helper">Helper</option>
                 {isOwner && <option value="Admin">Admin</option>}
               </select>
@@ -190,6 +191,7 @@ function InviteForm({ isOwner, adminModules, onInvited, onError, error }) {
                 onChange={(e) => setModuleTiers((t) => ({ ...t, [m.key]: e.target.value }))}
               >
                 <option value="">None</option>
+                <option value="Viewer">Viewer</option>
                 <option value="Helper">Helper</option>
                 {isOwner && <option value="Admin">Admin</option>}
               </select>

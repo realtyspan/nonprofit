@@ -19,7 +19,7 @@ function requireOwnerOrBellJarAdmin(req, res, next) {
   return requirePermission("bell-jar", "Admin")(req, res, next);
 }
 router.patch("/", requireOwnerOrBellJarAdmin, async (req, res) => {
-  const { county, municipality, licenseCategory, licenseLast5, licenseId, address, slug } = req.body;
+  const { county, municipality, licenseCategory, licenseLast5, licenseId, address, slug, contactEmail } = req.body;
 
   if (slug !== undefined && slug !== null && slug !== "") {
     if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) {
@@ -33,7 +33,7 @@ router.patch("/", requireOwnerOrBellJarAdmin, async (req, res) => {
 
   const org = await prisma.organization.update({
     where: { id: req.user.orgId },
-    data: { county, municipality, licenseCategory, licenseLast5, licenseId, address, slug: slug || undefined },
+    data: { county, municipality, licenseCategory, licenseLast5, licenseId, address, slug: slug || undefined, contactEmail },
   });
   res.json(org);
 });

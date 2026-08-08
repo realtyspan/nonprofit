@@ -15,7 +15,7 @@
 // permission tables enforce, so running this script twice is a no-op the
 // second time — safe to re-run if interrupted.
 
-const MODULES = ["bell-jar", "rentals", "calendar"];
+const MODULES = ["bell-jar", "rentals", "calendar", "raffle"];
 
 async function backfillUserPermissions(prisma, user) {
   if (user.role === "Head") {

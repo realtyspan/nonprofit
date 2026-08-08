@@ -43,12 +43,14 @@ function requireOwner(req, res, next) {
   next();
 }
 
-const LEVEL = { Helper: 1, Admin: 2 };
+const LEVEL = { Viewer: 1, Helper: 2, Admin: 3 };
 
-// minLevel: "Helper" or "Admin". Viewer never passes (read-only everywhere).
-// Owner does NOT auto-pass — Owner's default is administer + view, not
-// automatic edit rights in a module; an Owner who also needs to edit holds a
-// normal module grant like anyone else.
+// minLevel: "Helper" or "Admin". A module-level Viewer grant never passes
+// (true read-only within that module — the raffle module's "viewer" role is
+// what surfaced the need for this tier). Org-wide Viewer never passes either
+// (read-only everywhere). Owner does NOT auto-pass — Owner's default is
+// administer + view, not automatic edit rights in a module; an Owner who
+// also needs to edit holds a normal module grant like anyone else.
 function requirePermission(module, minLevel) {
   return (req, res, next) => {
     const tier = req.moduleGrants[module];
@@ -60,7 +62,7 @@ function requirePermission(module, minLevel) {
 }
 
 // Read access: an org-wide Owner or Viewer sees everything read-only, or
-// anyone holding any grant (Admin or Helper) in that specific module.
+// anyone holding any grant (Viewer, Helper, or Admin) in that specific module.
 function requireReadAccess(module) {
   return (req, res, next) => {
     if (req.orgTier === "Owner" || req.orgTier === "Viewer") return next();

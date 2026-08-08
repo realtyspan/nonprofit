@@ -58,15 +58,15 @@ router.patch("/org-tier/:userId", requireOwner, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Sets a user's grant for one module (Admin | Helper). Owner may set either
-// tier for anyone; a plain module Admin may only grant Helper, and only
-// within a module they themselves administer — never trusted from the
-// client alone, enforced here regardless of what the UI offers.
+// Sets a user's grant for one module (Admin | Helper | Viewer). Owner may set
+// any tier for anyone; a plain module Admin may only grant Helper or Viewer
+// (never Admin), and only within a module they themselves administer — never
+// trusted from the client alone, enforced here regardless of what the UI offers.
 router.put("/module-grant/:userId/:module", async (req, res) => {
   const { module } = req.params;
-  const { tier } = req.body; // "Admin" | "Helper"
+  const { tier } = req.body; // "Admin" | "Helper" | "Viewer"
   if (!MODULES.includes(module)) return res.status(400).json({ error: `module must be one of ${MODULES.join(", ")}` });
-  if (tier !== "Admin" && tier !== "Helper") return res.status(400).json({ error: "tier must be Admin or Helper" });
+  if (!["Admin", "Helper", "Viewer"].includes(tier)) return res.status(400).json({ error: "tier must be Admin, Helper, or Viewer" });
 
   const isOwner = req.orgTier === "Owner";
   const target = await prisma.user.findFirst({ where: { id: req.params.userId, orgId: req.user.orgId } });

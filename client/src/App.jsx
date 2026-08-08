@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
 import { api } from "./lib/api";
+import { APP_URL } from "./lib/env";
 import { colors } from "./lib/tokens";
 import { MODULES, filterModulesForUser } from "./lib/modules";
 import TopBar from "./components/TopBar";
@@ -20,9 +21,24 @@ import RentalBlocks from "./views/RentalBlocks";
 import PublicRental from "./views/PublicRental";
 import CalendarView from "./views/CalendarView";
 import PublicCalendar from "./views/PublicCalendar";
+import RaffleGrid from "./views/RaffleGrid";
+import RaffleSellers from "./views/RaffleSellers";
+import RaffleAssign from "./views/RaffleAssign";
+import RaffleDeposit from "./views/RaffleDeposit";
+import RaffleLog from "./views/RaffleLog";
+import RaffleRenewals from "./views/RaffleRenewals";
+import RaffleReport from "./views/RaffleReport";
+import RaffleDrawings from "./views/RaffleDrawings";
+import RaffleCheckIn from "./views/RaffleCheckIn";
 
 function PublicGate() {
-  const [authView, setAuthView] = useState("landing"); // landing | login | signup
+  // Lets a cross-domain redirect from the marketing site (elkslodges.org)
+  // land straight on the signup/login form instead of bouncing through this
+  // app's own copy of the landing page first.
+  const requestedView = new URLSearchParams(window.location.search).get("view");
+  const [authView, setAuthView] = useState(
+    requestedView === "signup" || requestedView === "login" ? requestedView : "landing"
+  ); // landing | login | signup
 
   if (authView === "landing") {
     return <Landing onGetStarted={() => setAuthView("signup")} onLogin={() => setAuthView("login")} />;
@@ -38,6 +54,8 @@ function Shell() {
   const [deals, setDeals] = useState([]);
   const [rentalSpaces, setRentalSpaces] = useState([]);
   const [rentalInquiryCount, setRentalInquiryCount] = useState(0);
+  const [raffleGames, setRaffleGames] = useState([]);
+  const [selectedRaffleGameId, setSelectedRaffleGameId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const refreshDeals = useCallback(() => {
@@ -47,6 +65,10 @@ function Shell() {
   const refreshRentals = useCallback(() => {
     api.listRentalSpaces().then(setRentalSpaces).catch(() => {});
     api.listRentalBookings("inquiry").then((rows) => setRentalInquiryCount(rows.length)).catch(() => {});
+  }, []);
+
+  const refreshRaffleGames = useCallback(() => {
+    return api.listRaffleGames().then(setRaffleGames).catch(() => {});
   }, []);
 
   const refreshPermissions = useCallback(() => {
@@ -66,8 +88,18 @@ function Shell() {
     setLoading(true);
     refreshDeals();
     refreshRentals();
+    refreshRaffleGames();
     refreshPermissions().then(() => setLoading(false));
-  }, [userId, refreshDeals, refreshRentals, refreshPermissions]);
+  }, [userId, refreshDeals, refreshRentals, refreshRaffleGames, refreshPermissions]);
+
+  // Default to the most-recently-created active game whenever the game list
+  // changes and nothing (or something that no longer exists) is selected —
+  // e.g. right after login, or right after creating a brand new raffle.
+  useEffect(() => {
+    if (selectedRaffleGameId && raffleGames.some((g) => g.id === selectedRaffleGameId)) return;
+    const firstActive = raffleGames.find((g) => g.status === "active");
+    setSelectedRaffleGameId(firstActive ? firstActive.id : raffleGames[0]?.id || null);
+  }, [raffleGames, selectedRaffleGameId]);
 
   // Once permissions load, land on the user's first visible module — a
   // no-grant user (or one still mid-onboarding) has no modules at all and
@@ -123,6 +155,25 @@ function Shell() {
             <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>{subtitle}</div>
           </div>
 
+          {activeModuleKey === "raffle" && (
+            <div style={{ padding: "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#fafafa", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Raffle</span>
+              {raffleGames.length > 0 ? (
+                <select
+                  value={selectedRaffleGameId || ""}
+                  onChange={(e) => setSelectedRaffleGameId(e.target.value)}
+                  style={{ border: `1px solid ${colors.border}`, borderRadius: 7, padding: "6px 10px", fontSize: 13, minWidth: 220 }}
+                >
+                  {raffleGames.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name} ({g.status})</option>
+                  ))}
+                </select>
+              ) : (
+                <span style={{ fontSize: 13, color: colors.textSecondary }}>No raffles yet</span>
+              )}
+            </div>
+          )}
+
           <div style={{ flex: 1, padding: "28px 32px 60px", overflow: "auto" }}>
             {activeModuleKey === "bell-jar" && view === "dashboard" && <Dashboard deals={deals} />}
             {activeModuleKey === "bell-jar" && view === "worksheet" && <Worksheet deals={deals} onSaved={refreshDeals} />}
@@ -133,6 +184,15 @@ function Shell() {
             {activeModuleKey === "rentals" && view === "spaces" && <RentalSpaces spaces={rentalSpaces} onChanged={refreshRentals} />}
             {activeModuleKey === "rentals" && view === "blocks" && <RentalBlocks spaces={rentalSpaces} />}
             {activeModuleKey === "calendar" && view === "month" && <CalendarView rentalSpaces={rentalSpaces} permissions={permissions} />}
+            {activeModuleKey === "raffle" && view === "grid" && <RaffleGrid gameId={selectedRaffleGameId} permissions={permissions} currentUserId={session?.user?.id} />}
+            {activeModuleKey === "raffle" && view === "sellers" && <RaffleSellers gameId={selectedRaffleGameId} permissions={permissions} />}
+            {activeModuleKey === "raffle" && view === "assign" && <RaffleAssign gameId={selectedRaffleGameId} />}
+            {activeModuleKey === "raffle" && view === "deposit" && <RaffleDeposit gameId={selectedRaffleGameId} />}
+            {activeModuleKey === "raffle" && view === "log" && <RaffleLog gameId={selectedRaffleGameId} />}
+            {activeModuleKey === "raffle" && view === "renewals" && <RaffleRenewals gameId={selectedRaffleGameId} />}
+            {activeModuleKey === "raffle" && view === "report" && <RaffleReport games={raffleGames} gameId={selectedRaffleGameId} onGamesChanged={refreshRaffleGames} />}
+            {activeModuleKey === "raffle" && view === "drawings" && <RaffleDrawings gameId={selectedRaffleGameId} />}
+            {activeModuleKey === "raffle" && view === "checkin" && <RaffleCheckIn gameId={selectedRaffleGameId} />}
             {view === "team" && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}
             {view === "profile" && <Profile />}
           </div>
@@ -149,7 +209,21 @@ function matchPublicPath(pathname) {
   return m ? { module: m[1], slug: m[2] } : null;
 }
 
+// The bare domain is marketing-only — it never needs a session, so it skips
+// AuthProvider/Shell entirely. Every other hostname (the app subdomain,
+// localhost, Railway's own *.up.railway.app) keeps today's behavior.
+const MARKETING_HOSTNAMES = ["elkslodges.org", "www.elkslodges.org"];
+
 export default function App() {
+  if (MARKETING_HOSTNAMES.includes(window.location.hostname)) {
+    return (
+      <Landing
+        onGetStarted={() => { window.location.href = `${APP_URL}/?view=signup`; }}
+        onLogin={() => { window.location.href = `${APP_URL}/?view=login`; }}
+      />
+    );
+  }
+
   const publicMatch = matchPublicPath(window.location.pathname);
   if (publicMatch?.module === "rentals") return <PublicRental slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "calendar") return <PublicCalendar slug={publicMatch.slug} embed={publicMatch.embed} />;

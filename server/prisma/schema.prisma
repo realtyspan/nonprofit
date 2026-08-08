@@ -11,6 +11,7 @@ model Organization {
   id              String   @id @default(cuid())
   name            String
   slug            String?  @unique // public-facing URL segment, shared across modules' public pages (rentals, calendar)
+  contactEmail    String?  // used as the Reply-To on buyer-facing emails (e.g. Raffle) sent from the platform's shared sender address
   licenseId       String?
   address         String?
   county          String?  // Schedule 1 / GC-7Q header field
@@ -34,6 +35,12 @@ model Organization {
   moduleGrants           ModuleGrant[]
   tierLabel              TierLabel?
   gc7qSignerDesignations GC7QSignerDesignation[]
+  raffleGames            RaffleGame[]
+  raffleTickets          RaffleTicket[]
+  raffleLogs             RaffleLog[]
+  raffleDrawings         RaffleDrawing[]
+  raffleRenewalCalls     RaffleRenewalCall[]
+  raffleCheckIns         RaffleCheckIn[]
 }
 
 model User {
@@ -53,6 +60,7 @@ model User {
   orgMembership          OrgMembership?
   moduleGrants           ModuleGrant[]
   gc7qSignerDesignations GC7QSignerDesignation[]
+  raffleAssignments      RaffleTicket[] @relation("RaffleAssignedSeller")
 
   @@index([orgId])
 }
@@ -421,4 +429,151 @@ model CalendarRecurrence {
   events CalendarEvent[]
 
   @@index([orgId])
+}
+
+// --- Raffle module ---
+// Ported from a standalone FastAPI+MongoDB app ("400 Club" — the name of the
+// underlying raffle game itself, not this module) that sells N numbered
+// raffle tickets per year.
+//
+// A lodge can run more than one raffle at once (e.g. an annual "400 Club"
+// alongside a smaller concurrent "50/50"), so each raffle is its own
+// RaffleGame row rather than one implicit "current" raffle per org. Every
+// ticket/log/drawing/check-in/renewal-call belongs to exactly one game via
+// gameId. Closing a game is just a status flip — its rows are never copied
+// to a separate archive table or deleted, so full historical detail (who
+// bought which ticket, in which past game) stays queryable forever. That's
+// also what powers "previously purchased by" lookups when a ticket number
+// comes up again in a later game (see GET .../tickets/:number/history in
+// raffle.js) — a plain query across the org's other games' RaffleTicket
+// rows, no separate buyer-history table needed.
+
+model RaffleGame {
+  id              String    @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name            String    // "2026 400 Club", "Spring 50/50" — shown in the game switcher
+  startNumber     Int
+  endNumber       Int
+  totalTickets    Int       // endNumber - startNumber + 1, stored for display convenience
+  ticketPrice     Float
+  raffleStartDate DateTime
+  raffleEndDate   DateTime  // closing date / final drawing
+  status          String    @default("active") // active | closed
+  closedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tickets      RaffleTicket[]
+  logs         RaffleLog[]
+  drawings     RaffleDrawing[]
+  renewalCalls RaffleRenewalCall[]
+  checkIns     RaffleCheckIn[]
+
+  @@index([orgId])
+  @@index([orgId, status])
+}
+
+model RaffleTicket {
+  id                 String   @id @default(cuid())
+  orgId              String
+  org                Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  gameId             String
+  game               RaffleGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  number             Int
+  status             String   @default("available") // available | reserved | sold | funds_received
+  buyer              String   @default("")
+  phone              String   @default("")
+  email              String   @default("")
+  address            String   @default("")
+  assignedSellerId   String?
+  assignedSeller     User?    @relation("RaffleAssignedSeller", fields: [assignedSellerId], references: [id])
+  assignedSellerName String   @default("") // denormalized — survives seller deletion, preserves audit trail
+  soldByUserId       String?
+  soldByName         String   @default("")
+  soldAt             DateTime?
+  tenderType         String?  // cash | check
+  tenderAmount       Float?
+  checkNumber        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([gameId, number]) // per-game, not per-org — two concurrent games can each have their own #1
+  @@index([orgId, number])   // powers the cross-game "previous buyers of this ticket number" lookup
+  @@index([gameId])
+}
+
+model RaffleLog {
+  id               String   @id @default(cuid())
+  orgId            String
+  org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  gameId           String
+  game             RaffleGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  type             String   // sold | reserved | funds_received | released | reassigned | drawing | checkin | reminder_sent | email_sent | game_started | game_closed | game_reopened
+  text             String
+  sellerName       String   @default("")
+  ticketNumber     Int?
+  assignedSellerId String?
+  createdAt        DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([gameId, createdAt])
+}
+
+model RaffleDrawing {
+  id            String   @id @default(cuid())
+  orgId         String
+  org           Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  gameId        String
+  game          RaffleGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  name          String
+  drawingDate   DateTime
+  drawingType   String   // early_bird | main
+  prizeAmount   Float
+  notes         String   @default("")
+  winningTicket Int?
+  winningBuyer  String   @default("")
+  winningPhone  String   @default("")
+  eligibleCount Int      @default(0)
+  drawnAt       DateTime?
+  drawnByName   String   @default("")
+  drawMode      String?  // random | manual
+  createdAt     DateTime @default(now())
+
+  @@index([orgId])
+  @@index([gameId])
+}
+
+model RaffleRenewalCall {
+  id             String   @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  gameId         String
+  game           RaffleGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  ticketNumber   Int
+  calledByUserId String?
+  calledByName   String   @default("")
+  note           String   @default("")
+  calledAt       DateTime @default(now())
+
+  @@unique([gameId, ticketNumber])
+}
+
+// New — doesn't exist in the source app (built fresh per product decision).
+// Scoped per game, not per-drawing: someone checks in once for raffle night
+// regardless of how many drawings happen that evening.
+model RaffleCheckIn {
+  id                String   @id @default(cuid())
+  orgId             String
+  org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  gameId            String
+  game              RaffleGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  ticketNumber      Int
+  hasGuest          Boolean  @default(false)
+  checkedInByUserId String?
+  checkedInByName   String   @default("")
+  checkedInAt       DateTime @default(now())
+
+  @@unique([gameId, ticketNumber])
+  @@index([gameId])
 }

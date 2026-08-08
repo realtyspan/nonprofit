@@ -20,4 +20,8 @@ export const icons = {
   chevronLeft: wrap(`<path d="M15 5l-7 7 7 7"/>`),
   chevronRight: wrap(`<path d="M9 5l7 7-7 7"/>`),
   repeat: wrap(`<path d="M4 12a8 8 0 0 1 13.5-5.7L20 8.5"/><path d="M20 4.5v4h-4"/><path d="M20 12a8 8 0 0 1-13.5 5.7L4 15.5"/><path d="M4 19.5v-4h4"/>`),
+  ticket: wrap(`<path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8z"/><line x1="12" y1="6" x2="12" y2="18" stroke-dasharray="2 2"/>`),
+  phoneCall: wrap(`<path d="M4 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v4a2 2 0 0 1-2 2C9.5 21 3 14.5 3 6a2 2 0 0 1 1-2z"/>`),
+  dice: wrap(`<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.3" fill="currentColor" stroke="none"/><circle cx="16" cy="8" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1.3" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.3" fill="currentColor" stroke="none"/>`),
+  checkCircle: wrap(`<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/>`),
 };
