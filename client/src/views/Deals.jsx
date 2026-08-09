@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money, mono } from "../lib/tokens";
 import { api } from "../lib/api";
+import { resizeImageFile } from "../lib/imageResize";
 
 function formatPct(fraction) {
   return `${Math.round((fraction ?? 0.75) * 100)}%`;
@@ -216,12 +217,72 @@ function CloseDealModal({ deal, onCancel, onConfirm, error }) {
   );
 }
 
+// Lets the user photograph a game's printed label instead of retyping it —
+// the photo is resized client-side before it's sent anywhere, then handed to
+// AI extraction (if onScanned is provided) to pre-fill the surrounding form.
+// The scan only ever pre-fills fields; nothing is saved until the user
+// reviews and submits the form themselves.
+function LabelPhotoField({ image, onImageChange, onScanned }) {
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState("");
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setScanError("");
+    try {
+      const dataUrl = await resizeImageFile(file);
+      onImageChange(dataUrl);
+      if (onScanned) {
+        setScanning(true);
+        try {
+          onScanned(await api.scanGameLabel(dataUrl));
+        } catch (err) {
+          setScanError(err.message);
+        } finally {
+          setScanning(false);
+        }
+      }
+    } catch (err) {
+      setScanError(err.message);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {image && (
+        <img src={image} alt="Game label" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 6, border: `1px solid ${colors.border}` }} />
+      )}
+      <label style={{ cursor: "pointer" }}>
+        <input type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: "none" }} />
+        <span style={{ ...button.ghost, display: "inline-block", padding: "6px 12px", fontSize: 12.5 }}>
+          {scanning ? "Scanning label…" : image ? "Replace label photo" : "Scan label photo"}
+        </span>
+      </label>
+      {scanError && <span style={{ color: colors.danger, fontSize: 11.5 }}>{scanError}</span>}
+    </div>
+  );
+}
+
 function AddGameForm({ onCancel, onCreated, onError, error }) {
-  const [form, setForm] = useState({ name: "", serialNum: "", formNum: "", ticketCount: "", ticketPrice: "", idealPayout: "", closeThresholdPct: "75" });
+  const [form, setForm] = useState({ name: "", serialNum: "", formNum: "", ticketCount: "", ticketPrice: "", idealPayout: "", closeThresholdPct: "75", labelImage: "" });
   const [busy, setBusy] = useState(false);
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  function applyScan(fields) {
+    setForm((f) => ({
+      ...f,
+      name: fields.name ?? f.name,
+      formNum: fields.formNum ?? f.formNum,
+      serialNum: fields.serialNum ?? f.serialNum,
+      ticketCount: fields.ticketCount ?? f.ticketCount,
+      ticketPrice: fields.ticketPrice ?? f.ticketPrice,
+      idealPayout: fields.idealPayout ?? f.idealPayout,
+    }));
   }
 
   async function submit(e) {
@@ -245,16 +306,19 @@ function AddGameForm({ onCancel, onCreated, onError, error }) {
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "grid", gridTemplateColumns: "1.2fr 0.9fr 0.9fr 0.8fr 0.8fr 0.8fr 0.9fr auto", gap: 10, alignItems: "end", padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}`, background: "#fafafa" }}>
-      <Field label="Game name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
-      <Field label="Form #"><input style={inputStyle} required value={form.formNum} onChange={(e) => set("formNum", e.target.value)} /></Field>
-      <Field label="Serial #"><input style={inputStyle} required value={form.serialNum} onChange={(e) => set("serialNum", e.target.value)} /></Field>
-      <Field label="Ticket count"><input style={inputStyle} type="number" min="1" required value={form.ticketCount} onChange={(e) => set("ticketCount", e.target.value)} /></Field>
-      <Field label="Ticket price"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.ticketPrice} onChange={(e) => set("ticketPrice", e.target.value)} /></Field>
-      <Field label="Ideal payout"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.idealPayout} onChange={(e) => set("idealPayout", e.target.value)} /></Field>
-      <Field label="Close at %"><input style={inputStyle} type="number" min="75" max="100" step="1" required value={form.closeThresholdPct} onChange={(e) => set("closeThresholdPct", e.target.value)} /></Field>
-      <button style={button.primary} type="submit" disabled={busy}>{busy ? "Saving…" : "Log game"}</button>
-      {error && <div style={{ gridColumn: "1 / -1", color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+    <form onSubmit={submit} style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}`, background: "#fafafa", display: "flex", flexDirection: "column", gap: 10 }}>
+      <LabelPhotoField image={form.labelImage} onImageChange={(img) => set("labelImage", img)} onScanned={applyScan} />
+      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.9fr 0.9fr 0.8fr 0.8fr 0.8fr 0.9fr auto", gap: 10, alignItems: "end" }}>
+        <Field label="Game name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
+        <Field label="Form #"><input style={inputStyle} required value={form.formNum} onChange={(e) => set("formNum", e.target.value)} /></Field>
+        <Field label="Serial #"><input style={inputStyle} required value={form.serialNum} onChange={(e) => set("serialNum", e.target.value)} /></Field>
+        <Field label="Ticket count"><input style={inputStyle} type="number" min="1" required value={form.ticketCount} onChange={(e) => set("ticketCount", e.target.value)} /></Field>
+        <Field label="Ticket price"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.ticketPrice} onChange={(e) => set("ticketPrice", e.target.value)} /></Field>
+        <Field label="Ideal payout"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.idealPayout} onChange={(e) => set("idealPayout", e.target.value)} /></Field>
+        <Field label="Close at %"><input style={inputStyle} type="number" min="75" max="100" step="1" required value={form.closeThresholdPct} onChange={(e) => set("closeThresholdPct", e.target.value)} /></Field>
+        <button style={button.primary} type="submit" disabled={busy}>{busy ? "Saving…" : "Log game"}</button>
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
     </form>
   );
 }
@@ -268,12 +332,25 @@ function EditGameModal({ deal, onCancel, onSaved }) {
     ticketPrice: deal.ticketPrice,
     idealPayout: deal.idealPayout,
     closeThresholdPct: Math.round((deal.closeThreshold ?? 0.75) * 100),
+    labelImage: deal.labelImage || "",
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  function applyScan(fields) {
+    setForm((f) => ({
+      ...f,
+      name: fields.name ?? f.name,
+      formNum: fields.formNum ?? f.formNum,
+      serialNum: fields.serialNum ?? f.serialNum,
+      ticketCount: fields.ticketCount ?? f.ticketCount,
+      ticketPrice: fields.ticketPrice ?? f.ticketPrice,
+      idealPayout: fields.idealPayout ?? f.idealPayout,
+    }));
   }
 
   async function submit(e) {
@@ -307,6 +384,7 @@ function EditGameModal({ deal, onCancel, onSaved }) {
         </div>
 
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <LabelPhotoField image={form.labelImage} onImageChange={(img) => set("labelImage", img)} onScanned={applyScan} />
           <Field label="Game name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <Field label="Form #"><input style={inputStyle} required value={form.formNum} onChange={(e) => set("formNum", e.target.value)} /></Field>

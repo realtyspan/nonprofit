@@ -74,6 +74,7 @@ export const api = {
   assignGC7QSigner: (slot, userId) => request(`/permissions/gc7q-signers/${slot}`, { method: "PUT", body: { userId } }),
 
   listDeals: () => request("/deals"),
+  scanGameLabel: (image) => request("/deals/scan-label", { method: "POST", body: { image } }),
   createDeal: (payload) => request("/deals", { method: "POST", body: payload }),
   updateDeal: (dealId, payload) => request(`/deals/${dealId}`, { method: "PATCH", body: payload }),
   activateDeal: (dealId) => request(`/deals/${dealId}/activate`, { method: "POST" }),

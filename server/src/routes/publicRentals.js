@@ -1,6 +1,7 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
 const { rateLimit } = require("../lib/rateLimit");
+const { lodgeDateTimeStringToUtc } = require("../lib/timezone");
 
 const router = express.Router();
 
@@ -73,8 +74,8 @@ router.post(
         isMember: !!isMember,
         eventType,
         expectedGuests: expectedGuests ? Number(expectedGuests) : null,
-        startAt: new Date(startAt),
-        endAt: new Date(endAt),
+        startAt: lodgeDateTimeStringToUtc(startAt),
+        endAt: lodgeDateTimeStringToUtc(endAt),
         wantsBartender: !!wantsBartender,
         roundTables: Number(roundTables) || 0,
         longTables: Number(longTables) || 0,

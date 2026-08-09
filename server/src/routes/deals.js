@@ -2,6 +2,7 @@ const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
 const { dailyWorksheet, isEligibleToClose, prizePercent } = require("../lib/businessLogic");
+const { scanGameLabel } = require("../lib/labelScan");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -35,8 +36,21 @@ router.get("/", requireReadAccess("bell-jar"), async (req, res) => {
   res.json(enriched);
 });
 
+// Reads a photographed game label and returns the fields it could make out,
+// to pre-fill the log-new-game form — doesn't touch the database itself.
+router.post("/scan-label", requirePermission("bell-jar", "Helper"), async (req, res) => {
+  const { image } = req.body;
+  if (!image) return res.status(400).json({ error: "An image is required" });
+  try {
+    const fields = await scanGameLabel(image);
+    res.json(fields);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 router.post("/", requirePermission("bell-jar", "Helper"), async (req, res) => {
-  const { name, serialNum, formNum, ticketCount, ticketPrice, idealPayout, closeThreshold } = req.body;
+  const { name, serialNum, formNum, ticketCount, ticketPrice, idealPayout, closeThreshold, labelImage } = req.body;
   if (!name || !serialNum || !formNum || !ticketCount || !ticketPrice || !idealPayout) {
     return res.status(400).json({ error: "Missing required deal fields" });
   }
@@ -53,6 +67,7 @@ router.post("/", requirePermission("bell-jar", "Helper"), async (req, res) => {
       ticketPrice: Number(ticketPrice),
       idealPayout: Number(idealPayout),
       closeThreshold: threshold.value,
+      labelImage: labelImage || null,
       // status defaults to "received" — logged into inventory, not yet on the floor
     },
   });
@@ -71,7 +86,7 @@ router.patch("/:id", requirePermission("bell-jar", "Helper"), async (req, res) =
     return res.status(400).json({ error: "Closed deals can't be edited — they're locked in the Schedule 1 audit trail" });
   }
 
-  const { name, serialNum, formNum, ticketCount, ticketPrice, idealPayout, closeThreshold } = req.body;
+  const { name, serialNum, formNum, ticketCount, ticketPrice, idealPayout, closeThreshold, labelImage } = req.body;
   if (!name || !serialNum || !formNum || !ticketCount || !ticketPrice || !idealPayout) {
     return res.status(400).json({ error: "Missing required deal fields" });
   }
@@ -94,6 +109,7 @@ router.patch("/:id", requirePermission("bell-jar", "Helper"), async (req, res) =
       ticketPrice: Number(ticketPrice),
       idealPayout: Number(idealPayout),
       closeThreshold: threshold.value,
+      labelImage: labelImage !== undefined ? labelImage || null : undefined,
     },
   });
   res.json(updated);

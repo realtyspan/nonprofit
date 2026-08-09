@@ -148,6 +148,7 @@ model Deal {
   ticketCount   Int
   ticketPrice   Float
   idealPayout   Float
+  labelImage    String?  // base64 data URL of the game's printed label/flare, for verification
   status        String   @default("received") // received (logged, not yet on the floor) | active (on the machine) | closed
   closeThreshold Float   @default(0.75) // fraction of idealPayout that must be awarded before closing; 0.75 is the NYS minimum, orgs may set higher
   soldToDate    Int      @default(0)

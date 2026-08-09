@@ -3,6 +3,7 @@ const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
 const { generateOccurrences } = require("../lib/recurrence");
 const { hasConflict } = require("../lib/rentalLogic");
+const { lodgeDateTimeStringToUtc } = require("../lib/timezone");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -89,7 +90,7 @@ router.post("/events", requirePermission("calendar", "Admin"), async (req, res) 
     const spaceError = await validateRentalSpaceIds(req.user.orgId, rentalSpaceIds);
     if (spaceError) return res.status(400).json({ error: spaceError });
 
-    const start = new Date(startAt), end = new Date(endAt);
+    const start = lodgeDateTimeStringToUtc(startAt), end = lodgeDateTimeStringToUtc(endAt);
     if (rentalSpaceIds?.length > 0) {
       const conflicts = await findSpaceConflicts(rentalSpaceIds, start, end);
       if (conflicts.length > 0) return res.status(409).json({ error: "This space is already booked or blocked for an overlapping time", conflicts });
@@ -142,8 +143,8 @@ router.patch("/events/:id", requirePermission("calendar", "Admin"), async (req, 
     if (spaceError) return res.status(400).json({ error: spaceError });
   }
 
-  const newStart = startAt ? new Date(startAt) : event.startAt;
-  const newEnd = endAt ? new Date(endAt) : event.endAt;
+  const newStart = startAt ? lodgeDateTimeStringToUtc(startAt) : event.startAt;
+  const newEnd = endAt ? lodgeDateTimeStringToUtc(endAt) : event.endAt;
   if (!event.recurrenceId && rentalSpaceIds?.length > 0) {
     const conflicts = await findSpaceConflicts(rentalSpaceIds, newStart, newEnd, event.id);
     if (conflicts.length > 0) return res.status(409).json({ error: "This space is already booked or blocked for an overlapping time", conflicts });

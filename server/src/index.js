@@ -26,8 +26,8 @@ const app = express();
 app.set("trust proxy", 1);
 app.use(cors());
 // Default 100kb is too small for a signature image (base64 PNG from the
-// Rental contract signing pad).
-app.use(express.json({ limit: "2mb" }));
+// Rental contract signing pad) or a compressed game-label photo.
+app.use(express.json({ limit: "8mb" }));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 

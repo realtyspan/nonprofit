@@ -3,6 +3,7 @@ const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
 const { computeRentalQuote, hasConflict } = require("../lib/rentalLogic");
 const { generateOccurrences } = require("../lib/recurrence");
+const { lodgeDateTimeStringToUtc } = require("../lib/timezone");
 const { buildRentalContractPdf } = require("../lib/rentalContractPdf");
 const { publishRentalBooking, publishRentalBlock, removeCalendarEventFor } = require("../lib/calendarSync");
 
@@ -58,8 +59,8 @@ router.post("/bookings", requirePermission("rentals", "Helper"), async (req, res
       isMember: !!req.body.isMember,
       eventType: req.body.eventType,
       expectedGuests: req.body.expectedGuests ? Number(req.body.expectedGuests) : null,
-      startAt: new Date(req.body.startAt),
-      endAt: new Date(req.body.endAt),
+      startAt: lodgeDateTimeStringToUtc(req.body.startAt),
+      endAt: lodgeDateTimeStringToUtc(req.body.endAt),
       wantsBartender: !!req.body.wantsBartender,
       roundTables: Number(req.body.roundTables) || 0,
       longTables: Number(req.body.longTables) || 0,
@@ -92,8 +93,8 @@ router.patch("/bookings/:id", requirePermission("rentals", "Helper"), async (req
       isMember: isMember !== undefined ? !!isMember : undefined,
       eventType,
       expectedGuests: expectedGuests !== undefined ? Number(expectedGuests) || null : undefined,
-      startAt: startAt ? new Date(startAt) : undefined,
-      endAt: endAt ? new Date(endAt) : undefined,
+      startAt: startAt ? lodgeDateTimeStringToUtc(startAt) : undefined,
+      endAt: endAt ? lodgeDateTimeStringToUtc(endAt) : undefined,
       wantsBartender: wantsBartender !== undefined ? !!wantsBartender : undefined,
       roundTables: roundTables !== undefined ? Number(roundTables) || 0 : undefined,
       longTables: longTables !== undefined ? Number(longTables) || 0 : undefined,
@@ -252,8 +253,8 @@ router.post("/blocks", requirePermission("rentals", "Admin"), async (req, res) =
   const visible = req.body.visibleOnPublicCalendar !== undefined ? !!req.body.visibleOnPublicCalendar : true;
 
   if (!recurrence) {
-    const startAt = new Date(req.body.startAt);
-    const endAt = new Date(req.body.endAt);
+    const startAt = lodgeDateTimeStringToUtc(req.body.startAt);
+    const endAt = lodgeDateTimeStringToUtc(req.body.endAt);
     const conflicts = await findConflictingOccurrences(space.id, [{ startAt, endAt }]);
     if (conflicts.length > 0) {
       return res.status(409).json({ error: "This space already has a booking or block for an overlapping time" });
@@ -307,8 +308,8 @@ router.patch("/blocks/:id", requirePermission("rentals", "Admin"), async (req, r
   if (block.calendarEventId) return res.status(400).json({ error: "This block is managed by a Calendar event — edit it from there" });
 
   const { reason, visibleOnPublicCalendar, startAt, endAt } = req.body;
-  const newStart = startAt ? new Date(startAt) : block.startAt;
-  const newEnd = endAt ? new Date(endAt) : block.endAt;
+  const newStart = startAt ? lodgeDateTimeStringToUtc(startAt) : block.startAt;
+  const newEnd = endAt ? lodgeDateTimeStringToUtc(endAt) : block.endAt;
 
   if (startAt || endAt) {
     const conflicts = await findConflictingOccurrences(block.spaceId, [{ startAt: newStart, endAt: newEnd }], [block.id]);
