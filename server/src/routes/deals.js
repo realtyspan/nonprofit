@@ -115,6 +115,26 @@ router.patch("/:id", requirePermission("bell-jar", "Helper"), async (req, res) =
   res.json(updated);
 });
 
+// Permanently removes a game logged in error — while it's received or active.
+// Admin-only (a Helper can log/correct/activate a game, but not erase it
+// outright). Closed deals can never be deleted: that's what the Schedule 1
+// audit trail exists to lock in, same restriction as the correction route
+// above. Any daily-sale rows already logged against the deal go with it —
+// those are working data, not the compliance record itself.
+router.delete("/:id", requirePermission("bell-jar", "Admin"), async (req, res) => {
+  const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!deal) return res.status(404).json({ error: "Deal not found" });
+  if (deal.status === "closed") {
+    return res.status(400).json({ error: "Closed deals can't be deleted — they're locked in the Schedule 1 audit trail" });
+  }
+
+  await prisma.$transaction([
+    prisma.dailySale.deleteMany({ where: { dealId: deal.id } }),
+    prisma.deal.delete({ where: { id: deal.id } }),
+  ]);
+  res.json({ ok: true });
+});
+
 // Puts a received game on the machine — the point at which it starts counting
 // toward daily sales / its close threshold.
 router.post("/:id/activate", requirePermission("bell-jar", "Helper"), async (req, res) => {

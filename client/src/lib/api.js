@@ -77,6 +77,7 @@ export const api = {
   scanGameLabel: (image) => request("/deals/scan-label", { method: "POST", body: { image } }),
   createDeal: (payload) => request("/deals", { method: "POST", body: payload }),
   updateDeal: (dealId, payload) => request(`/deals/${dealId}`, { method: "PATCH", body: payload }),
+  deleteDeal: (dealId) => request(`/deals/${dealId}`, { method: "DELETE" }),
   activateDeal: (dealId) => request(`/deals/${dealId}/activate`, { method: "POST" }),
   saveDailySale: (dealId, payload) => request(`/deals/${dealId}/daily-sales`, { method: "POST", body: payload }),
   listDailySales: (dealId, { from, to } = {}) => {

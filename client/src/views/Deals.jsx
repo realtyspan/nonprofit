@@ -16,6 +16,8 @@ export default function Deals({ deals, onChanged, permissions }) {
   const [addError, setAddError] = useState("");
   const [activatingId, setActivatingId] = useState(null);
   const [editingDeal, setEditingDeal] = useState(null);
+  const [deleting, setDeleting] = useState(null); // deal pending delete confirmation
+  const [deleteError, setDeleteError] = useState("");
 
   function refreshHistory() {
     api.listSchedule1().then(setHistory).catch(() => {});
@@ -75,6 +77,14 @@ export default function Deals({ deals, onChanged, permissions }) {
               <button style={button.primary} disabled={activatingId === d.id} onClick={() => activate(d.id)}>
                 {activatingId === d.id ? "Activating…" : "Activate"}
               </button>
+              <button
+                style={isBellJarAdmin ? { ...button.ghost, color: colors.danger } : button.disabled}
+                disabled={!isBellJarAdmin}
+                title={!isBellJarAdmin ? "Only a Bell Jar Admin can delete a game" : ""}
+                onClick={() => { setDeleteError(""); setDeleting(d); }}
+              >
+                Delete
+              </button>
             </div>
           </div>
         ))}
@@ -114,6 +124,14 @@ export default function Deals({ deals, onChanged, permissions }) {
                 onClick={() => setClosing(d)}
               >
                 Close deal
+              </button>
+              <button
+                style={isBellJarAdmin ? { ...button.ghost, color: colors.danger } : button.disabled}
+                disabled={!isBellJarAdmin}
+                title={!isBellJarAdmin ? "Only a Bell Jar Admin can delete a game" : ""}
+                onClick={() => { setDeleteError(""); setDeleting(d); }}
+              >
+                Delete
               </button>
             </div>
           </div>
@@ -173,6 +191,59 @@ export default function Deals({ deals, onChanged, permissions }) {
           }}
         />
       )}
+
+      {deleting && (
+        <DeleteDealModal
+          deal={deleting}
+          onCancel={() => { setDeleting(null); setDeleteError(""); }}
+          onConfirm={async () => {
+            setDeleteError("");
+            try {
+              await api.deleteDeal(deleting.id);
+              setDeleting(null);
+              onChanged();
+            } catch (err) {
+              setDeleteError(err.message);
+            }
+          }}
+          error={deleteError}
+        />
+      )}
+    </div>
+  );
+}
+
+function DeleteDealModal({ deal, onCancel, onConfirm, error }) {
+  const [busy, setBusy] = useState(false);
+
+  async function confirm() {
+    setBusy(true);
+    try {
+      await onConfirm();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+      <div style={{ width: 420, background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Delete “{deal.name}”?</div>
+        <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 16 }}>
+          {deal.status === "active" && deal.soldToDate > 0
+            ? `This permanently removes the game and the ${deal.soldToDate.toLocaleString()} ticket sale${deal.soldToDate === 1 ? "" : "s"} already logged against it. This can't be undone.`
+            : "This permanently removes the game. This can't be undone."}
+        </div>
+
+        {error && <div style={{ color: colors.danger, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+          <button style={{ ...button.primary, background: colors.danger }} onClick={confirm} disabled={busy}>
+            {busy ? "Deleting…" : "Delete permanently"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
