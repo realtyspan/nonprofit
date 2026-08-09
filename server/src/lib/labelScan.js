@@ -8,16 +8,21 @@
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-const EXTRACTION_PROMPT = `This is a photo of a NYS "Bell Jar" / Games of Chance game label (the printed flare/label on the game's box or ticket dispenser). Read the following fields off the label:
+const EXTRACTION_PROMPT = `This is a photo of a NYS "Bell Jar" / Games of Chance game label — either the game's printed flare, or the manufacturer's case/carton label (which is dense with barcodes and abbreviated codes rather than plain-English field names). Read the following fields:
 
-- name: the game's name/title
-- formNum: the form number (often labeled "Form #" or "Form No.")
-- serialNum: the serial number (often labeled "Serial #" or "Serial No.")
-- ticketCount: total number of tickets in the deal (an integer)
-- ticketPrice: price per ticket in dollars (a number, e.g. 1 or 0.5)
-- idealPayout: the ideal/total payout amount in dollars (a number)
+- name: the game's name/title, if printed anywhere on the label.
+- formNum: the form/part number.
+  - Many manufacturer case labels print a header row reading something like "MFG. ID  PART NBR  SERIES NBR", with the values on the row directly below it. In that case, formNum is the SECOND space-separated token on that data row (the text starting right after the first space, ending at the next space or end of line) — e.g. a row reading "UM UNWS3720" means formNum is "UNWS3720". Do NOT use some other large standalone number printed elsewhere on the label for this field when this header row is present.
+  - If there's no such header row, look instead for text explicitly labeled "Form #" or "Form No.".
+- serialNum: the serial number, next to a "SERIAL#" label. If it's only encoded in an adjacent barcode with no printed digits, use null rather than guessing.
+- ticketCount: total number of tickets in the deal (an integer). Often labeled "TCNT".
+- ticketPrice: price per ticket in dollars (a number, e.g. 1 or 0.5).
+  - Manufacturer case labels typically have a row showing the ticket color, then the ticket price, then a profit figure — e.g. a row reading "RED   1   PROFIT: $815/22%" means the ticket price is 1 (i.e. $1.00). That plain number between the color and "PROFIT" IS the ticket price even though it has no dollar sign or label next to it — read it directly, don't leave this null just because it isn't explicitly labeled.
+- idealPayout: the total amount that should be paid out in prizes if every ticket in the deal sells. This is NOT the same as a printed "profit" figure — profit and payout are different numbers.
+  - If the label directly states a total ideal payout, net payout, or total prize amount, use that number.
+  - If instead the label only shows a color/price/profit row like "RED   1   PROFIT: $815/22%", compute idealPayout yourself from the ticket price and profit dollars on that row together with ticketCount: idealPayout = (ticketCount × ticketPrice) − profit dollars. For example, ticketCount 3720, ticketPrice 1, profit $815 gives idealPayout = 3720×1 − 815 = 2905. Do NOT return the profit dollar figure itself as idealPayout, and don't leave idealPayout null just because it isn't printed directly — compute it from the other fields whenever a profit figure is present.
 
-Respond with ONLY a single JSON object with exactly these six keys, no other text. Use null for any field you cannot read confidently. Numbers must be plain numbers, not strings or currency-formatted.`;
+Respond with ONLY a single JSON object with exactly these six keys: name, formNum, serialNum, ticketCount, ticketPrice, idealPayout. Use null for any field you cannot determine confidently. Numbers must be plain numbers, not strings or currency-formatted.`;
 
 function parseDataUrl(dataUrl) {
   const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(dataUrl || "");
