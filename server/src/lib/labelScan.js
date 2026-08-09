@@ -12,9 +12,12 @@ const EXTRACTION_PROMPT = `This is a photo of a NYS "Bell Jar" / Games of Chance
 
 - name: the game's name/title, if printed anywhere on the label.
 - formNum: the form/part number.
-  - Many manufacturer case labels print a header row reading something like "MFG. ID  PART NBR  SERIES NBR", with the values on the row directly below it. In that case, formNum is the SECOND space-separated token on that data row (the text starting right after the first space, ending at the next space or end of line) — e.g. a row reading "UM UNWS3720" means formNum is "UNWS3720". Do NOT use some other large standalone number printed elsewhere on the label for this field when this header row is present.
+  - Many manufacturer case labels print a header row reading something like "MFG. ID  PART NBR  SERIES NBR", with three space-separated values on the data row directly below it — e.g. a row reading "UM UNWS3720 F068378" means MFG. ID = "UM", PART NBR = "UNWS3720", SERIES NBR = "F068378". In that case, formNum is the PART NBR value — the SECOND of those three tokens (e.g. "UNWS3720"). Do NOT use the SERIES NBR value (the third token) for this field.
   - If there's no such header row, look instead for text explicitly labeled "Form #" or "Form No.".
-- serialNum: the serial number, next to a "SERIAL#" label. If it's only encoded in an adjacent barcode with no printed digits, use null rather than guessing.
+- serialNum: the serial number.
+  - On the same "MFG. ID / PART NBR / SERIES NBR" data row described above, serialNum is the SERIES NBR value — the THIRD token on that row (e.g. "F068378"). This exact value is often ALSO reprinted much larger and bolder elsewhere on the label as a human-readable callout for quick reference — that's the same serial number, just enlarged, and confirms the reading; use it if the small version is hard to read.
+  - Ignore any barcode printed next to a literal "SERIAL#" label — that barcode has no printed digits of its own and is not what this field means here; the real serial number is the SERIES NBR value described above.
+  - If there's no "MFG. ID / PART NBR / SERIES NBR" row at all, look instead for text explicitly labeled "Serial #" or "Serial No." with printed digits next to it, and use null only if no printed digits exist anywhere.
 - ticketCount: total number of tickets in the deal (an integer). Often labeled "TCNT".
 - ticketPrice: price per ticket in dollars (a number, e.g. 1 or 0.5).
   - Manufacturer case labels typically have a row showing the ticket color, then the ticket price, then a profit figure — e.g. a row reading "RED   1   PROFIT: $815/22%" means the ticket price is 1 (i.e. $1.00). That plain number between the color and "PROFIT" IS the ticket price even though it has no dollar sign or label next to it — read it directly, don't leave this null just because it isn't explicitly labeled.
