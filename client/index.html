@@ -14,9 +14,9 @@
       body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: #f7f7f9; -webkit-font-smoothing: antialiased; }
       * { box-sizing: border-box; }
       input:focus, button:focus, select:focus { outline: 2px solid rgba(91,91,214,.35); outline-offset: 1px; }
-      button { transition: filter 120ms ease, opacity 120ms ease; }
-      button:hover:not(:disabled) { filter: brightness(1.08); }
-      button:active:not(:disabled) { filter: brightness(0.94); }
+      button { transition: filter 120ms ease, transform 120ms ease, box-shadow 120ms ease; }
+      button:hover:not(:disabled) { filter: brightness(1.15); transform: translateY(-1px); box-shadow: 0 3px 10px rgba(24,24,27,.16); }
+      button:active:not(:disabled) { filter: brightness(0.92); transform: translateY(0); box-shadow: none; }
       ::-webkit-scrollbar { width: 9px; height: 9px; }
       ::-webkit-scrollbar-thumb { background: #d8d8de; border-radius: 6px; }
     </style>
