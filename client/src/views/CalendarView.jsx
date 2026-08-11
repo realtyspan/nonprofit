@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import CalendarGrid from "../components/CalendarGrid";
 import CalendarWeekGrid from "../components/CalendarWeekGrid";
 import PublicLinkBox from "../components/PublicLinkBox";
+import DateTimeField from "../components/DateTimeField";
 
 const WEEKDAYS = [
   { key: "SU", label: "S" }, { key: "MO", label: "M" }, { key: "TU", label: "T" }, { key: "WE", label: "W" },
@@ -35,36 +36,6 @@ function addDays(d, n) {
   const r = new Date(d);
   r.setDate(r.getDate() + n);
   return r;
-}
-
-// A native <input type="datetime-local" step="1800"> only changes spinner-arrow
-// behavior and submit-time validity — it doesn't stop anyone from typing or
-// scrolling to an arbitrary minute in the picker itself, so it doesn't actually
-// read as "half-hour increments" to a user. An explicit dropdown does.
-const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
-  const h24 = Math.floor(i / 2);
-  const m = i % 2 === 0 ? "00" : "30";
-  const value = `${String(h24).padStart(2, "0")}:${m}`;
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  const label = `${h12}:${m} ${h24 < 12 ? "AM" : "PM"}`;
-  return { value, label };
-});
-
-// value/onChange work on the same "YYYY-MM-DDTHH:mm" string the rest of this
-// form already uses — this only changes how that string gets edited.
-function DateTimeField({ label, value, onChange }) {
-  const datePart = value.slice(0, 10);
-  const timePart = value.slice(11, 16);
-  return (
-    <Field label={label}>
-      <div style={{ display: "flex", gap: 6 }}>
-        <input style={{ ...inputStyle, flex: 1.3 }} type="date" required value={datePart} onChange={(e) => onChange(`${e.target.value}T${timePart}`)} />
-        <select style={{ ...inputStyle, flex: 1 }} required value={timePart} onChange={(e) => onChange(`${datePart}T${e.target.value}`)}>
-          {TIME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </div>
-    </Field>
-  );
 }
 
 export default function CalendarView({ rentalSpaces = [], permissions }) {

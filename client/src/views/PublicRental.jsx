@@ -3,6 +3,7 @@ import { colors, card, button, input as inputStyle, money } from "../lib/tokens"
 import { publicApi } from "../lib/api";
 import { computeRentalQuote } from "../lib/rentalPricing";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
+import DateTimeField from "../components/DateTimeField";
 import logo from "../assets/logo.png";
 
 const MS_PER_HOUR = 1000 * 60 * 60;
@@ -144,8 +145,8 @@ export default function PublicRental({ slug, embed }) {
                     </div>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
-                    <Field label="Start" t={t}><input style={inputStyle} type="datetime-local" required value={form.startAt} onChange={(e) => set("startAt", e.target.value)} /></Field>
-                    <Field label="End" t={t}><input style={inputStyle} type="datetime-local" required value={form.endAt} onChange={(e) => set("endAt", e.target.value)} /></Field>
+                    <DateTimeField label="Start" value={form.startAt} onChange={(v) => set("startAt", v)} t={t} />
+                    <DateTimeField label="End" value={form.endAt} onChange={(v) => set("endAt", v)} t={t} />
                     <Field label="Event type" t={t}><input style={inputStyle} value={form.eventType} onChange={(e) => set("eventType", e.target.value)} placeholder="Birthday, memorial, corporate…" /></Field>
                     <Field label="Expected guests" t={t}><input style={inputStyle} type="number" min="0" value={form.expectedGuests} onChange={(e) => set("expectedGuests", e.target.value)} /></Field>
                   </div>
