@@ -1,10 +1,15 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const prisma = require("../lib/prisma");
 const { signToken, requireAuth, loadPermissions } = require("../lib/auth");
 const { MODULES } = require("../../prisma/backfill-permissions");
+const { sendEmail } = require("../lib/notifications");
+const { resetPasswordHtml } = require("../lib/authEmails");
 
 const router = express.Router();
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 // Legacy flat roles, kept only so an invite from a not-yet-updated client
 // still works during rollout — mapped through the exact same table the
@@ -166,6 +171,67 @@ router.post("/change-password", requireAuth, async (req, res) => {
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+  res.json({ ok: true });
+});
+
+// Starts a self-service "forgot password" flow — no auth required, since the
+// whole point is recovering an account you're locked out of. Always responds
+// the same way whether or not the email matches an account, so this can't be
+// used to probe which email addresses have accounts.
+router.post("/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email is required" });
+
+  const user = await prisma.user.findUnique({ where: { email }, include: { org: true } });
+  if (user) {
+    const token = crypto.randomBytes(32).toString("hex");
+    await prisma.passwordReset.create({
+      data: { userId: user.id, token, expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
+    });
+
+    const appUrl = process.env.APP_URL || "http://localhost:5173";
+    const resetUrl = `${appUrl}/reset-password?token=${token}`;
+    try {
+      await sendEmail({
+        to: user.email,
+        toName: user.name,
+        subject: "Reset your Bell Jar Manager password",
+        html: resetPasswordHtml({ resetUrl, orgName: user.org.name }),
+      });
+    } catch (err) {
+      // Logged, not surfaced — the response below stays identical either way,
+      // so a delivery failure can't be used to tell real accounts from fake ones.
+      console.error("Failed to send password reset email:", err.message);
+    }
+  }
+
+  res.json({ ok: true, message: "If an account exists for that email, a reset link is on its way." });
+});
+
+// Completes a reset from the emailed link. The token is single-use (marked
+// via usedAt) and expires after RESET_TOKEN_TTL_MS — both checked here.
+router.post("/reset-password", async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) return res.status(400).json({ error: "token and newPassword are required" });
+  if (newPassword.length < 8) return res.status(400).json({ error: "New password must be at least 8 characters" });
+
+  const reset = await prisma.passwordReset.findUnique({ where: { token } });
+  if (!reset || reset.usedAt || reset.expiresAt < new Date()) {
+    return res.status(400).json({ error: "This reset link is invalid or has expired — request a new one." });
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: reset.userId }, data: { passwordHash } }),
+    prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } }),
+    // Any other outstanding reset requests for this user are invalidated too —
+    // one successful reset should retire every link that was ever sent out.
+    prisma.passwordReset.updateMany({
+      where: { userId: reset.userId, usedAt: null, id: { not: reset.id } },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+
   res.json({ ok: true });
 });
 

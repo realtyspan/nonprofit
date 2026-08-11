@@ -63,6 +63,8 @@ export const api = {
   getMe: () => request("/auth/me"),
   updateMe: (payload) => request("/auth/me", { method: "PATCH", body: payload }),
   changePassword: (payload) => request("/auth/change-password", { method: "POST", body: payload }),
+  forgotPassword: (email) => request("/auth/forgot-password", { method: "POST", body: { email } }),
+  resetPassword: (token, newPassword) => request("/auth/reset-password", { method: "POST", body: { token, newPassword } }),
 
   getMyPermissions: () => request("/permissions/me"),
   setOrgTier: (userId, tier) => request(`/permissions/org-tier/${userId}`, { method: "PATCH", body: { tier } }),

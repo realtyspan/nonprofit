@@ -8,6 +8,7 @@ import TopBar from "./components/TopBar";
 import Sidebar from "./components/Sidebar";
 import Landing from "./views/Landing";
 import Login from "./views/Login";
+import ResetPassword from "./views/ResetPassword";
 import Dashboard from "./views/Dashboard";
 import Worksheet from "./views/Worksheet";
 import Deals from "./views/Deals";
@@ -227,6 +228,10 @@ export default function App() {
   const publicMatch = matchPublicPath(window.location.pathname);
   if (publicMatch?.module === "rentals") return <PublicRental slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "calendar") return <PublicCalendar slug={publicMatch.slug} embed={publicMatch.embed} />;
+
+  // Needs to render for a logged-out visitor arriving from an email link, so
+  // it's handled before AuthProvider/Shell rather than as a route inside it.
+  if (window.location.pathname === "/reset-password") return <ResetPassword />;
 
   return (
     <AuthProvider>

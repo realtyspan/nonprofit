@@ -61,8 +61,24 @@ model User {
   moduleGrants           ModuleGrant[]
   gc7qSignerDesignations GC7QSignerDesignation[]
   raffleAssignments      RaffleTicket[] @relation("RaffleAssignedSeller")
+  passwordResets         PasswordReset[]
 
   @@index([orgId])
+}
+
+// Single-use, expiring token for the "forgot password" email-link flow. A
+// lookup table rather than a JWT so a token can be invalidated the moment
+// it's used (or superseded by a newer request) without needing a blocklist.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 // Org-wide tier: Owner (technical administrator — manages users/permissions,

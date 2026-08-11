@@ -1,17 +1,25 @@
 import React, { useState } from "react";
 import { colors, card, button, input } from "../lib/tokens";
 import { useAuth } from "../lib/AuthContext";
+import { api } from "../lib/api";
 import logo from "../assets/logo.png";
 
 export default function Login({ initialMode = "login", onBack }) {
   const { login, signupOrg } = useAuth();
-  const [mode, setMode] = useState(initialMode); // login | signup
+  const [mode, setMode] = useState(initialMode); // login | signup | forgot
   const [form, setForm] = useState({ email: "", password: "", orgName: "", name: "", licenseId: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  function switchMode(next) {
+    setMode(next);
+    setError("");
+    setForgotSent(false);
   }
 
   async function submit(e) {
@@ -21,8 +29,11 @@ export default function Login({ initialMode = "login", onBack }) {
     try {
       if (mode === "login") {
         await login(form.email, form.password);
-      } else {
+      } else if (mode === "signup") {
         await signupOrg(form);
+      } else {
+        await api.forgotPassword(form.email);
+        setForgotSent(true);
       }
     } catch (err) {
       setError(err.message);
@@ -56,24 +67,52 @@ export default function Login({ initialMode = "login", onBack }) {
           </>
         )}
 
-        <Field label="Email">
-          <input style={input} type="email" required value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="you@lodge.org" />
-        </Field>
-        <Field label="Password">
-          <input style={input} type="password" required value={form.password} onChange={(e) => set("password", e.target.value)} placeholder="••••••••" />
-        </Field>
+        {mode === "forgot" ? (
+          forgotSent ? (
+            <div style={{ fontSize: 13, color: colors.textPrimary, lineHeight: 1.5 }}>
+              If an account exists for <strong>{form.email}</strong>, a password reset link is on its way — check your email (it expires in 1 hour).
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: -6 }}>
+                Enter your email and we'll send a link to reset your password.
+              </div>
+              <Field label="Email">
+                <input style={input} type="email" required value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="you@lodge.org" />
+              </Field>
+            </>
+          )
+        ) : (
+          <>
+            <Field label="Email">
+              <input style={input} type="email" required value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="you@lodge.org" />
+            </Field>
+            <Field label="Password">
+              <input style={input} type="password" required value={form.password} onChange={(e) => set("password", e.target.value)} placeholder="••••••••" />
+            </Field>
+          </>
+        )}
 
         {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 
-        <button type="submit" disabled={busy} style={{ ...button.primary, marginTop: 4 }}>
-          {busy ? "Please wait…" : mode === "login" ? "Log in" : "Create organization"}
-        </button>
+        {!(mode === "forgot" && forgotSent) && (
+          <button type="submit" disabled={busy} style={{ ...button.primary, marginTop: 4 }}>
+            {busy ? "Please wait…" : mode === "login" ? "Log in" : mode === "signup" ? "Create organization" : "Send reset link"}
+          </button>
+        )}
 
-        <div style={{ fontSize: 12.5, color: colors.textSecondary, textAlign: "center", marginTop: 4 }}>
-          {mode === "login" ? (
-            <>New lodge? <a href="#" onClick={(e) => { e.preventDefault(); setMode("signup"); }} style={{ color: colors.accent }}>Create an organization</a></>
-          ) : (
-            <>Already set up? <a href="#" onClick={(e) => { e.preventDefault(); setMode("login"); }} style={{ color: colors.accent }}>Log in</a></>
+        <div style={{ fontSize: 12.5, color: colors.textSecondary, textAlign: "center", marginTop: 4, display: "flex", flexDirection: "column", gap: 6 }}>
+          {mode === "login" && (
+            <>
+              <div>New lodge? <a href="#" onClick={(e) => { e.preventDefault(); switchMode("signup"); }} style={{ color: colors.accent }}>Create an organization</a></div>
+              <div><a href="#" onClick={(e) => { e.preventDefault(); switchMode("forgot"); }} style={{ color: colors.accent }}>Forgot your password?</a></div>
+            </>
+          )}
+          {mode === "signup" && (
+            <div>Already set up? <a href="#" onClick={(e) => { e.preventDefault(); switchMode("login"); }} style={{ color: colors.accent }}>Log in</a></div>
+          )}
+          {mode === "forgot" && (
+            <div><a href="#" onClick={(e) => { e.preventDefault(); switchMode("login"); }} style={{ color: colors.accent }}>Back to log in</a></div>
           )}
         </div>
       </form>
