@@ -3,6 +3,7 @@ import { colors, card, pill, button, input as inputStyle, money } from "../lib/t
 import { api } from "../lib/api";
 import { computeRentalQuote } from "../lib/rentalPricing";
 import SignaturePad from "../components/SignaturePad";
+import { formatPhone, stripPhone } from "../lib/phone";
 
 const HISTORY_STATUSES = ["completed", "declined", "cancelled"];
 
@@ -189,7 +190,7 @@ function ReviewModal({ booking, onCancel, onDone }) {
           {booking.space?.name} · {new Date(booking.startAt).toLocaleString()} – {new Date(booking.endAt).toLocaleTimeString()}
         </div>
         <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 14 }}>
-          {booking.renterEmail} {booking.renterPhone && `· ${booking.renterPhone}`}<br />
+          {booking.renterEmail} {booking.renterPhone && `· ${formatPhone(booking.renterPhone)}`}<br />
           {booking.eventType && `${booking.eventType} · `}{booking.expectedGuests ?? "—"} guests · {booking.isMember ? "Member" : "Non-member"} rate
         </div>
 
@@ -387,7 +388,7 @@ function BookingForm({ spaces, onCreated, onError, error }) {
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1.4fr 1fr 1fr", gap: 10 }}>
         <Field label="Renter name"><input style={inputStyle} required value={form.renterName} onChange={(e) => set("renterName", e.target.value)} /></Field>
         <Field label="Email"><input style={inputStyle} type="email" required value={form.renterEmail} onChange={(e) => set("renterEmail", e.target.value)} /></Field>
-        <Field label="Phone"><input style={inputStyle} value={form.renterPhone} onChange={(e) => set("renterPhone", e.target.value)} /></Field>
+        <Field label="Phone"><input style={inputStyle} value={formatPhone(form.renterPhone)} onChange={(e) => set("renterPhone", stripPhone(e.target.value))} /></Field>
         <Field label="Club member?">
           <select style={inputStyle} value={form.isMember ? "yes" : "no"} onChange={(e) => set("isMember", e.target.value === "yes")}>
             <option value="no">No</option>

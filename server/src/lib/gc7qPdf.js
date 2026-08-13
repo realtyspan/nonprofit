@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { PDFDocument } = require("pdf-lib");
+const { formatPhone } = require("./phone");
 
 const TEMPLATE_PATH = path.join(__dirname, "../../templates/gc7q_0824.pdf");
 
@@ -104,7 +105,7 @@ async function fillGC7QPdf({ header, values, signOffs = {} }) {
     set(form, f.printName, info.name || "");
     set(form, f.printTitle, info.title || "");
     set(form, f.homeAddress, info.homeAddress || "");
-    set(form, f.phone, info.phone || "");
+    set(form, f.phone, formatPhone(info.phone));
     set(form, f.email, info.email || "");
   }
 

@@ -3,6 +3,7 @@ import { colors, card, pill, button, input as inputStyle, money } from "../lib/t
 import { api } from "../lib/api";
 import { hasModuleTier } from "../lib/modules";
 import { formatUtcDate } from "../lib/dates";
+import { formatPhone, stripPhone } from "../lib/phone";
 
 const STATUS_STYLE = {
   available: { bg: "#ffffff", border: colors.border, text: colors.textSecondary, label: "Available" },
@@ -175,7 +176,7 @@ function RaffleTicketModal({ gameId, ticket, permissions, onClose, onChanged }) 
   const s = STATUS_STYLE[ticket.status];
 
   const [buyer, setBuyer] = useState(ticket.buyer || "");
-  const [phone, setPhone] = useState(ticket.phone || "");
+  const [phone, setPhone] = useState(stripPhone(ticket.phone));
   const [email, setEmail] = useState(ticket.email || "");
   const [address, setAddress] = useState(ticket.address || "");
   const [recordAs, setRecordAs] = useState("sold"); // reserved | sold | funds_received
@@ -195,7 +196,7 @@ function RaffleTicketModal({ gameId, ticket, permissions, onClose, onChanged }) 
 
   function useBuyer(prev) {
     setBuyer(prev.buyer);
-    setPhone(prev.phone || "");
+    setPhone(stripPhone(prev.phone));
     setEmail(prev.email || "");
     setAddress(prev.address || "");
   }
@@ -298,7 +299,7 @@ function RaffleTicketModal({ gameId, ticket, permissions, onClose, onChanged }) 
             )}
             <Field label="Buyer name"><input style={inputStyle} value={buyer} onChange={(e) => setBuyer(e.target.value)} /></Field>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Field label="Phone"><input style={inputStyle} value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
+              <Field label="Phone"><input style={inputStyle} value={formatPhone(phone)} onChange={(e) => setPhone(stripPhone(e.target.value))} /></Field>
               <Field label="Email"><input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
             </div>
             <Field label="Address"><input style={inputStyle} value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
@@ -324,7 +325,7 @@ function RaffleTicketModal({ gameId, ticket, permissions, onClose, onChanged }) 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
               <div><strong>Buyer:</strong> {ticket.buyer || "—"}</div>
-              {ticket.phone && <div><strong>Phone:</strong> {ticket.phone}</div>}
+              {ticket.phone && <div><strong>Phone:</strong> {formatPhone(ticket.phone)}</div>}
               {ticket.email && <div><strong>Email:</strong> {ticket.email}</div>}
               {ticket.tenderAmount != null && <div><strong>Paid:</strong> {money(ticket.tenderAmount)} ({ticket.tenderType}{ticket.checkNumber ? ` #${ticket.checkNumber}` : ""})</div>}
             </div>

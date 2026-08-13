@@ -4,6 +4,7 @@ import { publicApi } from "../lib/api";
 import { computeRentalQuote } from "../lib/rentalPricing";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
 import DateTimeField from "../components/DateTimeField";
+import { formatPhone, stripPhone } from "../lib/phone";
 import logo from "../assets/logo.png";
 
 const MS_PER_HOUR = 1000 * 60 * 60;
@@ -184,7 +185,7 @@ export default function PublicRental({ slug, embed }) {
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
                     <Field label="Name" t={t}><input style={inputStyle} required value={form.renterName} onChange={(e) => set("renterName", e.target.value)} /></Field>
                     <Field label="Email" t={t}><input style={inputStyle} type="email" required value={form.renterEmail} onChange={(e) => set("renterEmail", e.target.value)} /></Field>
-                    <Field label="Phone" t={t}><input style={inputStyle} value={form.renterPhone} onChange={(e) => set("renterPhone", e.target.value)} /></Field>
+                    <Field label="Phone" t={t}><input style={inputStyle} value={formatPhone(form.renterPhone)} onChange={(e) => set("renterPhone", stripPhone(e.target.value))} /></Field>
                     <Field label="Address" t={t}><input style={inputStyle} value={form.renterAddress} onChange={(e) => set("renterAddress", e.target.value)} /></Field>
                   </div>
                   <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { colors, card, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
+import { formatPhone, stripPhone } from "../lib/phone";
 
 export default function Profile() {
   const { updateUser } = useAuth();
@@ -26,7 +27,7 @@ function ProfileCard({ me, onSaved }) {
     name: me.name,
     email: me.email,
     title: me.title || "",
-    phone: me.phone || "",
+    phone: stripPhone(me.phone),
     homeAddress: me.homeAddress || "",
   });
   const [busy, setBusy] = useState(false);
@@ -68,7 +69,7 @@ function ProfileCard({ me, onSaved }) {
         </Field>
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 12 }}>
           <Field label="Title"><input style={inputStyle} placeholder="Chairperson" value={form.title} onChange={(e) => set("title", e.target.value)} /></Field>
-          <Field label="Phone"><input style={inputStyle} placeholder="(555) 123-4567" value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
+          <Field label="Phone"><input style={inputStyle} placeholder="(555) 123-4567" value={formatPhone(form.phone)} onChange={(e) => set("phone", stripPhone(e.target.value))} /></Field>
         </div>
         <Field label="Home address, city, and zip">
           <input style={inputStyle} placeholder="123 Main St, Red Hook, NY 12571" value={form.homeAddress} onChange={(e) => set("homeAddress", e.target.value)} />

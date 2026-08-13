@@ -3,6 +3,7 @@
 // reproduces the lodge's real paper agreement (fields + house rules +
 // signatures) as a generated, itemized PDF instead of a hand-totaled one.
 const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
+const { formatPhone } = require("./phone");
 
 const PAGE = { width: 612, height: 792 }; // US Letter
 const MARGIN = 54;
@@ -54,7 +55,7 @@ async function buildRentalContractPdf({ org, space, booking, quote }) {
 
   draw(`Client: ${booking.renterName}`, { f: bold });
   draw(`Address: ${booking.renterAddress || "—"}`);
-  draw(`Phone: ${booking.renterPhone || "—"}    Email: ${booking.renterEmail}`);
+  draw(`Phone: ${formatPhone(booking.renterPhone) || "—"}    Email: ${booking.renterEmail}`);
   draw(`Club Member: ${booking.isMember ? "Yes" : "No"}`);
   y -= 6;
 
