@@ -49,30 +49,38 @@ export default function RaffleGrid({ gameId, permissions, currentUserId }) {
   if (game === null) {
     return (
       <div style={{ ...card, fontSize: 13, color: colors.textSecondary }}>
-        No raffle selected.{isAdmin ? " Go to Report to start one." : " Check back once an Admin sets one up."}
+        No raffle selected.{isAdmin ? " Go to Manage Raffles to start one." : " Check back once an Admin sets one up."}
       </div>
     );
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {stats && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
-          <StatCard label="Available" value={stats.available} />
-          <StatCard label="Reserved" value={stats.reserved} accent={STATUS_STYLE.reserved} />
-          <StatCard label="Sold" value={stats.sold} accent={STATUS_STYLE.sold} />
-          <StatCard label="Funds received" value={stats.fundsReceived} accent={STATUS_STYLE.funds_received} />
-          <StatCard label="Revenue" value={money(stats.revenue)} />
-        </div>
-      )}
+      {stats && <RaffleStatsBars game={game} tickets={tickets} stats={stats} />}
 
       <div style={{ ...card, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-        <input
-          style={{ ...inputStyle, width: 140 }}
-          placeholder="Ticket #"
-          value={search}
-          onChange={(e) => setSearch(e.target.value.replace(/\D/g, ""))}
-        />
+        <div style={{ position: "relative", width: 140 }}>
+          <input
+            style={{ ...inputStyle, width: "100%", paddingRight: search ? 26 : undefined }}
+            placeholder="Ticket #"
+            value={search}
+            onChange={(e) => setSearch(e.target.value.replace(/\D/g, ""))}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Clear ticket search"
+              style={{
+                position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                background: "none", border: "none", cursor: "pointer", padding: 4,
+                color: colors.textSecondary, fontSize: 15, lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+          )}
+        </div>
         <select style={{ ...inputStyle, width: 180 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="all">All statuses</option>
           <option value="available">Available</option>
@@ -126,11 +134,37 @@ export default function RaffleGrid({ gameId, permissions, currentUserId }) {
   );
 }
 
-function StatCard({ label, value, accent }) {
+// Each row is the stat itself — a colored label, a horizontal fill bar, and
+// the value — instead of a separate numeric card grid plus a separate chart
+// below it. One component instead of two saves the vertical space that
+// stacking both would cost, which matters most on a narrow (mobile) screen.
+// Bar fill is each row's value against the raffle's total possible revenue
+// (ticket count × price), not against each other, matching the reference
+// design where "Total tickets" is always full and the dollar rows fill in
+// toward that same shared ceiling.
+function RaffleStatsBars({ game, tickets, stats }) {
+  const maxRevenue = game.totalTickets * game.ticketPrice;
+  const soldPending = tickets.filter((t) => t.status === "sold").reduce((sum, t) => sum + (t.tenderAmount || 0), 0);
+  const unsoldPotential = stats.available * game.ticketPrice;
+
+  const rows = [
+    { key: "total", label: "Total tickets", display: stats.total, fraction: 1, color: colors.accent },
+    { key: "sold_pending", label: "Sold, pending funds", display: money(soldPending), fraction: maxRevenue ? soldPending / maxRevenue : 0, color: colors.indigo },
+    { key: "funds_received", label: "Funds received", display: money(stats.revenue), fraction: maxRevenue ? stats.revenue / maxRevenue : 0, color: colors.success },
+    { key: "unsold", label: "Unsold potential", display: money(unsoldPotential), fraction: maxRevenue ? unsoldPotential / maxRevenue : 0, color: colors.textTertiary },
+  ];
+
   return (
-    <div style={{ ...card, padding: 14 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4, color: accent ? accent.text : colors.textPrimary }}>{value}</div>
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 14 }}>
+      {rows.map((r) => (
+        <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 150, flex: "none", fontSize: 12.5, fontWeight: 600, color: r.color }}>{r.label}</div>
+          <div style={{ flex: 1, height: 20, borderRadius: 6, background: "#f4f4f6", border: `1px solid ${colors.border}`, overflow: "hidden" }}>
+            <div style={{ width: `${Math.min(100, Math.round(r.fraction * 100))}%`, height: "100%", background: r.color, borderRadius: 6 }} />
+          </div>
+          <div style={{ width: 90, flex: "none", textAlign: "right", fontSize: 13, fontWeight: 700, color: r.color }}>{r.display}</div>
+        </div>
+      ))}
     </div>
   );
 }
