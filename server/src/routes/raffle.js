@@ -140,6 +140,83 @@ router.get("/games/:gameId", requireReadAccess("raffle"), async (req, res) => {
   res.json(req.raffleGame);
 });
 
+// Corrects a raffle's details after it's already been started — a typo'd
+// ticket count, a closing date that needs to move, adding more tickets once
+// the first batch is selling well. Locked once the raffle is closed, same as
+// Bell Jar's closed-deal immutability (see deals.js).
+//
+// Shrinking the ticket range is allowed, but only where it's safe: any ticket
+// number that would fall outside the new range must still be untouched
+// ("available") — you can't shrink past a ticket someone's already reserved,
+// sold, or received funds for. Expanding the range creates new ticket rows
+// for just the added numbers; nothing about existing tickets is touched.
+router.patch("/games/:gameId", requirePermission("raffle", "Admin"), requireActiveGame, async (req, res) => {
+  const game = req.raffleGame;
+  const { name, startNumber, endNumber, ticketPrice, startDate, endDate } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: "name is required" });
+
+  const start = Number(startNumber);
+  const end = Number(endNumber);
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) {
+    return res.status(400).json({ error: "startNumber and endNumber must be whole numbers, with endNumber >= startNumber" });
+  }
+  if (end - start + 1 > 20000) {
+    return res.status(400).json({ error: "That's more than 20,000 tickets — double-check the ticket range" });
+  }
+  if (!startDate || !endDate) return res.status(400).json({ error: "startDate and endDate are required" });
+  const parsedStart = new Date(startDate);
+  const parsedEnd = new Date(endDate);
+  if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) {
+    return res.status(400).json({ error: "startDate and endDate must be valid dates" });
+  }
+  if (parsedEnd < parsedStart) return res.status(400).json({ error: "The closing date must be on or after the start date" });
+  const price = Number(ticketPrice);
+  if (!Number.isFinite(price) || price <= 0) return res.status(400).json({ error: "ticketPrice must be a positive number" });
+
+  const shrinkFromStart = start > game.startNumber ? { number: { gte: game.startNumber, lt: start } } : null;
+  const shrinkFromEnd = end < game.endNumber ? { number: { gt: end, lte: game.endNumber } } : null;
+  const shrinkRanges = [shrinkFromStart, shrinkFromEnd].filter(Boolean);
+  if (shrinkRanges.length) {
+    const touched = await prisma.raffleTicket.findFirst({
+      where: { gameId: game.id, status: { not: "available" }, OR: shrinkRanges },
+      orderBy: { number: "asc" },
+    });
+    if (touched) {
+      return res.status(400).json({
+        error: `Can't shrink the ticket range — #${touched.number} is already ${touched.status.replace("_", " ")} and would fall outside the new range`,
+      });
+    }
+  }
+
+  const newNumbers = [];
+  if (start < game.startNumber) for (let n = start; n < game.startNumber; n++) newNumbers.push(n);
+  if (end > game.endNumber) for (let n = game.endNumber + 1; n <= end; n++) newNumbers.push(n);
+
+  await prisma.$transaction([
+    ...(shrinkRanges.length ? [prisma.raffleTicket.deleteMany({ where: { gameId: game.id, OR: shrinkRanges } })] : []),
+    ...(newNumbers.length
+      ? [prisma.raffleTicket.createMany({ data: newNumbers.map((number) => ({ orgId: req.user.orgId, gameId: game.id, number })) })]
+      : []),
+    prisma.raffleGame.update({
+      where: { id: game.id },
+      data: {
+        name: name.trim(), startNumber: start, endNumber: end, totalTickets: end - start + 1,
+        ticketPrice: price, raffleStartDate: parsedStart, raffleEndDate: parsedEnd,
+      },
+    }),
+  ]);
+
+  const changes = [];
+  if (name.trim() !== game.name) changes.push("name");
+  if (start !== game.startNumber || end !== game.endNumber) changes.push(`ticket range #${start}–#${end} (was #${game.startNumber}–#${game.endNumber})`);
+  if (price !== game.ticketPrice) changes.push("ticket price");
+  if (parsedStart.getTime() !== game.raffleStartDate.getTime() || parsedEnd.getTime() !== game.raffleEndDate.getTime()) changes.push("dates");
+  await addRaffleLog(req.user.orgId, game.id, { type: "game_edited", text: `"${game.name}" edited: ${changes.join(", ") || "no changes"}` });
+
+  const updated = await prisma.raffleGame.findUnique({ where: { id: game.id } });
+  res.json(updated);
+});
+
 router.post("/games/:gameId/close", requirePermission("raffle", "Admin"), async (req, res) => {
   if (req.raffleGame.status === "closed") return res.status(400).json({ error: "This raffle is already closed" });
   const updated = await prisma.raffleGame.update({ where: { id: req.raffleGame.id }, data: { status: "closed", closedAt: new Date() } });

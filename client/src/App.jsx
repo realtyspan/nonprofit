@@ -22,6 +22,7 @@ import RentalBlocks from "./views/RentalBlocks";
 import PublicRental from "./views/PublicRental";
 import CalendarView from "./views/CalendarView";
 import PublicCalendar from "./views/PublicCalendar";
+import ManageRaffles from "./views/ManageRaffles";
 import RaffleGrid from "./views/RaffleGrid";
 import RaffleSellers from "./views/RaffleSellers";
 import RaffleAssign from "./views/RaffleAssign";
@@ -185,13 +186,14 @@ function Shell() {
             {activeModuleKey === "rentals" && view === "spaces" && <RentalSpaces spaces={rentalSpaces} onChanged={refreshRentals} />}
             {activeModuleKey === "rentals" && view === "blocks" && <RentalBlocks spaces={rentalSpaces} />}
             {activeModuleKey === "calendar" && view === "month" && <CalendarView rentalSpaces={rentalSpaces} permissions={permissions} />}
+            {activeModuleKey === "raffle" && view === "manage" && <ManageRaffles games={raffleGames} gameId={selectedRaffleGameId} onGamesChanged={refreshRaffleGames} />}
             {activeModuleKey === "raffle" && view === "grid" && <RaffleGrid gameId={selectedRaffleGameId} permissions={permissions} currentUserId={session?.user?.id} />}
             {activeModuleKey === "raffle" && view === "sellers" && <RaffleSellers gameId={selectedRaffleGameId} permissions={permissions} />}
             {activeModuleKey === "raffle" && view === "assign" && <RaffleAssign gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "deposit" && <RaffleDeposit gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "log" && <RaffleLog gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "renewals" && <RaffleRenewals gameId={selectedRaffleGameId} />}
-            {activeModuleKey === "raffle" && view === "report" && <RaffleReport games={raffleGames} gameId={selectedRaffleGameId} onGamesChanged={refreshRaffleGames} />}
+            {activeModuleKey === "raffle" && view === "report" && <RaffleReport games={raffleGames} gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "drawings" && <RaffleDrawings gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "checkin" && <RaffleCheckIn gameId={selectedRaffleGameId} />}
             {view === "team" && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}

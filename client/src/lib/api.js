@@ -140,6 +140,7 @@ export const api = {
   listRaffleGames: () => request("/raffle/games"),
   createRaffleGame: (payload) => request("/raffle/games", { method: "POST", body: payload }),
   getRaffleGame: (gameId) => request(`/raffle/games/${gameId}`),
+  updateRaffleGame: (gameId, payload) => request(`/raffle/games/${gameId}`, { method: "PATCH", body: payload }),
   closeRaffleGame: (gameId) => request(`/raffle/games/${gameId}/close`, { method: "POST" }),
   reopenRaffleGame: (gameId) => request(`/raffle/games/${gameId}/reopen`, { method: "POST" }),
 

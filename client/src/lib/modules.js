@@ -40,6 +40,7 @@ export const MODULES = [
     label: "Raffle",
     icon: icons.ticket,
     navItems: [
+      { key: "manage", label: "Manage Raffles", icon: icons.layers, title: "Manage Raffles", subtitle: "Start, edit, close, or reopen a raffle", requiresTier: "Admin" },
       { key: "grid", label: "Ticket Grid", icon: icons.ticket, title: "Ticket Grid", subtitle: "Record sales, reservations, and payments" },
       { key: "checkin", label: "Check-In", icon: icons.checkCircle, title: "Check-In", subtitle: "Check in ticket holders on drawing night" },
       { key: "renewals", label: "Renewals", icon: icons.phoneCall, title: "Renewals", subtitle: "Track outreach calls to last year's buyers" },
