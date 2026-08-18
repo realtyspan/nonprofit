@@ -90,6 +90,15 @@ function DrawingCard({ gameId, drawing, onChanged, onError }) {
           <button style={button.primary} disabled={busy} onClick={() => run(() => api.drawRaffleDrawing(gameId, drawing.id))}>Draw at random</button>
           <input style={{ ...inputStyle, width: 90 }} placeholder="Ticket #" value={manualNumber} onChange={(e) => setManualNumber(e.target.value.replace(/\D/g, ""))} />
           <button style={button.ghost} disabled={busy || !manualNumber} onClick={() => run(() => api.drawRaffleDrawingManual(gameId, drawing.id, Number(manualNumber)))}>Draw this ticket</button>
+          <button
+            style={{ ...button.ghost, color: colors.danger, marginLeft: "auto" }}
+            disabled={busy}
+            onClick={() => {
+              if (window.confirm(`Delete the "${drawing.name}" drawing? This can't be undone.`)) run(() => api.deleteRaffleDrawing(gameId, drawing.id));
+            }}
+          >
+            Delete
+          </button>
         </div>
       )}
       {hasWinner && (

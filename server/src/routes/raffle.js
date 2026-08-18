@@ -231,6 +231,17 @@ router.post("/games/:gameId/reopen", requirePermission("raffle", "Admin"), async
   res.json(updated);
 });
 
+// Permanently removes a raffle logged in error — every ticket, sale, log
+// entry, and drawing goes with it (all cascade-delete at the DB level via
+// each child model's `game` relation, so no manual cleanup transaction is
+// needed here, unlike Bell Jar's deal deletion). Locked once closed, same
+// immutability rule as editing: a closed raffle's history is the record,
+// not something to erase.
+router.delete("/games/:gameId", requirePermission("raffle", "Admin"), requireActiveGame, async (req, res) => {
+  await prisma.raffleGame.delete({ where: { id: req.raffleGame.id } });
+  res.json({ ok: true });
+});
+
 // --- Tickets / log / stats (read) ---
 
 router.get("/games/:gameId/tickets", requireReadAccess("raffle"), async (req, res) => {

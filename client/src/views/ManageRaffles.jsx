@@ -10,6 +10,7 @@ import { formatUtcDate } from "../lib/dates";
 export default function ManageRaffles({ games, gameId, onGamesChanged }) {
   const [showNewGameForm, setShowNewGameForm] = useState(false);
   const [editingGame, setEditingGame] = useState(null);
+  const [deletingGame, setDeletingGame] = useState(null);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [lifecycleError, setLifecycleError] = useState("");
 
@@ -74,9 +75,12 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
             <div>{money(g.ticketPrice)}</div>
             <div style={{ fontSize: 12, color: colors.textSecondary }}>{formatUtcDate(g.raffleStartDate)} – {formatUtcDate(g.raffleEndDate)}</div>
             <span style={pill(g.status === "active" ? colors.successBg : "#f0f0f3", g.status === "active" ? colors.success : colors.textSecondary)}>{g.status}</span>
-            <div>
+            <div style={{ display: "flex", gap: 6 }}>
               {g.status === "active" && (
-                <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} onClick={() => setEditingGame(g)}>Edit</button>
+                <>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} onClick={() => setEditingGame(g)}>Edit</button>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} onClick={() => setDeletingGame(g)}>Delete</button>
+                </>
               )}
             </div>
           </div>
@@ -104,6 +108,14 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
           game={editingGame}
           onCancel={() => setEditingGame(null)}
           onSaved={() => { setEditingGame(null); onGamesChanged(); }}
+        />
+      )}
+
+      {deletingGame && (
+        <DeleteRaffleModal
+          game={deletingGame}
+          onCancel={() => setDeletingGame(null)}
+          onDeleted={() => { setDeletingGame(null); onGamesChanged(); }}
         />
       )}
     </div>
@@ -247,6 +259,42 @@ function EditGameModal({ game, onCancel, onSaved }) {
             <button type="submit" style={button.primary} disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function DeleteRaffleModal({ game, onCancel, onDeleted }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function confirmDelete() {
+    setBusy(true);
+    setError("");
+    try {
+      await api.deleteRaffleGame(game.id);
+      onDeleted();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+      <div style={{ width: 440, background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Delete "{game.name}"?</div>
+        <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 16 }}>
+          This permanently removes the raffle, all {game.totalTickets.toLocaleString()} tickets, every sale and payment recorded against them, and any drawings set up for it. This can't be undone.
+        </div>
+        {error && <div style={{ color: colors.danger, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+          <button style={{ ...button.primary, background: colors.danger }} onClick={confirmDelete} disabled={busy}>
+            {busy ? "Deleting…" : "Delete permanently"}
+          </button>
+        </div>
       </div>
     </div>
   );
