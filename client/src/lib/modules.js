@@ -52,6 +52,7 @@ export const MODULES = [
       { key: "log", label: "Activity Log", icon: icons.fileCheck, title: "Activity Log", subtitle: "Every ticket state change, in order" },
       { key: "report", label: "Report", icon: icons.table, title: "Report", subtitle: "Sales and revenue summary", requiresTier: "Admin" },
       { key: "drawings", label: "Drawings", icon: icons.dice, title: "Drawings", subtitle: "Set up drawings and draw winners", requiresTier: "Admin" },
+      { key: "financials", label: "Financial Statement", icon: icons.bank, title: "Financial Statement", subtitle: "Net proceeds, expenses, and NYS raffle compliance status", requiresTier: "Admin" },
       { key: "deposit", label: "Deposit", icon: icons.bank, title: "Deposit", subtitle: "Batch-record funds received from sellers", requiresTier: "Admin" },
       { key: "assign", label: "Assign", icon: icons.sliders, title: "Assign", subtitle: "Assign ticket ranges to sellers", requiresTier: "Admin" },
     ],

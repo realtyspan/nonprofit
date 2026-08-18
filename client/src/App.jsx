@@ -31,6 +31,7 @@ import RaffleLog from "./views/RaffleLog";
 import RaffleRenewals from "./views/RaffleRenewals";
 import RaffleReport from "./views/RaffleReport";
 import RaffleDrawings from "./views/RaffleDrawings";
+import RaffleFinancials from "./views/RaffleFinancials";
 import RaffleCheckIn from "./views/RaffleCheckIn";
 
 function PublicGate() {
@@ -201,6 +202,7 @@ function Shell() {
             {activeModuleKey === "raffle" && view === "renewals" && <RaffleRenewals gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "report" && <RaffleReport games={raffleGames} gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "drawings" && <RaffleDrawings gameId={selectedRaffleGameId} />}
+            {activeModuleKey === "raffle" && view === "financials" && <RaffleFinancials />}
             {activeModuleKey === "raffle" && view === "checkin" && <RaffleCheckIn gameId={selectedRaffleGameId} />}
             {view === "team" && canSeeTeam && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}
             {view === "profile" && <Profile />}

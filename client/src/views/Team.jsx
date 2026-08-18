@@ -70,7 +70,24 @@ export default function Team({ permissions, onPermissionsChanged }) {
         {users.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No teammates yet.</div>}
       </div>
 
-      {(isOwner || adminModules.includes("bell-jar")) && <GC7QSignersCard users={users} />}
+      {(isOwner || adminModules.includes("bell-jar")) && (
+        <SignersCard
+          title="GC-7Q signers"
+          description="Who's authorized to sign each of the 3 signature slots on the quarterly filing — a real form requirement, separate from Bell Jar module access. A signer can be anyone in the org, regardless of their own access level."
+          users={users}
+          getSigners={api.getGC7QSigners}
+          assignSigner={api.assignGC7QSigner}
+        />
+      )}
+      {(isOwner || adminModules.includes("raffle")) && (
+        <SignersCard
+          title="Raffle (GC-7R) signers"
+          description="Who's authorized to sign each of the 3 signature slots on the raffle financial statement — separate from the GC-7Q signers above, in case a different officer signs for raffle filings. A signer can be anyone in the org, regardless of their own access level."
+          users={users}
+          getSigners={api.getRaffleSigners}
+          assignSigner={api.assignRaffleSigner}
+        />
+      )}
     </div>
   );
 }
@@ -258,13 +275,17 @@ function LabelsCard({ labels, onSaved }) {
   );
 }
 
-function GC7QSignersCard({ users }) {
+// Generic Head/Preparer/Member signer-assignment card — shared by GC-7Q
+// (quarterly Bell Jar) and GC-7R (raffle) filings, which each need their own
+// independent set of designated signers (see RaffleSignerDesignation's
+// schema comment for why they're separate tables, not shared).
+function SignersCard({ title, description, users, getSigners, assignSigner }) {
   const [designations, setDesignations] = useState([]);
   const [busySlot, setBusySlot] = useState(null);
   const [error, setError] = useState("");
 
   function refresh() {
-    api.getGC7QSigners().then(setDesignations).catch(() => {});
+    getSigners().then(setDesignations).catch(() => {});
   }
   useEffect(refresh, []);
 
@@ -272,7 +293,7 @@ function GC7QSignersCard({ users }) {
     setError("");
     setBusySlot(slot);
     try {
-      if (userId) await api.assignGC7QSigner(slot, userId);
+      if (userId) await assignSigner(slot, userId);
       refresh();
     } catch (err) {
       setError(err.message);
@@ -284,10 +305,8 @@ function GC7QSignersCard({ users }) {
   return (
     <div style={{ ...card, display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
-        <div style={{ fontSize: 13, fontWeight: 700 }}>GC-7Q signers</div>
-        <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>
-          Who's authorized to sign each of the 3 signature slots on the quarterly filing — a real form requirement, separate from Bell Jar module access. A signer can be anyone in the org, regardless of their own access level.
-        </div>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>{title}</div>
+        <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>{description}</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
         {GC7Q_SLOTS.map((slot) => {

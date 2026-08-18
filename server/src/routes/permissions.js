@@ -160,4 +160,33 @@ router.put("/gc7q-signers/:slot", requirePermission("bell-jar", "Admin"), async 
   res.json(designation);
 });
 
+// Same pattern as the gc7q-signers pair above, but for GC-7R (raffle)
+// filings — a separate table so an org can name different officers for the
+// raffle filing than the quarterly Bell Jar one (see schema.prisma's
+// RaffleSignerDesignation comment).
+router.get("/raffle-signers", requirePermission("raffle", "Admin"), async (req, res) => {
+  const rows = await prisma.raffleSignerDesignation.findMany({
+    where: { orgId: req.user.orgId },
+    include: { user: { select: { id: true, name: true, email: true } } },
+  });
+  res.json(rows);
+});
+
+router.put("/raffle-signers/:slot", requirePermission("raffle", "Admin"), async (req, res) => {
+  const { slot } = req.params;
+  if (!["Head", "Preparer", "Member"].includes(slot)) {
+    return res.status(400).json({ error: "slot must be Head, Preparer, or Member" });
+  }
+  const { userId } = req.body;
+  const target = await prisma.user.findFirst({ where: { id: userId, orgId: req.user.orgId } });
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  const designation = await prisma.raffleSignerDesignation.upsert({
+    where: { orgId_slot: { orgId: req.user.orgId, slot } },
+    update: { userId: target.id },
+    create: { orgId: req.user.orgId, userId: target.id, slot },
+  });
+  res.json(designation);
+});
+
 module.exports = router;

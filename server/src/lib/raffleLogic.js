@@ -57,4 +57,65 @@ function fmtUsDate(value) {
   return `${mm}-${dd}-${d.getUTCFullYear()}`;
 }
 
-module.exports = { maskRaffleTicket, computeRaffleStats, eligibleTicketPool, fmtUsDate };
+// NYS Games of Chance raffle license thresholds (General Municipal Law /
+// GC-2 & GC-7R) — fixed by statute, not an org policy choice, unlike e.g.
+// Deal.closeThreshold. Evaluated on YEAR-TO-DATE net proceeds across every
+// raffle an org runs in a calendar year, not any single raffle in isolation
+// (per the GC-2 application's own wording: "Raffles (net profits $30,000
+// and over in calendar year)").
+const CATEGORY_2_MAX = 5000; // under this: Category 2, minimal/self-certifying
+const CATEGORY_1A_MIN = 30000; // at/over this: Category 1A — GC-7R + 2% fee
+const ADDITIONAL_FEE_RATE = 0.02;
+
+// `games` is one entry per RaffleGame in the target year, each already
+// summed by the caller: { revenue, totalPrizeValue, actualExpenses, estimatedExpenses }.
+// `revenue` should be computeRaffleStats().revenue (actual cash collected,
+// not an aspirational ticket-count × price figure). Blends actual-if-present
+// -else-estimate per game for the projection, so a game with real expense
+// rows already entered doesn't get muddied by its own leftover estimate.
+function computeRaffleFinancials(games) {
+  let totalReceipts = 0;
+  let totalPrizeValue = 0;
+  let totalActualExpenses = 0;
+  let totalEstimatedExpenses = 0;
+  let netProceedsActual = 0;
+  let netProceedsProjected = 0;
+
+  for (const g of games) {
+    const revenue = g.revenue || 0;
+    const prizeValue = g.totalPrizeValue || 0;
+    const actualExpenses = g.actualExpenses || 0;
+    const estimatedExpenses = g.estimatedExpenses || 0;
+    const hasActuals = actualExpenses > 0;
+
+    totalReceipts += revenue;
+    totalPrizeValue += prizeValue;
+    totalActualExpenses += actualExpenses;
+    totalEstimatedExpenses += estimatedExpenses;
+
+    netProceedsActual += revenue - prizeValue - actualExpenses;
+    netProceedsProjected += revenue - prizeValue - (hasActuals ? actualExpenses : estimatedExpenses);
+  }
+
+  function classify(netProceeds) {
+    if (netProceeds < CATEGORY_2_MAX) return "category_2";
+    if (netProceeds < CATEGORY_1A_MIN) return "category_1b";
+    return "category_1a";
+  }
+
+  const category = classify(netProceedsActual);
+  const additionalFee = category === "category_1a" ? (netProceedsActual - CATEGORY_1A_MIN) * ADDITIONAL_FEE_RATE : 0;
+
+  return {
+    totalReceipts, totalPrizeValue, totalActualExpenses, totalEstimatedExpenses,
+    netProceedsActual, netProceedsProjected,
+    category, categoryProjected: classify(netProceedsProjected),
+    additionalFee,
+    gameCount: games.length,
+  };
+}
+
+module.exports = {
+  maskRaffleTicket, computeRaffleStats, eligibleTicketPool, fmtUsDate,
+  computeRaffleFinancials, CATEGORY_2_MAX, CATEGORY_1A_MIN, ADDITIONAL_FEE_RATE,
+};

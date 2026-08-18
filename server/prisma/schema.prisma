@@ -41,6 +41,8 @@ model Organization {
   raffleDrawings         RaffleDrawing[]
   raffleRenewalCalls     RaffleRenewalCall[]
   raffleCheckIns         RaffleCheckIn[]
+  raffleExpenses         RaffleExpense[]
+  raffleSignerDesignations RaffleSignerDesignation[]
 }
 
 model User {
@@ -60,6 +62,7 @@ model User {
   orgMembership          OrgMembership?
   moduleGrants           ModuleGrant[]
   gc7qSignerDesignations GC7QSignerDesignation[]
+  raffleSignerDesignations RaffleSignerDesignation[]
   raffleAssignments      RaffleTicket[] @relation("RaffleAssignedSeller")
   passwordResets         PasswordReset[]
 
@@ -148,6 +151,23 @@ model GC7QSignerDesignation {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   slot      String   // Head | Preparer | Member — same values as SignOff.role
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, slot])
+  @@index([orgId])
+}
+
+// Same shape and purpose as GC7QSignerDesignation, but for GC-7R (raffle)
+// filings — kept as a separate table rather than shared, since an org may
+// want different named officers signing the raffle filing than the
+// quarterly Bell Jar one. Assignable by the raffle module's Admin.
+model RaffleSignerDesignation {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slot      String   // Head | Preparer | Member
   createdAt DateTime @default(now())
 
   @@unique([orgId, slot])
@@ -478,6 +498,7 @@ model RaffleGame {
   raffleEndDate   DateTime  // closing date / final drawing
   status          String    @default("active") // active | closed
   closedAt        DateTime?
+  estimatedExpenses Float   @default(0) // rough non-prize-expense planning number the chairman can set anytime, for an early compliance projection before real RaffleExpense rows exist — not part of the official GC-7R math once actuals are entered
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -486,6 +507,7 @@ model RaffleGame {
   drawings     RaffleDrawing[]
   renewalCalls RaffleRenewalCall[]
   checkIns     RaffleCheckIn[]
+  expenses     RaffleExpense[]
 
   @@index([orgId])
   @@index([orgId, status])
@@ -556,6 +578,28 @@ model RaffleDrawing {
   drawnByName   String   @default("")
   drawMode      String?  // random | manual
   createdAt     DateTime @default(now())
+
+  @@index([orgId])
+  @@index([gameId])
+}
+
+// A raffle's real, itemized non-prize operating expenses — the raffle analog
+// of Disbursement, but scoped to one RaffleGame (one raffle occasion) instead
+// of org+quarter/year, matching how GC-7R itself reports per-occasion. Not
+// locked to active games: real bills legitimately arrive after the drawing
+// and before the 30-day GC-7R filing deadline.
+model RaffleExpense {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  gameId    String
+  game      RaffleGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now())
+  payee     String
+  checkNum  String
+  amount    Float
+  category  String   // tickets | license_fee | equipment_supplies | services | rent | other
+  createdAt DateTime @default(now())
 
   @@index([orgId])
   @@index([gameId])

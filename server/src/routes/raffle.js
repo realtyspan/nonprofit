@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
-const { maskRaffleTicket, computeRaffleStats, eligibleTicketPool, fmtUsDate } = require("../lib/raffleLogic");
+const { maskRaffleTicket, computeRaffleStats, eligibleTicketPool, fmtUsDate, computeRaffleFinancials } = require("../lib/raffleLogic");
 const { saleConfirmationHtml, electronicTicketHtml, paymentReminderHtml } = require("../lib/raffleEmails");
 const { sendEmail } = require("../lib/notifications");
 
@@ -138,6 +138,40 @@ router.post("/games", requirePermission("raffle", "Admin"), async (req, res) => 
 
 router.get("/games/:gameId", requireReadAccess("raffle"), async (req, res) => {
   res.json(req.raffleGame);
+});
+
+// NYS evaluates the $30,000 raffle license threshold on YEAR-TO-DATE net
+// proceeds across every raffle the org runs, not any single raffle in
+// isolation (see computeRaffleFinancials's comment) — so this spans every
+// RaffleGame in the org for the given year, not just one game.
+router.get("/financials/:year", requireReadAccess("raffle"), async (req, res) => {
+  const year = Number(req.params.year);
+  if (!Number.isInteger(year)) return res.status(400).json({ error: "year must be a whole number" });
+
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const yearEnd = new Date(Date.UTC(year + 1, 0, 1));
+  const games = await prisma.raffleGame.findMany({
+    where: { orgId: req.user.orgId, raffleEndDate: { gte: yearStart, lt: yearEnd } },
+    orderBy: { raffleEndDate: "asc" },
+  });
+
+  const perGame = [];
+  for (const game of games) {
+    const [tickets, drawings, expenses] = await Promise.all([
+      prisma.raffleTicket.findMany({ where: { gameId: game.id, orgId: req.user.orgId } }),
+      prisma.raffleDrawing.findMany({ where: { gameId: game.id, orgId: req.user.orgId } }),
+      prisma.raffleExpense.findMany({ where: { gameId: game.id, orgId: req.user.orgId } }),
+    ]);
+    const revenue = computeRaffleStats(tickets).revenue;
+    const totalPrizeValue = drawings.reduce((sum, d) => sum + d.prizeAmount, 0);
+    const actualExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    perGame.push({
+      gameId: game.id, name: game.name, raffleEndDate: game.raffleEndDate, status: game.status,
+      revenue, totalPrizeValue, actualExpenses, estimatedExpenses: game.estimatedExpenses,
+    });
+  }
+
+  res.json({ year, financials: computeRaffleFinancials(perGame), games: perGame });
 });
 
 // Corrects a raffle's details after it's already been started — a typo'd
@@ -632,6 +666,54 @@ router.post("/games/:gameId/drawings/:id/clear", requirePermission("raffle", "Ad
     data: { winningTicket: null, winningBuyer: "", winningPhone: "", eligibleCount: 0, drawnAt: null, drawnByName: "", drawMode: null },
   });
   await addRaffleLog(req.user.orgId, req.raffleGame.id, { type: "drawing", text: `${drawing.name}: winner cleared for redraw` });
+  res.json(updated);
+});
+
+// --- Expenses (raffle financial statement / GC-7R) ---
+// Not locked to active games: real bills legitimately arrive after the
+// drawing and before the 30-day GC-7R filing deadline.
+
+const EXPENSE_CATEGORIES = ["tickets", "license_fee", "equipment_supplies", "services", "rent", "other"];
+
+router.get("/games/:gameId/expenses", requireReadAccess("raffle"), async (req, res) => {
+  const expenses = await prisma.raffleExpense.findMany({
+    where: { gameId: req.raffleGame.id, orgId: req.user.orgId },
+    orderBy: { date: "desc" },
+  });
+  res.json(expenses);
+});
+
+router.post("/games/:gameId/expenses", requirePermission("raffle", "Admin"), async (req, res) => {
+  const { date, payee, checkNum, amount, category } = req.body;
+  if (!payee || !payee.trim()) return res.status(400).json({ error: "payee is required" });
+  if (!EXPENSE_CATEGORIES.includes(category)) return res.status(400).json({ error: "Invalid category" });
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ error: "amount must be a positive number" });
+
+  const expense = await prisma.raffleExpense.create({
+    data: {
+      orgId: req.user.orgId, gameId: req.raffleGame.id, payee: payee.trim(),
+      checkNum: checkNum || "", amount: amt, category,
+      ...(date ? { date: new Date(date) } : {}),
+    },
+  });
+  res.json(expense);
+});
+
+router.delete("/games/:gameId/expenses/:id", requirePermission("raffle", "Admin"), async (req, res) => {
+  const expense = await prisma.raffleExpense.findFirst({ where: { id: req.params.id, gameId: req.raffleGame.id, orgId: req.user.orgId } });
+  if (!expense) return res.status(404).json({ error: "Expense not found" });
+  await prisma.raffleExpense.delete({ where: { id: expense.id } });
+  res.json({ ok: true });
+});
+
+// A single rough planning number, deliberately separate from the big
+// PATCH /games/:gameId form-edit route so the Financial Statement page can
+// update just this field without resending the whole game-edit payload.
+router.patch("/games/:gameId/estimated-expenses", requirePermission("raffle", "Admin"), async (req, res) => {
+  const amt = Number(req.body.estimatedExpenses);
+  if (!Number.isFinite(amt) || amt < 0) return res.status(400).json({ error: "estimatedExpenses must be a non-negative number" });
+  const updated = await prisma.raffleGame.update({ where: { id: req.raffleGame.id }, data: { estimatedExpenses: amt } });
   res.json(updated);
 });
 

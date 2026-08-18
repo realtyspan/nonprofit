@@ -74,6 +74,8 @@ export const api = {
   updateTierLabels: (payload) => request("/permissions/labels", { method: "PATCH", body: payload }),
   getGC7QSigners: () => request("/permissions/gc7q-signers"),
   assignGC7QSigner: (slot, userId) => request(`/permissions/gc7q-signers/${slot}`, { method: "PUT", body: { userId } }),
+  getRaffleSigners: () => request("/permissions/raffle-signers"),
+  assignRaffleSigner: (slot, userId) => request(`/permissions/raffle-signers/${slot}`, { method: "PUT", body: { userId } }),
 
   listDeals: () => request("/deals"),
   scanGameLabel: (image) => request("/deals/scan-label", { method: "POST", body: { image } }),
@@ -168,6 +170,12 @@ export const api = {
   drawRaffleDrawing: (gameId, id) => request(`/raffle/games/${gameId}/drawings/${id}/draw`, { method: "POST" }),
   drawRaffleDrawingManual: (gameId, id, ticketNumber) => request(`/raffle/games/${gameId}/drawings/${id}/draw-manual`, { method: "POST", body: { ticketNumber } }),
   clearRaffleDrawing: (gameId, id) => request(`/raffle/games/${gameId}/drawings/${id}/clear`, { method: "POST" }),
+
+  listRaffleExpenses: (gameId) => request(`/raffle/games/${gameId}/expenses`),
+  createRaffleExpense: (gameId, payload) => request(`/raffle/games/${gameId}/expenses`, { method: "POST", body: payload }),
+  deleteRaffleExpense: (gameId, id) => request(`/raffle/games/${gameId}/expenses/${id}`, { method: "DELETE" }),
+  updateRaffleEstimatedExpenses: (gameId, estimatedExpenses) => request(`/raffle/games/${gameId}/estimated-expenses`, { method: "PATCH", body: { estimatedExpenses } }),
+  getRaffleFinancials: (year) => request(`/raffle/financials/${year}`),
 
   listRaffleRenewalCalls: (gameId) => request(`/raffle/games/${gameId}/renewal-calls`),
   logRaffleRenewalCall: (gameId, ticketNumber, note) => request(`/raffle/games/${gameId}/renewal-calls`, { method: "POST", body: { ticketNumber, note } }),
