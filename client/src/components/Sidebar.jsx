@@ -58,7 +58,7 @@ export default function Sidebar({ module, view, setView, badges, permissions }) 
       </div>
 
       <div style={{ padding: "10px 12px", borderRadius: 10, background: "#faf9f6", border: "1px solid #f0ede3", fontSize: 11, color: "#8a8168", lineHeight: 1.5 }}>
-        NYS Gaming Commission compliant · Bell Jar / Games of Chance
+        {module.blurb}
       </div>
     </div>
   );

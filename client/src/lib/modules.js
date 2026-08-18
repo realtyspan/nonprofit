@@ -9,6 +9,7 @@ export const MODULES = [
     key: "bell-jar",
     label: "Bell Jar",
     icon: icons.layers,
+    blurb: "NYS Gaming Commission compliant · Bell Jar / Games of Chance",
     navItems: [
       { key: "dashboard", label: "Overview", icon: icons.grid, title: "Overview", subtitle: "At-a-glance compliance status" },
       { key: "worksheet", label: "Sales Worksheet", icon: icons.table, title: "Sales Worksheet", subtitle: "Log tickets sold and cash collected each time the machine is opened to retrieve funds and refill tickets" },
@@ -21,6 +22,7 @@ export const MODULES = [
     key: "rentals",
     label: "Rental Space",
     icon: icons.key,
+    blurb: "Lodge facility rentals · Bookings, spaces & rates",
     navItems: [
       { key: "bookings", label: "Bookings", icon: icons.inbox, title: "Bookings", subtitle: "Review inquiries and manage confirmed rentals" },
       { key: "spaces", label: "Spaces & Rates", icon: icons.sliders, title: "Spaces & Rates", subtitle: "Manage rentable spaces, pricing, and your public booking link" },
@@ -31,6 +33,7 @@ export const MODULES = [
     key: "calendar",
     label: "Calendar",
     icon: icons.calendar,
+    blurb: "Lodge calendar · Internal events & public schedule",
     navItems: [
       { key: "month", label: "Calendar", icon: icons.calendar, title: "Calendar", subtitle: "Lodge events plus everything published from other modules" },
     ],
@@ -39,6 +42,7 @@ export const MODULES = [
     key: "raffle",
     label: "Raffle",
     icon: icons.ticket,
+    blurb: "NYS Gaming Commission compliant · Raffle / Games of Chance",
     navItems: [
       { key: "manage", label: "Manage Raffles", icon: icons.layers, title: "Manage Raffles", subtitle: "Start, edit, close, or reopen a raffle", requiresTier: "Admin" },
       { key: "grid", label: "Ticket Grid", icon: icons.ticket, title: "Ticket Grid", subtitle: "Record sales, reservations, and payments" },
