@@ -171,6 +171,7 @@ export const api = {
   listRaffleRenewalCalls: (gameId) => request(`/raffle/games/${gameId}/renewal-calls`),
   logRaffleRenewalCall: (gameId, ticketNumber, note) => request(`/raffle/games/${gameId}/renewal-calls`, { method: "POST", body: { ticketNumber, note } }),
 
+  searchRaffleCheckIn: (gameId) => request(`/raffle/games/${gameId}/checkin-search`),
   listRaffleCheckIns: (gameId) => request(`/raffle/games/${gameId}/checkins`),
   toggleRaffleCheckIn: (gameId, ticketNumber, hasGuest) => request(`/raffle/games/${gameId}/checkins/${ticketNumber}`, { method: "POST", body: { hasGuest } }),
 

@@ -652,6 +652,21 @@ router.post("/games/:gameId/renewal-calls", requirePermission("raffle", "Helper"
 // New — doesn't exist in the source app. Scoped per game: a person checks in
 // once for raffle night regardless of how many drawings happen.
 
+// Deliberately NOT run through maskRaffleTicket, unlike the general ticket
+// list — verifying who's at the door is a different concern than "who gets
+// sales credit," so any Helper sees the real buyer/phone here regardless of
+// who actually sold that ticket. Only the fields check-in search actually
+// needs, and only tickets someone could plausibly be holding (an "available"
+// ticket has no buyer to search for).
+router.get("/games/:gameId/checkin-search", requirePermission("raffle", "Helper"), async (req, res) => {
+  const tickets = await prisma.raffleTicket.findMany({
+    where: { gameId: req.raffleGame.id, orgId: req.user.orgId, status: { not: "available" } },
+    select: { number: true, buyer: true, phone: true, status: true },
+    orderBy: { number: "asc" },
+  });
+  res.json(tickets);
+});
+
 router.get("/games/:gameId/checkins", requireReadAccess("raffle"), async (req, res) => {
   const checkIns = await prisma.raffleCheckIn.findMany({
     where: { gameId: req.raffleGame.id, orgId: req.user.orgId },
