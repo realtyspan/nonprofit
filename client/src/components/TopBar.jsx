@@ -44,12 +44,14 @@ export default function TopBar({ modules, activeModuleKey, onSwitchModule, modul
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <button
-          onClick={onOpenTeam}
-          style={{ background: "transparent", border: "none", color: colors.textSecondary, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-        >
-          Team
-        </button>
+        {onOpenTeam && (
+          <button
+            onClick={onOpenTeam}
+            style={{ background: "transparent", border: "none", color: colors.textSecondary, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+          >
+            Team
+          </button>
+        )}
         <button
           onClick={onOpenProfile}
           title="My Profile"

@@ -3,26 +3,50 @@ import { colors, card, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import { formatPhone, stripPhone } from "../lib/phone";
+import { MODULES } from "../lib/modules";
 
 export default function Profile() {
   const { updateUser } = useAuth();
   const [me, setMe] = useState(null);
+  const [labels, setLabels] = useState(null);
 
   useEffect(() => {
     api.getMe().then(setMe).catch(() => {});
+    api.getTierLabels().then(setLabels).catch(() => {});
   }, []);
 
   if (!me) return null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 560 }}>
-      <ProfileCard me={me} onSaved={(updated) => { setMe(updated); updateUser(updated); }} />
+      <ProfileCard me={me} labels={labels} onSaved={(updated) => { setMe(updated); updateUser(updated); }} />
       <PasswordCard />
     </div>
   );
 }
 
-function ProfileCard({ me, onSaved }) {
+// Real replacement for the frozen legacy `role` column, which every invited
+// user gets hardcoded to "Cashier" under the current permission model — not
+// what actually governs their access. Mirrors Sidebar.jsx's effectiveLabel,
+// generalized across every module instead of just the one that's active.
+function tierLabel(tier, labels) {
+  if (tier === "Owner") return labels?.ownerLabel || "Owner";
+  if (tier === "Viewer") return labels?.viewerLabel || "Viewer";
+  if (tier === "Admin") return labels?.adminLabel || "Admin";
+  if (tier === "Helper") return labels?.helperLabel || "Helper";
+  return tier;
+}
+
+function accessSummary(me, labels) {
+  if (me.orgTier === "Owner" || me.orgTier === "Viewer") return tierLabel(me.orgTier, labels);
+  const grants = Object.entries(me.moduleGrants || {});
+  if (grants.length === 0) return "No module access yet";
+  return grants
+    .map(([moduleKey, tier]) => `${MODULES.find((m) => m.key === moduleKey)?.label || moduleKey}: ${tierLabel(tier, labels)}`)
+    .join(", ");
+}
+
+function ProfileCard({ me, labels, onSaved }) {
   const [form, setForm] = useState({
     name: me.name,
     email: me.email,
@@ -65,7 +89,7 @@ function ProfileCard({ me, onSaved }) {
         <Field label="Name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
         <Field label="Email"><input style={inputStyle} type="email" required value={form.email} onChange={(e) => set("email", e.target.value)} /></Field>
         <Field label="Role">
-          <input style={{ ...inputStyle, background: "#f4f4f6", color: colors.textSecondary }} value={me.role} disabled />
+          <input style={{ ...inputStyle, background: "#f4f4f6", color: colors.textSecondary }} value={accessSummary(me, labels)} disabled />
         </Field>
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 12 }}>
           <Field label="Title"><input style={inputStyle} placeholder="Chairperson" value={form.title} onChange={(e) => set("title", e.target.value)} /></Field>

@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from "./lib/AuthContext";
 import { api } from "./lib/api";
 import { APP_URL } from "./lib/env";
 import { colors } from "./lib/tokens";
-import { MODULES, filterModulesForUser } from "./lib/modules";
+import { MODULES, filterModulesForUser, filterNavItemsForUser } from "./lib/modules";
 import TopBar from "./components/TopBar";
 import Sidebar from "./components/Sidebar";
 import Landing from "./views/Landing";
@@ -110,8 +110,10 @@ function Shell() {
     if (!permissions || activeModuleKey !== null) return;
     const visible = filterModulesForUser(MODULES, permissions);
     if (visible.length) {
-      setActiveModuleKey(visible[0].key);
-      setView(visible[0].navItems[0].key);
+      const firstModule = visible[0];
+      const firstNavItems = filterNavItemsForUser(firstModule.navItems, permissions, firstModule.key);
+      setActiveModuleKey(firstModule.key);
+      setView(firstNavItems[0].key);
     } else {
       setView("profile");
     }
@@ -124,12 +126,16 @@ function Shell() {
   const activeModule = visibleModules.find((m) => m.key === activeModuleKey);
   const eligibleCount = deals.filter((d) => d.status === "active" && d.eligibleToClose).length;
   const moduleBadges = { "bell-jar": eligibleCount, rentals: rentalInquiryCount };
+  // Same bar as Team.jsx's own canInvite check — no point showing the Team
+  // screen's entry point to someone who can't invite or edit anyone there.
+  const canSeeTeam = permissions?.orgTier === "Owner" || Object.values(permissions?.moduleGrants || {}).includes("Admin");
   const navBadges =
     activeModuleKey === "bell-jar" ? { deals: eligibleCount } : activeModuleKey === "rentals" ? { bookings: rentalInquiryCount } : {};
 
   function switchModule(key) {
+    const targetModule = visibleModules.find((m) => m.key === key);
     setActiveModuleKey(key);
-    setView(visibleModules.find((m) => m.key === key).navItems[0].key);
+    setView(filterNavItemsForUser(targetModule.navItems, permissions, key)[0].key);
   }
 
   const navItem = activeModule?.navItems.find((n) => n.key === view);
@@ -147,7 +153,7 @@ function Shell() {
         onSwitchModule={switchModule}
         moduleBadges={moduleBadges}
         onOpenProfile={() => setView("profile")}
-        onOpenTeam={() => setView("team")}
+        onOpenTeam={canSeeTeam ? () => setView("team") : null}
       />
       <div style={{ display: "flex" }}>
         {activeModule && <Sidebar module={activeModule} view={view} setView={setView} badges={navBadges} permissions={permissions} />}
@@ -196,7 +202,7 @@ function Shell() {
             {activeModuleKey === "raffle" && view === "report" && <RaffleReport games={raffleGames} gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "drawings" && <RaffleDrawings gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "checkin" && <RaffleCheckIn gameId={selectedRaffleGameId} />}
-            {view === "team" && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}
+            {view === "team" && canSeeTeam && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}
             {view === "profile" && <Profile />}
           </div>
         </div>
