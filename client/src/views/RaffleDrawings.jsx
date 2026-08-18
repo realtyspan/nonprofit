@@ -3,14 +3,26 @@ import { colors, card, pill, button, input as inputStyle, money } from "../lib/t
 import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
 
+function isOverdue(drawingDate) {
+  const d = new Date(drawingDate);
+  const now = new Date();
+  const todayUtcMidnight = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return d.getTime() < todayUtcMidnight;
+}
+
+const DRAWING_TYPE_LABEL = { main: "Main drawing", early_bird: "Early bird" };
+
 export default function RaffleDrawings({ gameId }) {
   const [drawings, setDrawings] = useState([]);
-  const [showForm, setShowForm] = useState(false);
+  const [fundsReceived, setFundsReceived] = useState(null);
+  const [formState, setFormState] = useState(null); // { mode: "new" | "edit", drawing? }
+  const [conductDrawing, setConductDrawing] = useState(null);
   const [error, setError] = useState("");
 
   function refresh() {
     if (!gameId) return setDrawings([]);
     api.listRaffleDrawings(gameId).then(setDrawings).catch(() => {});
+    api.getRaffleStats(gameId).then((s) => setFundsReceived(s.fundsReceived)).catch(() => {});
   }
   useEffect(refresh, [gameId]);
 
@@ -18,37 +30,79 @@ export default function RaffleDrawings({ gameId }) {
     return <div style={{ ...card, fontSize: 13, color: colors.textSecondary }}>No raffle selected.</div>;
   }
 
+  const scheduled = drawings.filter((d) => d.winningTicket == null).sort((a, b) => new Date(a.drawingDate) - new Date(b.drawingDate));
+  const winners = drawings.filter((d) => d.winningTicket != null).sort((a, b) => new Date(b.drawnAt || b.drawingDate) - new Date(a.drawnAt || a.drawingDate));
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button style={button.primary} onClick={() => setShowForm(true)}>+ New drawing</button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>Drawings</div>
+          <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+            Schedule drawing dates, record winners. Only funds-received tickets paid on or before each drawing date are eligible.
+            {fundsReceived != null && ` Currently ${fundsReceived} ticket(s) are paid in full.`}
+          </div>
+        </div>
+        <button style={button.primary} onClick={() => setFormState({ mode: "new" })}>+ Add drawing</button>
       </div>
 
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {drawings.map((d) => (
-          <DrawingCard key={d.id} gameId={gameId} drawing={d} onChanged={refresh} onError={setError} />
-        ))}
-        {drawings.length === 0 && <div style={{ ...card, fontSize: 13, color: colors.textSecondary }}>No drawings set up for this raffle yet.</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", color: colors.textSecondary, letterSpacing: ".03em" }}>Scheduled</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+          {scheduled.map((d) => (
+            <ScheduledCard
+              key={d.id}
+              drawing={d}
+              onConduct={() => setConductDrawing(d)}
+              onEdit={() => setFormState({ mode: "edit", drawing: d })}
+              onDeleted={refresh}
+              onError={setError}
+            />
+          ))}
+        </div>
+        {scheduled.length === 0 && <div style={{ ...card, fontSize: 13, color: colors.textSecondary }}>No drawings scheduled.</div>}
       </div>
 
-      {showForm && <DrawingFormModal gameId={gameId} onCancel={() => setShowForm(false)} onSaved={() => { setShowForm(false); refresh(); }} />}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", color: colors.textSecondary, letterSpacing: ".03em" }}>Winners</div>
+        <WinnersTable winners={winners} gameId={gameId} onChanged={refresh} onError={setError} />
+      </div>
+
+      {conductDrawing && (
+        <ConductDrawingModal
+          gameId={gameId}
+          drawing={conductDrawing}
+          onCancel={() => setConductDrawing(null)}
+          onDrawn={() => { setConductDrawing(null); refresh(); }}
+          onError={setError}
+        />
+      )}
+
+      {formState && (
+        <DrawingFormModal
+          gameId={gameId}
+          state={formState}
+          onCancel={() => setFormState(null)}
+          onSaved={() => { setFormState(null); refresh(); }}
+        />
+      )}
     </div>
   );
 }
 
-function DrawingCard({ gameId, drawing, onChanged, onError }) {
-  const [eligible, setEligible] = useState(null);
-  const [manualNumber, setManualNumber] = useState("");
+function ScheduledCard({ drawing, onConduct, onEdit, onDeleted, onError }) {
   const [busy, setBusy] = useState(false);
+  const overdue = isOverdue(drawing.drawingDate);
 
-  async function run(fn) {
+  async function deleteDrawing() {
+    if (!window.confirm(`Delete the "${drawing.name}" drawing? This can't be undone.`)) return;
     setBusy(true);
     onError("");
     try {
-      await fn();
-      onChanged();
+      await api.deleteRaffleDrawing(drawing.gameId, drawing.id);
+      onDeleted();
     } catch (err) {
       onError(err.message);
     } finally {
@@ -56,66 +110,150 @@ function DrawingCard({ gameId, drawing, onChanged, onError }) {
     }
   }
 
-  async function checkEligible() {
-    try {
-      const res = await api.getRaffleDrawingEligible(gameId, drawing.id);
-      setEligible(res.count);
-    } catch (err) {
-      onError(err.message);
-    }
-  }
-
-  const hasWinner = drawing.winningTicket != null;
-
   return (
     <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{drawing.name}</div>
-          <div style={{ fontSize: 12, color: colors.textSecondary }}>
-            {formatUtcDate(drawing.drawingDate)} · {drawing.drawingType === "main" ? "Main drawing" : "Early bird"} · {money(drawing.prizeAmount)}
-          </div>
-        </div>
-        {hasWinner ? (
-          <span style={pill(colors.successBg, colors.success)}>Ticket #{drawing.winningTicket} — {drawing.winningBuyer}</span>
-        ) : (
-          <span style={pill("#f0f0f3", colors.textSecondary)}>Not drawn</span>
-        )}
+        <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", color: colors.textTertiary, letterSpacing: ".03em" }}>
+          {DRAWING_TYPE_LABEL[drawing.drawingType] || drawing.drawingType}
+        </span>
+        <span style={overdue ? pill("#fee2e2", colors.danger) : pill(colors.successBg, colors.success)}>
+          {overdue ? "Overdue" : "Upcoming"}
+        </span>
       </div>
-
-      {!hasWinner && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <button style={button.ghost} disabled={busy} onClick={checkEligible}>Check eligible pool</button>
-          {eligible != null && <span style={{ fontSize: 12.5, color: colors.textSecondary }}>{eligible} eligible ticket(s)</span>}
-          <button style={button.primary} disabled={busy} onClick={() => run(() => api.drawRaffleDrawing(gameId, drawing.id))}>Draw at random</button>
-          <input style={{ ...inputStyle, width: 90 }} placeholder="Ticket #" value={manualNumber} onChange={(e) => setManualNumber(e.target.value.replace(/\D/g, ""))} />
-          <button style={button.ghost} disabled={busy || !manualNumber} onClick={() => run(() => api.drawRaffleDrawingManual(gameId, drawing.id, Number(manualNumber)))}>Draw this ticket</button>
-          <button
-            style={{ ...button.ghost, color: colors.danger, marginLeft: "auto" }}
-            disabled={busy}
-            onClick={() => {
-              if (window.confirm(`Delete the "${drawing.name}" drawing? This can't be undone.`)) run(() => api.deleteRaffleDrawing(gameId, drawing.id));
-            }}
-          >
-            Delete
-          </button>
-        </div>
-      )}
-      {hasWinner && (
-        <div>
-          <button style={{ ...button.ghost, color: colors.danger }} disabled={busy} onClick={() => run(() => api.clearRaffleDrawing(gameId, drawing.id))}>Clear winner (redraw)</button>
-        </div>
-      )}
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>{drawing.name}</div>
+        <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>Drawing date: {formatUtcDate(drawing.drawingDate)}</div>
+        <div style={{ fontSize: 12, color: colors.textSecondary }}>Prize: {money(drawing.prizeAmount)}</div>
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button style={button.primary} disabled={busy} onClick={onConduct}>Conduct drawing</button>
+        <button style={button.ghost} disabled={busy} onClick={onEdit}>Edit</button>
+        <button style={{ ...button.ghost, color: colors.danger }} disabled={busy} onClick={deleteDrawing}>Delete</button>
+      </div>
     </div>
   );
 }
 
-function DrawingFormModal({ gameId, onCancel, onSaved }) {
-  const [name, setName] = useState("");
-  const [drawingDate, setDrawingDate] = useState("");
-  const [drawingType, setDrawingType] = useState("main");
-  const [prizeAmount, setPrizeAmount] = useState(1000);
-  const [notes, setNotes] = useState("");
+function ConductDrawingModal({ gameId, drawing, onCancel, onDrawn, onError }) {
+  const [eligible, setEligible] = useState(null);
+  const [manualNumber, setManualNumber] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState("");
+
+  async function checkEligible() {
+    setLocalError("");
+    try {
+      const res = await api.getRaffleDrawingEligible(gameId, drawing.id);
+      setEligible(res.count);
+    } catch (err) {
+      setLocalError(err.message);
+    }
+  }
+
+  async function run(fn) {
+    setBusy(true);
+    setLocalError("");
+    try {
+      await fn();
+      onDrawn();
+    } catch (err) {
+      setLocalError(err.message);
+      onError("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <ModalShell onCancel={onCancel} width={420}>
+      <div style={{ fontSize: 16, fontWeight: 700 }}>Conduct drawing</div>
+      <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2, marginBottom: 16 }}>
+        {drawing.name} · {formatUtcDate(drawing.drawingDate)} · {money(drawing.prizeAmount)}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button style={button.ghost} disabled={busy} onClick={checkEligible}>Check eligible pool</button>
+          {eligible != null && <span style={{ fontSize: 12.5, color: colors.textSecondary }}>{eligible} eligible ticket(s)</span>}
+        </div>
+
+        <button style={button.primary} disabled={busy} onClick={() => run(() => api.drawRaffleDrawing(gameId, drawing.id))}>
+          {busy ? "Drawing…" : "Draw at random"}
+        </button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input style={{ ...inputStyle, width: 100 }} placeholder="Ticket #" value={manualNumber} onChange={(e) => setManualNumber(e.target.value.replace(/\D/g, ""))} />
+          <button style={button.ghost} disabled={busy || !manualNumber} onClick={() => run(() => api.drawRaffleDrawingManual(gameId, drawing.id, Number(manualNumber)))}>
+            Draw this ticket
+          </button>
+        </div>
+
+        {localError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{localError}</div>}
+
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button type="button" style={button.ghost} onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+function WinnersTable({ winners, gameId, onChanged, onError }) {
+  const [busyId, setBusyId] = useState(null);
+
+  async function redraw(drawing) {
+    if (!window.confirm(`Clear the winner for "${drawing.name}" so it can be redrawn?`)) return;
+    setBusyId(drawing.id);
+    onError("");
+    try {
+      await api.clearRaffleDrawing(gameId, drawing.id);
+      onChanged();
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (winners.length === 0) {
+    return <div style={{ ...card, fontSize: 13, color: colors.textSecondary }}>No winners drawn yet.</div>;
+  }
+
+  return (
+    <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 0.8fr 1.3fr 0.9fr 1.3fr 1fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
+        <div>Drawing</div>
+        <div>Date</div>
+        <div>Ticket #</div>
+        <div>Buyer</div>
+        <div>Prize</div>
+        <div>Pool</div>
+        <div></div>
+      </div>
+      {winners.map((w) => (
+        <div key={w.id} style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 0.8fr 1.3fr 0.9fr 1.3fr 1fr", padding: "12px 18px", alignItems: "center", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13 }}>
+          <div style={{ fontWeight: 600 }}>{w.name}</div>
+          <div style={{ color: colors.textSecondary }}>{formatUtcDate(w.drawnAt || w.drawingDate)}</div>
+          <div style={{ color: colors.indigo, fontWeight: 700 }}>#{w.winningTicket}</div>
+          <div>{w.winningBuyer}</div>
+          <div>{money(w.prizeAmount)}</div>
+          <div style={{ color: colors.textSecondary }}>{w.eligibleCount} eligible {w.drawMode === "manual" ? "(manual)" : "(random)"}</div>
+          <div>
+            <button style={{ ...button.ghost, color: colors.danger }} disabled={busyId === w.id} onClick={() => redraw(w)}>Redraw</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DrawingFormModal({ gameId, state, onCancel, onSaved }) {
+  const { mode, drawing } = state;
+  const [name, setName] = useState(drawing?.name || "");
+  const [drawingDate, setDrawingDate] = useState(drawing ? drawing.drawingDate.slice(0, 10) : "");
+  const [drawingType, setDrawingType] = useState(drawing?.drawingType || "main");
+  const [prizeAmount, setPrizeAmount] = useState(drawing?.prizeAmount ?? 1000);
+  const [notes, setNotes] = useState(drawing?.notes || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -124,7 +262,9 @@ function DrawingFormModal({ gameId, onCancel, onSaved }) {
     setBusy(true);
     setError("");
     try {
-      await api.createRaffleDrawing(gameId, { name, drawingDate, drawingType, prizeAmount: Number(prizeAmount), notes });
+      const payload = { name, drawingDate, drawingType, prizeAmount: Number(prizeAmount), notes };
+      if (mode === "edit") await api.updateRaffleDrawing(gameId, drawing.id, payload);
+      else await api.createRaffleDrawing(gameId, payload);
       onSaved();
     } catch (err) {
       setError(err.message);
@@ -134,28 +274,36 @@ function DrawingFormModal({ gameId, onCancel, onSaved }) {
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }} onClick={onCancel}>
-      <div style={{ width: 420, background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }} onClick={(e) => e.stopPropagation()}>
-        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>New drawing</div>
-          <Field label="Name"><input style={inputStyle} required value={name} onChange={(e) => setName(e.target.value)} placeholder="1st Prize" /></Field>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="Date"><input style={inputStyle} type="date" required value={drawingDate} onChange={(e) => setDrawingDate(e.target.value)} /></Field>
-            <Field label="Type">
-              <select style={inputStyle} value={drawingType} onChange={(e) => setDrawingType(e.target.value)}>
-                <option value="main">Main</option>
-                <option value="early_bird">Early bird</option>
-              </select>
-            </Field>
-          </div>
-          <Field label="Prize amount"><input style={inputStyle} type="number" step="1" required value={prizeAmount} onChange={(e) => setPrizeAmount(e.target.value)} /></Field>
-          <Field label="Notes"><input style={inputStyle} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
-          {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-            <button type="button" style={button.ghost} onClick={onCancel}>Cancel</button>
-            <button type="submit" style={button.primary} disabled={busy}>{busy ? "Saving…" : "Create"}</button>
-          </div>
-        </form>
+    <ModalShell onCancel={onCancel} width={420}>
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>{mode === "edit" ? "Edit drawing" : "New drawing"}</div>
+        <Field label="Name"><input style={inputStyle} required value={name} onChange={(e) => setName(e.target.value)} placeholder="1st Prize" /></Field>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <Field label="Date"><input style={inputStyle} type="date" required value={drawingDate} onChange={(e) => setDrawingDate(e.target.value)} /></Field>
+          <Field label="Type">
+            <select style={inputStyle} value={drawingType} onChange={(e) => setDrawingType(e.target.value)}>
+              <option value="main">Main</option>
+              <option value="early_bird">Early bird</option>
+            </select>
+          </Field>
+        </div>
+        <Field label="Prize amount"><input style={inputStyle} type="number" step="1" required value={prizeAmount} onChange={(e) => setPrizeAmount(e.target.value)} /></Field>
+        <Field label="Notes"><input style={inputStyle} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
+        {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button type="button" style={button.ghost} onClick={onCancel}>Cancel</button>
+          <button type="submit" style={button.primary} disabled={busy}>{busy ? "Saving…" : mode === "edit" ? "Save" : "Create"}</button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
+function ModalShell({ children, onCancel, width }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, overflowY: "auto", padding: 24 }} onClick={onCancel}>
+      <div style={{ width, background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }} onClick={(e) => e.stopPropagation()}>
+        {children}
       </div>
     </div>
   );
