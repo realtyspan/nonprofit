@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
+import DateTimeField from "../components/DateTimeField";
 
 const WEEKDAYS = [
   { key: "SU", label: "S" }, { key: "MO", label: "M" }, { key: "TU", label: "T" }, { key: "WE", label: "W" },
@@ -276,8 +277,8 @@ function BlockFormModal({ state, spaces, onCancel, onSaved }) {
         <Field label="Reason"><input style={inputStyle} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Trustees meeting" /></Field>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label="Start"><input style={inputStyle} type="datetime-local" required value={startAt} onChange={(e) => setStartAt(e.target.value)} /></Field>
-          <Field label="End"><input style={inputStyle} type="datetime-local" required value={endAt} onChange={(e) => setEndAt(e.target.value)} /></Field>
+          <DateTimeField label="Start" value={startAt} onChange={setStartAt} />
+          <DateTimeField label="End" value={endAt} onChange={setEndAt} />
         </div>
 
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
