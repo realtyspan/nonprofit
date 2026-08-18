@@ -139,11 +139,16 @@ export default function PublicRental({ slug, embed }) {
             {space && (
               <>
                 <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700 }}>Your event</div>
-                    <div style={{ fontSize: 12, color: t.textSecondary, marginTop: 2 }}>
-                      Requesting the <strong>{space.name}</strong> — pick a different space above if that's not right.
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700 }}>Your event</div>
+                      <div style={{ fontSize: 12, color: t.textSecondary, marginTop: 2 }}>
+                        Requesting the <strong>{space.name}</strong> — pick a different space above if that's not right.
+                      </div>
                     </div>
+                    <button type="button" style={{ ...button.ghost, flexShrink: 0 }} onClick={() => set("spaceId", "")}>
+                      Cancel
+                    </button>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
                     <DateTimeField label="Start" value={form.startAt} onChange={(v) => set("startAt", v)} t={t} />
