@@ -1,6 +1,5 @@
 import React from "react";
 import { colors } from "../lib/tokens";
-import { icons } from "../lib/icons";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MAX_VISIBLE_PER_DAY = 3;
@@ -19,20 +18,16 @@ function addDays(d, n) {
 
 // Generic month-grid renderer used by both the internal admin Calendar view and
 // the public embed — behavior (click handlers) is entirely prop-driven so it
-// stays reusable rather than each view rebuilding its own grid. `theme`
+// stays reusable rather than each view rebuilding its own grid. Navigation
+// (prev/next/today) lives in CalendarToolbar above this, not here. `theme`
 // optionally overrides colors (embed use, to match a host site's palette);
 // anything not overridden falls back to the app's own design tokens.
-export default function CalendarGrid({ month, events, onPrevMonth, onNextMonth, onSelectDay, onSelectEvent, theme }) {
+export default function CalendarGrid({ month, events, onSelectDay, onSelectEvent, theme }) {
   const t = { surface: "#fff", bg: "#fafafa", ...colors, ...theme };
   const first = startOfMonth(month);
   const gridStart = addDays(first, -first.getDay());
   const days = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
   const today = new Date();
-
-  const navBtnStyle = {
-    width: 28, height: 28, borderRadius: 8, border: `1px solid ${t.border}`, background: t.surface,
-    display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: t.textSecondary,
-  };
 
   function eventsForDay(day) {
     const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
@@ -44,18 +39,6 @@ export default function CalendarGrid({ month, events, onPrevMonth, onNextMonth, 
 
   return (
     <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", color: t.textPrimary }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${t.borderLight}` }}>
-        <button onClick={onPrevMonth} style={navBtnStyle} aria-label="Previous month">
-          <span dangerouslySetInnerHTML={{ __html: icons.chevronLeft }} style={{ width: 16, height: 16, display: "flex" }} />
-        </button>
-        <div style={{ fontSize: 15, fontWeight: 700 }}>
-          {month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
-        </div>
-        <button onClick={onNextMonth} style={navBtnStyle} aria-label="Next month">
-          <span dangerouslySetInnerHTML={{ __html: icons.chevronRight }} style={{ width: 16, height: 16, display: "flex" }} />
-        </button>
-      </div>
-
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
         {WEEKDAY_LABELS.map((w) => (
           <div key={w} style={{ padding: "8px 6px", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", color: t.textSecondary, textAlign: "center", borderBottom: `1px solid ${t.borderLight}` }}>

@@ -1,6 +1,5 @@
 import React from "react";
 import { colors } from "../lib/tokens";
-import { icons } from "../lib/icons";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -24,18 +23,12 @@ function formatTime(date) {
 // Same prop shape and reusability intent as CalendarGrid (the month view) —
 // week view trades the month's compact "+N more" day cells for one row per
 // day showing every event's time in full, since a week only needs 7 columns
-// instead of 42 cells to lay out.
-export default function CalendarWeekGrid({ anchorDate, events, onPrevWeek, onNextWeek, onSelectDay, onSelectEvent, theme }) {
+// instead of 42 cells to lay out. Navigation lives in CalendarToolbar above.
+export default function CalendarWeekGrid({ anchorDate, events, onSelectDay, onSelectEvent, theme }) {
   const t = { surface: "#fff", bg: "#fafafa", ...colors, ...theme };
   const weekStart = startOfWeek(anchorDate);
-  const weekEnd = addDays(weekStart, 6);
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const today = new Date();
-
-  const navBtnStyle = {
-    width: 28, height: 28, borderRadius: 8, border: `1px solid ${t.border}`, background: t.surface,
-    display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: t.textSecondary,
-  };
 
   function eventsForDay(day) {
     const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
@@ -45,22 +38,8 @@ export default function CalendarWeekGrid({ anchorDate, events, onPrevWeek, onNex
       .sort((a, b) => new Date(a.startAt) - new Date(b.startAt));
   }
 
-  const rangeLabel = weekStart.getMonth() === weekEnd.getMonth()
-    ? `${weekStart.toLocaleDateString(undefined, { month: "long", day: "numeric" })} – ${weekEnd.getDate()}, ${weekEnd.getFullYear()}`
-    : `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${weekEnd.getFullYear()}`;
-
   return (
     <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", color: t.textPrimary }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${t.borderLight}` }}>
-        <button onClick={onPrevWeek} style={navBtnStyle} aria-label="Previous week">
-          <span dangerouslySetInnerHTML={{ __html: icons.chevronLeft }} style={{ width: 16, height: 16, display: "flex" }} />
-        </button>
-        <div style={{ fontSize: 15, fontWeight: 700 }}>{rangeLabel}</div>
-        <button onClick={onNextWeek} style={navBtnStyle} aria-label="Next week">
-          <span dangerouslySetInnerHTML={{ __html: icons.chevronRight }} style={{ width: 16, height: 16, display: "flex" }} />
-        </button>
-      </div>
-
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
         {days.map((day, i) => {
           const isToday = sameDay(day, today);

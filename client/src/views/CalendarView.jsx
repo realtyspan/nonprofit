@@ -3,8 +3,10 @@ import { colors, card, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import CalendarGrid from "../components/CalendarGrid";
 import CalendarWeekGrid from "../components/CalendarWeekGrid";
+import CalendarToolbar from "../components/CalendarToolbar";
 import PublicLinkBox from "../components/PublicLinkBox";
 import DateTimeField from "../components/DateTimeField";
+import { monthLabel, weekLabel } from "../lib/calendarLabels";
 
 const WEEKDAYS = [
   { key: "SU", label: "S" }, { key: "MO", label: "M" }, { key: "TU", label: "T" }, { key: "WE", label: "W" },
@@ -68,31 +70,24 @@ export default function CalendarView({ rentalSpaces = [], permissions }) {
     }
   }
 
-  const viewToggleBtn = (mode, label) => ({
-    padding: "6px 14px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600,
-    background: viewMode === mode ? "#fff" : "transparent",
-    boxShadow: viewMode === mode ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
-    color: viewMode === mode ? colors.textPrimary : colors.textSecondary,
-  });
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <PublicLinkBox basePath="calendar" embedBasePath="calendar/embed" embedTitle="Calendar" description="Set a link so you can view or embed this calendar (public events only) on your website." />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: 3, background: colors.bg, borderRadius: 9, padding: 3 }}>
-          <button type="button" onClick={() => setViewMode("month")} style={viewToggleBtn("month")}>Month</button>
-          <button type="button" onClick={() => setViewMode("week")} style={viewToggleBtn("week")}>Week</button>
-        </div>
-        <button style={button.primary} onClick={() => setFormState({ mode: "new" })}>+ Add event</button>
-      </div>
+      <CalendarToolbar
+        periodLabel={viewMode === "week" ? weekLabel(month) : monthLabel(month)}
+        onPrev={() => changePeriod(-1)}
+        onNext={() => changePeriod(1)}
+        onToday={() => setMonth(new Date())}
+        viewMode={viewMode}
+        onChangeViewMode={setViewMode}
+        right={<button style={button.primary} onClick={() => setFormState({ mode: "new" })}>+ Add event</button>}
+      />
 
       {viewMode === "month" ? (
         <CalendarGrid
           month={month}
           events={events}
-          onPrevMonth={() => changePeriod(-1)}
-          onNextMonth={() => changePeriod(1)}
           onSelectDay={(day) => setFormState({ mode: "new", defaultDate: day })}
           onSelectEvent={(e) => setDetailEvent(e)}
         />
@@ -100,8 +95,6 @@ export default function CalendarView({ rentalSpaces = [], permissions }) {
         <CalendarWeekGrid
           anchorDate={month}
           events={events}
-          onPrevWeek={() => changePeriod(-1)}
-          onNextWeek={() => changePeriod(1)}
           onSelectDay={(day) => setFormState({ mode: "new", defaultDate: day })}
           onSelectEvent={(e) => setDetailEvent(e)}
         />

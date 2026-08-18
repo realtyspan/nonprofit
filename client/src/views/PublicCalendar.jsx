@@ -2,11 +2,26 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { colors } from "../lib/tokens";
 import { publicApi } from "../lib/api";
 import CalendarGrid from "../components/CalendarGrid";
+import CalendarWeekGrid from "../components/CalendarWeekGrid";
+import CalendarToolbar from "../components/CalendarToolbar";
+import { monthLabel, weekLabel } from "../lib/calendarLabels";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
 import logo from "../assets/logo.png";
 
+function addDays(d, n) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+function startOfWeek(d) {
+  const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  r.setDate(r.getDate() - r.getDay());
+  return r;
+}
+
 export default function PublicCalendar({ slug, embed }) {
-  const [month, setMonth] = useState(() => new Date());
+  const [viewMode, setViewMode] = useState("month"); // "month" | "week"
+  const [month, setMonth] = useState(() => new Date()); // anchor date — a day within the displayed month or week
   const [orgName, setOrgName] = useState(null);
   const [events, setEvents] = useState([]);
   const [error, setError] = useState("");
@@ -19,12 +34,18 @@ export default function PublicCalendar({ slug, embed }) {
   useGoogleFont(font);
 
   const refresh = useCallback(() => {
-    const rangeStart = new Date(month.getFullYear(), month.getMonth(), -7);
-    const rangeEnd = new Date(month.getFullYear(), month.getMonth() + 1, 7);
+    let rangeStart, rangeEnd;
+    if (viewMode === "week") {
+      rangeStart = startOfWeek(month);
+      rangeEnd = addDays(rangeStart, 7);
+    } else {
+      rangeStart = new Date(month.getFullYear(), month.getMonth(), -7);
+      rangeEnd = new Date(month.getFullYear(), month.getMonth() + 1, 7);
+    }
     publicApi.getCalendarPage(slug, rangeStart, rangeEnd)
       .then((data) => { setOrgName(data.orgName); setEvents(data.events); })
       .catch((err) => setError(err.message));
-  }, [slug, month]);
+  }, [slug, month, viewMode]);
 
   useEffect(refresh, [refresh]);
 
@@ -39,7 +60,15 @@ export default function PublicCalendar({ slug, embed }) {
     const observer = new ResizeObserver(post);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [embed, events, month]);
+  }, [embed, events, month, viewMode]);
+
+  function changePeriod(delta) {
+    if (viewMode === "week") {
+      setMonth((m) => addDays(m, delta * 7));
+    } else {
+      setMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
+    }
+  }
 
   const pageStyle = { minHeight: embed ? "auto" : "100vh", fontFamily: font ? `"${font}", sans-serif` : undefined };
 
@@ -60,14 +89,23 @@ export default function PublicCalendar({ slug, embed }) {
       )}
 
       <div style={embed ? { padding: 4 } : { maxWidth: 860, margin: "0 auto", padding: "32px 24px 80px" }}>
-        <CalendarGrid
-          month={month}
-          events={events}
-          theme={theme}
-          onPrevMonth={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
-          onNextMonth={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
-          onSelectEvent={setSelectedEvent}
-        />
+        <div style={{ marginBottom: 12 }}>
+          <CalendarToolbar
+            periodLabel={viewMode === "week" ? weekLabel(month) : monthLabel(month)}
+            onPrev={() => changePeriod(-1)}
+            onNext={() => changePeriod(1)}
+            onToday={() => setMonth(new Date())}
+            viewMode={viewMode}
+            onChangeViewMode={setViewMode}
+            theme={theme}
+          />
+        </div>
+
+        {viewMode === "month" ? (
+          <CalendarGrid month={month} events={events} theme={theme} onSelectEvent={setSelectedEvent} />
+        ) : (
+          <CalendarWeekGrid anchorDate={month} events={events} theme={theme} onSelectEvent={setSelectedEvent} />
+        )}
       </div>
 
       {selectedEvent && <EventInfoModal event={selectedEvent} theme={theme} onClose={() => setSelectedEvent(null)} />}
