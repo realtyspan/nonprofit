@@ -1,5 +1,6 @@
 import React from "react";
 import { colors } from "../lib/tokens";
+import { eventColorFor } from "../lib/calendarColors";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MAX_VISIBLE_PER_DAY = 3;
@@ -68,21 +69,23 @@ export default function CalendarGrid({ month, events, onSelectDay, onSelectEvent
               }}>
                 {day.getDate()}
               </div>
-              {visible.map((e) => (
-                <div
-                  key={e.id}
-                  onClick={(ev) => { ev.stopPropagation(); onSelectEvent?.(e); }}
-                  title={e.title}
-                  style={{
-                    fontSize: 10.5, padding: "2px 5px", borderRadius: 5, cursor: onSelectEvent ? "pointer" : "default",
-                    background: e.color || (e.source === "rental-booking" ? t.indigoBg : e.source === "rental-block" ? "#f0f0f3" : t.successBg),
-                    color: e.source === "rental-block" ? t.textSecondary : t.indigo,
-                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  }}
-                >
-                  {e.title}
-                </div>
-              ))}
+              {visible.map((e) => {
+                const ec = eventColorFor(e.source);
+                return (
+                  <div
+                    key={e.id}
+                    onClick={(ev) => { ev.stopPropagation(); onSelectEvent?.(e); }}
+                    title={e.title}
+                    style={{
+                      fontSize: 10.5, padding: "2px 5px", borderRadius: 5, cursor: onSelectEvent ? "pointer" : "default",
+                      background: e.color || ec.bg, color: e.color ? t.textPrimary : ec.text, fontWeight: 600,
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                    }}
+                  >
+                    {e.title}
+                  </div>
+                );
+              })}
               {overflow > 0 && <div style={{ fontSize: 10, color: t.textTertiary }}>+{overflow} more</div>}
             </div>
           );

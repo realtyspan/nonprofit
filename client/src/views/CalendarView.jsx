@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import CalendarGrid from "../components/CalendarGrid";
 import CalendarWeekGrid from "../components/CalendarWeekGrid";
 import CalendarToolbar from "../components/CalendarToolbar";
+import { EVENT_COLORS } from "../lib/calendarColors";
 import PublicLinkBox from "../components/PublicLinkBox";
 import DateTimeField from "../components/DateTimeField";
 import { monthLabel, weekLabel } from "../lib/calendarLabels";
@@ -101,9 +102,9 @@ export default function CalendarView({ rentalSpaces = [], permissions }) {
       )}
 
       <div style={{ fontSize: 11.5, color: colors.textSecondary, display: "flex", gap: 16 }}>
-        <Legend color={colors.successBg} label="Lodge events" />
-        <Legend color={colors.indigoBg} label="Rental bookings" />
-        <Legend color="#f0f0f3" label="Internal holds" />
+        <Legend color={EVENT_COLORS.manual.bg} label="Lodge events" />
+        <Legend color={EVENT_COLORS["rental-booking"].bg} label="Rental bookings" />
+        <Legend color={EVENT_COLORS["rental-block"].bg} label="Internal holds" />
       </div>
 
       {detailEvent && (

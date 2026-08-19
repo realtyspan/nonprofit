@@ -1,5 +1,6 @@
 import React from "react";
 import { colors } from "../lib/tokens";
+import { eventColorFor } from "../lib/calendarColors";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -75,23 +76,25 @@ export default function CalendarWeekGrid({ anchorDate, events, onSelectDay, onSe
                 cursor: onSelectDay ? "pointer" : "default", display: "flex", flexDirection: "column", gap: 4,
               }}
             >
-              {dayEvents.map((e) => (
-                <div
-                  key={e.id}
-                  onClick={(ev) => { ev.stopPropagation(); onSelectEvent?.(e); }}
-                  title={e.title}
-                  style={{
-                    fontSize: 11, padding: "4px 6px", borderRadius: 6, cursor: onSelectEvent ? "pointer" : "default",
-                    background: e.color || (e.source === "rental-booking" ? t.indigoBg : e.source === "rental-block" ? "#f0f0f3" : t.successBg),
-                    color: e.source === "rental-block" ? t.textSecondary : t.indigo,
-                  }}
-                >
-                  <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</div>
-                  <div style={{ fontSize: 10, opacity: 0.85 }}>
-                    {e.allDay ? "All day" : `${formatTime(new Date(e.startAt))} – ${formatTime(new Date(e.endAt))}`}
+              {dayEvents.map((e) => {
+                const ec = eventColorFor(e.source);
+                return (
+                  <div
+                    key={e.id}
+                    onClick={(ev) => { ev.stopPropagation(); onSelectEvent?.(e); }}
+                    title={e.title}
+                    style={{
+                      fontSize: 11, padding: "4px 6px", borderRadius: 6, cursor: onSelectEvent ? "pointer" : "default",
+                      background: e.color || ec.bg, color: e.color ? t.textPrimary : ec.text,
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</div>
+                    <div style={{ fontSize: 10, opacity: 0.9 }}>
+                      {e.allDay ? "All day" : `${formatTime(new Date(e.startAt))} – ${formatTime(new Date(e.endAt))}`}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {dayEvents.length === 0 && <div style={{ fontSize: 10.5, color: t.textTertiary }}>—</div>}
             </div>
           );
