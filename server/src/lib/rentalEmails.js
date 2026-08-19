@@ -2,6 +2,8 @@
 // same visual language as raffleEmails.js (this app's first live email
 // sender) so every outgoing email looks like it comes from one product.
 
+const { formatPhone } = require("./phone");
+
 function fmtDateTime(value) {
   return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
@@ -9,9 +11,12 @@ function fmtDateTime(value) {
 function detailRows({ booking, space, quote }) {
   const rows = [
     ["Space", space.name],
+  ];
+  if (booking.renterPhone) rows.push(["Phone", formatPhone(booking.renterPhone)]);
+  rows.push(
     ["Start", fmtDateTime(booking.startAt)],
     ["End", fmtDateTime(booking.endAt)],
-  ];
+  );
   if (booking.eventType) rows.push(["Event type", booking.eventType]);
   if (booking.expectedGuests) rows.push(["Expected guests", String(booking.expectedGuests)]);
   rows.push(["Member", booking.isMember ? "Yes" : "No"]);
@@ -72,9 +77,8 @@ function rentalInquiryAlertHtml({ booking, space, org }) {
     badgeColor: { bg: "#FFF7DD", text: "#5A4900" },
     heading: `New request from ${booking.renterName}`,
     intro: `Review it in Rental Space → Bookings to confirm or decline.`,
-    rows: detailRows({ booking, space }) + `
-      <tr><td style="padding:6px 0;color:#605E5C;width:150px;">Email</td><td style="padding:6px 0;font-weight:600;">${booking.renterEmail}</td></tr>
-      ${booking.renterPhone ? `<tr><td style="padding:6px 0;color:#605E5C;">Phone</td><td style="padding:6px 0;font-weight:600;">${booking.renterPhone}</td></tr>` : ""}`,
+    rows: detailRows({ booking, space }) +
+      `<tr><td style="padding:6px 0;color:#605E5C;width:150px;">Email</td><td style="padding:6px 0;font-weight:600;">${booking.renterEmail}</td></tr>`,
     footer: `${org.name} — Rental Space module`,
   });
 }
