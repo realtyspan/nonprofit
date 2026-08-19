@@ -6,7 +6,9 @@ import { colors } from "./lib/tokens";
 import { MODULES, filterModulesForUser, filterNavItemsForUser } from "./lib/modules";
 import TopBar from "./components/TopBar";
 import Sidebar from "./components/Sidebar";
-import Landing from "./views/Landing";
+import Hub from "./views/marketing/Hub";
+import ModulePage from "./views/marketing/ModulePage";
+import { MARKETING_MODULES } from "./lib/marketingContent";
 import Login from "./views/Login";
 import ResetPassword from "./views/ResetPassword";
 import Dashboard from "./views/Dashboard";
@@ -44,7 +46,7 @@ function PublicGate() {
   ); // landing | login | signup
 
   if (authView === "landing") {
-    return <Landing onGetStarted={() => setAuthView("signup")} onLogin={() => setAuthView("login")} />;
+    return <Hub onGetStarted={() => setAuthView("signup")} onLogin={() => setAuthView("login")} />;
   }
   return <Login initialMode={authView} onBack={() => setAuthView("landing")} />;
 }
@@ -254,14 +256,26 @@ function matchPublicPath(pathname) {
 // localhost, Railway's own *.up.railway.app) keeps today's behavior.
 const MARKETING_HOSTNAMES = ["elkslodges.org", "www.elkslodges.org"];
 
+// One hub page plus a dedicated page per module, at clean top-level paths
+// (/bell-jar, /rentals, /raffle, /calendar) — any other path on the
+// marketing domain falls back to the hub.
+function MarketingSite() {
+  const onGetStarted = () => { window.location.href = `${APP_URL}/?view=signup`; };
+  const onLogin = () => { window.location.href = `${APP_URL}/?view=login`; };
+
+  const slug = window.location.pathname.replace(/^\//, "").replace(/\/$/, "");
+  if (MARKETING_MODULES[slug]) return <ModulePage slug={slug} onGetStarted={onGetStarted} onLogin={onLogin} />;
+  return <Hub onGetStarted={onGetStarted} onLogin={onLogin} />;
+}
+
 export default function App() {
-  if (MARKETING_HOSTNAMES.includes(window.location.hostname)) {
-    return (
-      <Landing
-        onGetStarted={() => { window.location.href = `${APP_URL}/?view=signup`; }}
-        onLogin={() => { window.location.href = `${APP_URL}/?view=login`; }}
-      />
-    );
+  // `?preview=marketing` is a local/dev-only escape hatch — the marketing
+  // site is otherwise only reachable via its real hostname, which local dev
+  // never runs on. Harmless in production: it only changes which public
+  // marketing content renders, nothing auth- or security-sensitive.
+  const isMarketingPreview = new URLSearchParams(window.location.search).get("preview") === "marketing";
+  if (MARKETING_HOSTNAMES.includes(window.location.hostname) || isMarketingPreview) {
+    return <MarketingSite />;
   }
 
   const publicMatch = matchPublicPath(window.location.pathname);
