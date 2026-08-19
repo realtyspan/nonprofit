@@ -49,6 +49,12 @@ function PublicGate() {
   return <Login initialMode={authView} onBack={() => setAuthView("landing")} />;
 }
 
+// Scoped per user id so switching accounts on the same browser doesn't leak
+// one account's last-viewed module/view into another's.
+function navStorageKey(userId) {
+  return `bellJarNav:${userId}`;
+}
+
 function Shell() {
   const { session } = useAuth();
   const [permissions, setPermissions] = useState(null);
@@ -104,12 +110,28 @@ function Shell() {
     setSelectedRaffleGameId(firstActive ? firstActive.id : raffleGames[0]?.id || null);
   }, [raffleGames, selectedRaffleGameId]);
 
-  // Once permissions load, land on the user's first visible module — a
-  // no-grant user (or one still mid-onboarding) has no modules at all and
-  // lands on Profile instead.
+  // Once permissions load, return to wherever the user last was (so a page
+  // refresh doesn't always bounce back to Bell Jar) if that module/view is
+  // still valid for their current permissions — otherwise land on the first
+  // visible module. A no-grant user (or one still mid-onboarding) has no
+  // modules at all and lands on Profile instead.
   useEffect(() => {
     if (!permissions || activeModuleKey !== null) return;
     const visible = filterModulesForUser(MODULES, permissions);
+
+    const saved = userId ? JSON.parse(localStorage.getItem(navStorageKey(userId)) || "null") : null;
+    if (saved) {
+      const savedModule = visible.find((m) => m.key === saved.activeModuleKey);
+      if (savedModule) {
+        const savedNavItems = filterNavItemsForUser(savedModule.navItems, permissions, savedModule.key);
+        if (saved.view === "profile" || saved.view === "team" || savedNavItems.some((n) => n.key === saved.view)) {
+          setActiveModuleKey(savedModule.key);
+          setView(saved.view);
+          return;
+        }
+      }
+    }
+
     if (visible.length) {
       const firstModule = visible[0];
       const firstNavItems = filterNavItemsForUser(firstModule.navItems, permissions, firstModule.key);
@@ -118,7 +140,14 @@ function Shell() {
     } else {
       setView("profile");
     }
-  }, [permissions, activeModuleKey]);
+  }, [permissions, activeModuleKey, userId]);
+
+  // Keep the saved module/view current as the user navigates, so the effect
+  // above has something fresh to restore on the next refresh.
+  useEffect(() => {
+    if (!userId || !activeModuleKey || !view) return;
+    localStorage.setItem(navStorageKey(userId), JSON.stringify({ activeModuleKey, view }));
+  }, [userId, activeModuleKey, view]);
 
   if (!session) return <PublicGate />;
   if (loading || view === null) return null;
