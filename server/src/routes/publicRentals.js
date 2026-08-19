@@ -2,8 +2,42 @@ const express = require("express");
 const prisma = require("../lib/prisma");
 const { rateLimit } = require("../lib/rateLimit");
 const { lodgeDateTimeStringToUtc } = require("../lib/timezone");
+const { computeRentalQuote } = require("../lib/rentalLogic");
+const { rentalInquiryConfirmationHtml, rentalInquiryAlertHtml } = require("../lib/rentalEmails");
+const { sendEmail } = require("../lib/notifications");
 
 const router = express.Router();
+
+// Who gets the "new inquiry" alert: every user holding a rentals Admin/Helper
+// grant — the same permission check that already decides who can see
+// Bookings, so the alert reaches whoever'd actually act on it rather than a
+// single address someone has to remember to keep current. Owner is
+// deliberately NOT auto-included (an Owner with no rentals grant can't even
+// see Bookings today — see modules.js's filterModulesForUser). Falls back to
+// the org's contactEmail, then the Owner's login email, only if literally no
+// one currently holds rentals access — so an inquiry never lands with zero
+// recipients.
+async function resolveRentalAlertRecipients(orgId, org) {
+  const grants = await prisma.moduleGrant.findMany({
+    where: { orgId, module: "rentals", tier: { in: ["Admin", "Helper"] } },
+    include: { user: { select: { name: true, email: true } } },
+  });
+  const seen = new Set();
+  const recipients = [];
+  for (const g of grants) {
+    if (seen.has(g.user.email)) continue;
+    seen.add(g.user.email);
+    recipients.push({ email: g.user.email, name: g.user.name });
+  }
+  if (recipients.length > 0) return recipients;
+
+  if (org.contactEmail) return [{ email: org.contactEmail, name: org.name }];
+  const ownerMembership = await prisma.orgMembership.findFirst({
+    where: { orgId, tier: "Owner" },
+    include: { user: { select: { name: true, email: true } } },
+  });
+  return ownerMembership ? [{ email: ownerMembership.user.email, name: ownerMembership.user.name }] : [];
+}
 
 const PUBLIC_SPACE_FIELDS = {
   id: true, name: true, capacity: true, blockHours: true,
@@ -86,6 +120,36 @@ router.post(
       },
     });
     res.json({ ok: true, id: booking.id });
+
+    // Fire-and-forget: the booking is already created and the renter already
+    // has their on-screen confirmation, so an email hiccup here shouldn't
+    // turn into a failed request — same best-effort spirit as the raffle
+    // reminder batch-send in raffle.js.
+    const quote = computeRentalQuote(space, booking);
+    try {
+      await sendEmail({
+        to: booking.renterEmail, toName: booking.renterName,
+        subject: `Request received — ${space.name}`,
+        html: rentalInquiryConfirmationHtml({ booking, space, org, quote }),
+        fromName: org.name, replyTo: org.contactEmail || undefined,
+      });
+    } catch (err) {
+      console.error(`Rental inquiry confirmation email failed for booking ${booking.id}:`, err.message);
+    }
+
+    const recipients = await resolveRentalAlertRecipients(org.id, org);
+    for (const recipient of recipients) {
+      try {
+        await sendEmail({
+          to: recipient.email, toName: recipient.name,
+          subject: `New rental inquiry — ${space.name}`,
+          html: rentalInquiryAlertHtml({ booking, space, org }),
+          fromName: org.name, replyTo: booking.renterEmail,
+        });
+      } catch (err) {
+        console.error(`Rental inquiry alert email failed for booking ${booking.id} -> ${recipient.email}:`, err.message);
+      }
+    }
   }
 );
 
