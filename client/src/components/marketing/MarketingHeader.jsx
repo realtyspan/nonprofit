@@ -1,65 +1,51 @@
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import { colors, button } from "../../lib/tokens";
 import logo from "../../assets/logo.png";
 
-const MODULE_NAV = [
-  { slug: "bell-jar", label: "Bell Jar" },
-  { slug: "rentals", label: "Rental Space" },
-  { slug: "raffle", label: "Raffle" },
-  { slug: "calendar", label: "Calendar" },
+const NAV_ITEMS = [
+  { slug: "home", label: "Home", href: "/" },
+  { slug: "bell-jar", label: "Bell Jar", href: "/bell-jar" },
+  { slug: "rentals", label: "Rental Space", href: "/rentals" },
+  { slug: "raffle", label: "Raffle", href: "/raffle" },
+  { slug: "calendar", label: "Calendar", href: "/calendar" },
 ];
 
 // Shared header for every marketing page (the hub and each module page) —
-// includes a "Modules" nav so a visitor reading about one module can jump
-// straight to another without backing out to the hub first.
-export default function MarketingHeader({ onGetStarted, onLogin }) {
-  const [modulesOpen, setModulesOpen] = useState(false);
-  const wrapRef = useRef(null);
-
-  // Click-to-toggle, click-outside-to-close — not hover, since a hover-only
-  // dropdown doesn't work on mobile/touch at all and every other control on
-  // this page is already click-driven.
-  useEffect(() => {
-    if (!modulesOpen) return;
-    function onDocClick(e) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setModulesOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [modulesOpen]);
-
+// an always-visible top nav, not a dropdown, so a visitor can see every
+// module and get back to Home at a glance instead of having to go hunting
+// for a menu tucked in a corner. `activeSlug` highlights the current page.
+export default function MarketingHeader({ activeSlug, onGetStarted, onLogin }) {
   return (
-    <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 32px", borderBottom: `1px solid ${colors.border}`, background: "#fff", position: "sticky", top: 0, zIndex: 10 }}>
-      <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
-        <img src={logo} alt="Bell Jar Manager" style={{ width: 32, height: 32, objectFit: "contain" }} />
-        <span style={{ fontWeight: 700, fontSize: 15 }}>Bell Jar Manager</span>
-      </a>
-      <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-        <div ref={wrapRef} style={{ position: "relative" }}>
-          <button
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13.5, fontWeight: 600, color: colors.textSecondary, padding: "8px 2px" }}
-            onClick={() => setModulesOpen((o) => !o)}
-          >
-            Modules ▾
-          </button>
-          {modulesOpen && (
-            <div style={{ position: "absolute", top: "100%", left: 0, background: "#fff", border: `1px solid ${colors.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,.1)", padding: 6, minWidth: 160 }}>
-              {MODULE_NAV.map((m) => (
-                <a
-                  key={m.slug}
-                  href={`/${m.slug}`}
-                  style={{ display: "block", padding: "8px 12px", fontSize: 13.5, color: colors.textPrimary, textDecoration: "none", borderRadius: 7 }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = colors.bg)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  {m.label}
-                </a>
-              ))}
-            </div>
-          )}
+    <header style={{ borderBottom: `1px solid ${colors.border}`, background: "#fff", position: "sticky", top: 0, zIndex: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 32px", flexWrap: "wrap", gap: 14 }}>
+        <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
+          <img src={logo} alt="Bell Jar Manager" style={{ width: 32, height: 32, objectFit: "contain" }} />
+          <span style={{ fontWeight: 700, fontSize: 15 }}>Bell Jar Manager</span>
+        </a>
+
+        <nav style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+          {NAV_ITEMS.map((item) => {
+            const isActive = item.slug === (activeSlug || "home");
+            return (
+              <a
+                key={item.slug}
+                href={item.href}
+                style={{
+                  padding: "8px 14px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, textDecoration: "none",
+                  color: isActive ? colors.accent : colors.textSecondary,
+                  background: isActive ? colors.indigoBg : "transparent",
+                }}
+              >
+                {item.label}
+              </a>
+            );
+          })}
+        </nav>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button style={button.ghost} onClick={onLogin}>Log in</button>
+          <button style={button.primary} onClick={onGetStarted}>Start free trial</button>
         </div>
-        <button style={button.ghost} onClick={onLogin}>Log in</button>
-        <button style={button.primary} onClick={onGetStarted}>Start free trial</button>
       </div>
     </header>
   );

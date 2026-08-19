@@ -16,7 +16,7 @@ export default function ModulePage({ slug, onGetStarted, onLogin }) {
 
   return (
     <div style={{ background: colors.bg, color: colors.textPrimary, minHeight: "100vh" }}>
-      <MarketingHeader onGetStarted={onGetStarted} onLogin={onLogin} />
+      <MarketingHeader activeSlug={slug} onGetStarted={onGetStarted} onLogin={onLogin} />
       <Hero badge={content.badge} headline={content.heroHeadline} subhead={content.heroSubhead} onGetStarted={onGetStarted} onLogin={onLogin} />
       <FeatureGrid features={content.features} />
       <HowItWorks steps={content.steps} />

@@ -7,7 +7,7 @@ import MarketingFooter from "../../components/marketing/MarketingFooter";
 export default function Hub({ onGetStarted, onLogin }) {
   return (
     <div style={{ background: colors.bg, color: colors.textPrimary, minHeight: "100vh" }}>
-      <MarketingHeader onGetStarted={onGetStarted} onLogin={onLogin} />
+      <MarketingHeader activeSlug="home" onGetStarted={onGetStarted} onLogin={onLogin} />
 
       <section style={{ maxWidth: 780, margin: "0 auto", padding: "80px 32px 50px", textAlign: "center" }}>
         <div style={{ display: "inline-block", background: colors.indigoBg, color: colors.indigo, fontSize: 12, fontWeight: 700, padding: "5px 14px", borderRadius: 99, marginBottom: 20 }}>
