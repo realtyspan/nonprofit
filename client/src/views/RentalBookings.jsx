@@ -94,8 +94,12 @@ export default function RentalBookings({ spaces, onChanged }) {
             <div>{new Date(b.startAt).toLocaleDateString()}</div>
             <div>{money(b.quotedTotal)}</div>
             <div>
-              <span style={pill(b.depositPaid ? colors.successBg : colors.warningBg, b.depositPaid ? colors.success : colors.warning)}>{b.depositPaid ? "Deposit ✓" : "Deposit due"}</span>{" "}
-              <span style={pill(b.balancePaid ? colors.successBg : "#f0f0f3", b.balancePaid ? colors.success : colors.textSecondary)}>{b.balancePaid ? "Balance ✓" : "Balance due"}</span>
+              <div style={{ fontSize: 11.5, color: colors.textTertiary, marginBottom: 3 }}>{money(b.totalPaid || 0)} / {money(b.quotedTotal || 0)}</div>
+              {b.balanceDue > 0 ? (
+                <span style={pill(colors.warningBg, colors.warning)}>Balance due: {money(b.balanceDue)}</span>
+              ) : (
+                <span style={pill(colors.successBg, colors.success)}>Paid in full{b.balanceDue < 0 ? ` (${money(-b.balanceDue)} credit)` : ""}</span>
+              )}
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
               <button style={button.ghost} onClick={() => setPaying(b)}>Payment</button>
@@ -238,19 +242,45 @@ function ReviewModal({ booking, onCancel, onDone }) {
 }
 
 function PaymentModal({ booking, onCancel, onSaved }) {
-  const [depositPaid, setDepositPaid] = useState(booking.depositPaid);
-  const [depositMethod, setDepositMethod] = useState(booking.depositMethod || "cash");
-  const [depositReceiptNum, setDepositReceiptNum] = useState(booking.depositReceiptNum || "");
-  const [balancePaid, setBalancePaid] = useState(booking.balancePaid);
-  const [balanceMethod, setBalanceMethod] = useState(booking.balanceMethod || "cash");
+  const [payments, setPayments] = useState([]);
+  const [totalPaid, setTotalPaid] = useState(booking.totalPaid || 0);
+  const [totalAdjustments, setTotalAdjustments] = useState(booking.totalAdjustments || 0);
+  const [balanceDue, setBalanceDue] = useState(booking.balanceDue ?? booking.quotedTotal ?? 0);
+  const [amount, setAmount] = useState("");
+  const [type, setType] = useState("payment");
+  const [method, setMethod] = useState("cash");
+  const [receiptNum, setReceiptNum] = useState("");
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  async function save() {
+  function refresh() {
+    api.listRentalPayments(booking.id).then(setPayments).catch(() => {});
+  }
+  useEffect(refresh, [booking.id]);
+
+  // Recompute the header totals from the ledger itself rather than trusting
+  // the (possibly stale) booking snapshot passed in — this modal is the one
+  // place that changes the ledger, so it should reflect its own edits live.
+  useEffect(() => {
+    const paid = payments.filter((p) => p.type === "payment").reduce((s, p) => s + p.amount, 0);
+    const adj = payments.filter((p) => p.type === "adjustment").reduce((s, p) => s + p.amount, 0);
+    setTotalPaid(paid);
+    setTotalAdjustments(adj);
+    setBalanceDue((booking.quotedTotal || 0) - paid - adj);
+  }, [payments, booking.quotedTotal]);
+
+  async function addEntry(e) {
+    e.preventDefault();
     setError("");
+    const amt = Number(amount);
+    if (!(amt > 0)) return setError("Enter an amount greater than $0");
+    if (type === "adjustment" && !note.trim()) return setError("A reason is required for an adjustment");
     setBusy(true);
     try {
-      await api.updateRentalPayment(booking.id, { depositPaid, depositMethod, depositReceiptNum, balancePaid, balanceMethod });
+      await api.addRentalPayment(booking.id, { amount: amt, type, method: type === "payment" ? method : undefined, receiptNum, note });
+      setAmount(""); setReceiptNum(""); setNote("");
+      refresh();
       onSaved();
     } catch (err) {
       setError(err.message);
@@ -259,45 +289,75 @@ function PaymentModal({ booking, onCancel, onSaved }) {
     }
   }
 
+  async function removeEntry(id) {
+    if (!window.confirm("Delete this entry?")) return;
+    try {
+      await api.deleteRentalPayment(booking.id, id);
+      refresh();
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-      <div style={{ width: 400, background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)", display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}>
+      <div style={{ width: 460, maxWidth: "100%", background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)", display: "flex", flexDirection: "column", gap: 14, maxHeight: "88vh", overflow: "auto" }}>
         <div style={{ fontSize: 16, fontWeight: 700 }}>Payment — {booking.renterName}</div>
 
-        <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 10 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 8 }}>
-            <input type="checkbox" checked={depositPaid} onChange={(e) => setDepositPaid(e.target.checked)} />
-            Deposit paid ({money(booking.depositAmount)})
-          </label>
-          {depositPaid && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <select style={inputStyle} value={depositMethod} onChange={(e) => setDepositMethod(e.target.value)}>
+        <div style={{ background: "#fafafa", borderRadius: 10, padding: 12, display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+          <div><div style={{ color: colors.textSecondary, fontSize: 11 }}>Total</div>{money(booking.quotedTotal || 0)}</div>
+          <div><div style={{ color: colors.textSecondary, fontSize: 11 }}>Paid so far</div>{money(totalPaid)}</div>
+          <div>
+            <div style={{ color: colors.textSecondary, fontSize: 11 }}>{balanceDue < 0 ? "Credit" : "Balance due"}</div>
+            <span style={{ fontWeight: 700, color: balanceDue > 0 ? colors.warning : colors.success }}>{money(Math.abs(balanceDue))}</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 160, overflow: "auto" }}>
+          {payments.map((p) => (
+            <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, padding: "6px 0", borderBottom: `1px solid ${colors.borderLight}` }}>
+              <div>
+                <span style={pill(p.type === "adjustment" ? colors.warningBg : colors.successBg, p.type === "adjustment" ? colors.warning : colors.success)}>
+                  {p.type === "adjustment" ? "Adjustment" : "Payment"}
+                </span>{" "}
+                <span style={{ fontWeight: 700 }}>{money(p.amount)}</span>{" "}
+                <span style={{ color: colors.textTertiary }}>
+                  {p.type === "payment" ? `${p.method}${p.receiptNum ? ` · #${p.receiptNum}` : ""}` : p.note}
+                </span>
+                <div style={{ color: colors.textTertiary }}>{new Date(p.recordedAt).toLocaleString()} · {p.recordedByName}</div>
+              </div>
+              <button type="button" style={{ ...button.ghost, padding: "3px 8px", fontSize: 11 }} onClick={() => removeEntry(p.id)}>Delete</button>
+            </div>
+          ))}
+          {payments.length === 0 && <div style={{ fontSize: 12.5, color: colors.textSecondary }}>No payments recorded yet.</div>}
+        </div>
+
+        <form onSubmit={addEntry} style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <input style={inputStyle} type="number" step="0.01" min="0.01" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <select style={inputStyle} value={type} onChange={(e) => setType(e.target.value)}>
+              <option value="payment">Payment</option>
+              <option value="adjustment">Adjustment (discount/comp)</option>
+            </select>
+          </div>
+          {type === "payment" ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <select style={inputStyle} value={method} onChange={(e) => setMethod(e.target.value)}>
                 <option value="cash">Cash</option>
                 <option value="check">Check</option>
               </select>
-              <input style={inputStyle} placeholder="Receipt / check #" value={depositReceiptNum} onChange={(e) => setDepositReceiptNum(e.target.value)} />
+              <input style={inputStyle} placeholder="Receipt / check # (optional)" value={receiptNum} onChange={(e) => setReceiptNum(e.target.value)} />
             </div>
+          ) : (
+            <input style={inputStyle} placeholder="Reason (required)" value={note} onChange={(e) => setNote(e.target.value)} />
           )}
-        </div>
+          {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+          <button style={button.primary} type="submit" disabled={busy}>{busy ? "Saving…" : "Add"}</button>
+        </form>
 
-        <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 10 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 8 }}>
-            <input type="checkbox" checked={balancePaid} onChange={(e) => setBalancePaid(e.target.checked)} />
-            Balance paid in full ({money((booking.quotedTotal || 0) - (booking.depositAmount || 0))})
-          </label>
-          {balancePaid && (
-            <select style={inputStyle} value={balanceMethod} onChange={(e) => setBalanceMethod(e.target.value)}>
-              <option value="cash">Cash</option>
-              <option value="check">Check</option>
-            </select>
-          )}
-        </div>
-
-        {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <button style={button.ghost} onClick={onCancel}>Cancel</button>
-          <button style={button.primary} onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button style={button.ghost} onClick={onCancel}>Close</button>
         </div>
       </div>
     </div>

@@ -54,6 +54,18 @@ function computeRentalQuote(space, booking) {
   return { hours, overageHours, spaceCost, bartenderCost, equipmentCost, total };
 }
 
+// booking.payments: that booking's RentalPayment rows. balanceDue is
+// deliberately never floored at 0 — an overpayment (or an adjustment applied
+// after the balance was already covered) shows as negative so it reads as a
+// credit rather than silently disappearing.
+function computeBookingBalance(booking) {
+  const payments = booking.payments || [];
+  const totalPaid = payments.filter((p) => p.type === "payment").reduce((s, p) => s + p.amount, 0);
+  const totalAdjustments = payments.filter((p) => p.type === "adjustment").reduce((s, p) => s + p.amount, 0);
+  const balanceDue = (booking.quotedTotal || 0) - totalPaid - totalAdjustments;
+  return { totalPaid, totalAdjustments, balanceDue };
+}
+
 // existingBookings: confirmed/completed RentalBooking rows for the same space
 // existingBlocks: RentalBlock rows for the same space
 function hasConflict(startAt, endAt, existingBookings, existingBlocks, excludeBookingId) {
@@ -69,4 +81,4 @@ function hasConflict(startAt, endAt, existingBookings, existingBlocks, excludeBo
   return existingBlocks.some((blk) => overlaps(holdStart, holdEnd, new Date(blk.startAt), new Date(blk.endAt)));
 }
 
-module.exports = { holdWindow, computeRentalQuote, hasConflict };
+module.exports = { holdWindow, computeRentalQuote, hasConflict, computeBookingBalance };

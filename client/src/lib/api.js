@@ -120,7 +120,9 @@ export const api = {
   cancelRentalBooking: (id) => request(`/rentals/bookings/${id}/cancel`, { method: "POST" }),
   completeRentalBooking: (id) => request(`/rentals/bookings/${id}/complete`, { method: "POST" }),
   signRentalBooking: (id, signedName, signatureImage) => request(`/rentals/bookings/${id}/sign`, { method: "POST", body: { signedName, signatureImage } }),
-  updateRentalPayment: (id, payload) => request(`/rentals/bookings/${id}/payment`, { method: "PATCH", body: payload }),
+  listRentalPayments: (bookingId) => request(`/rentals/bookings/${bookingId}/payments`),
+  addRentalPayment: (bookingId, payload) => request(`/rentals/bookings/${bookingId}/payments`, { method: "POST", body: payload }),
+  deleteRentalPayment: (bookingId, paymentId) => request(`/rentals/bookings/${bookingId}/payments/${paymentId}`, { method: "DELETE" }),
   downloadRentalContractPdf: (id, renterName) => download(`/rentals/bookings/${id}/contract.pdf`, `Rental_${(renterName || "agreement").replace(/\s+/g, "_")}.pdf`),
 
   listRentalBlocks: () => request("/rentals/blocks"),

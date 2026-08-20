@@ -27,6 +27,7 @@ model Organization {
   reports        GC7QReport[]
   rentalSpaces           RentalSpace[]
   rentalBookings         RentalBooking[]
+  rentalPayments         RentalPayment[]
   rentalBlocks           RentalBlock[]
   rentalBlockRecurrences RentalBlockRecurrence[]
   calendarEvents         CalendarEvent[]
@@ -332,14 +333,7 @@ model RentalBooking {
   kitchenUse         String?  // null | "no_oven" | "with_oven"
   chafingDishes      Int      @default(0)
   quotedTotal        Float?   // computed when confirmed
-  depositAmount      Float?
-  depositPaid        Boolean  @default(false)
-  depositMethod      String?  // cash | check
-  depositReceivedAt  DateTime?
-  depositReceiptNum  String?
-  balancePaid        Boolean  @default(false)
-  balanceMethod      String?
-  balancePaidAt      DateTime?
+  depositAmount      Float?   // expected deposit, set at confirmation — actual payments live in RentalPayment
   notes              String?
   declineReason      String?
   contractSignedName  String?  // printed name entered alongside the drawn signature
@@ -348,8 +342,36 @@ model RentalBooking {
   contractSignedAt    DateTime?
   createdAt          DateTime @default(now())
 
+  payments RentalPayment[]
+
   @@index([orgId])
   @@index([spaceId])
+}
+
+// Replaces the old depositPaid/balancePaid booleans — one row per payment
+// received or discount/comp applied, so any amount can be recorded at any
+// time instead of only a fixed deposit or "the entire remaining balance" in
+// one shot. `amount` is always positive (how much this entry reduces the
+// balance due by); `type` distinguishes real money collected ("payment",
+// requires a method) from a credit applied for any reason ("adjustment",
+// requires a note instead — the "why" on record for a balance that changed
+// without cash changing hands).
+model RentalPayment {
+  id             String   @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bookingId      String
+  booking        RentalBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount         Float
+  type           String   // payment | adjustment
+  method         String?  // cash | check — required for "payment", null for "adjustment"
+  receiptNum     String?
+  note           String?
+  recordedByName String
+  recordedAt     DateTime @default(now())
+
+  @@index([orgId])
+  @@index([bookingId])
 }
 
 // Internal hold on a space for the lodge's own use — no renter/contract

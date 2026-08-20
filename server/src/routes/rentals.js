@@ -1,7 +1,7 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
-const { computeRentalQuote, hasConflict } = require("../lib/rentalLogic");
+const { computeRentalQuote, hasConflict, computeBookingBalance } = require("../lib/rentalLogic");
 const { generateOccurrences } = require("../lib/recurrence");
 const { lodgeDateTimeStringToUtc } = require("../lib/timezone");
 const { buildRentalContractPdf } = require("../lib/rentalContractPdf");
@@ -36,10 +36,10 @@ router.get("/bookings", requireReadAccess("rentals"), async (req, res) => {
   if (req.query.status) where.status = req.query.status;
   const bookings = await prisma.rentalBooking.findMany({
     where,
-    include: { space: true },
+    include: { space: true, payments: true },
     orderBy: { startAt: "asc" },
   });
-  res.json(bookings);
+  res.json(bookings.map((b) => ({ ...b, ...computeBookingBalance(b) })));
 });
 
 // Staff-entered booking (phone/walk-in inquiry) — always starts as an inquiry,
@@ -182,35 +182,65 @@ router.post("/bookings/:id/sign", requirePermission("rentals", "Admin"), async (
   res.json(updated);
 });
 
-router.patch("/bookings/:id/payment", requirePermission("rentals", "Admin"), async (req, res) => {
+// --- Payments ---
+// One row per payment received or credit applied, instead of the old
+// depositPaid/balancePaid booleans — any amount, any number of times, plus
+// an "adjustment" type for a discount/comp that reduces the balance without
+// money changing hands (see RentalPayment's schema comment).
+
+router.get("/bookings/:id/payments", requireReadAccess("rentals"), async (req, res) => {
   const booking = await prisma.rentalBooking.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!booking) return res.status(404).json({ error: "Booking not found" });
-  const { depositPaid, depositMethod, depositReceiptNum, balancePaid, balanceMethod } = req.body;
-  const updated = await prisma.rentalBooking.update({
-    where: { id: booking.id },
+  const payments = await prisma.rentalPayment.findMany({ where: { bookingId: booking.id, orgId: req.user.orgId }, orderBy: { recordedAt: "desc" } });
+  res.json(payments);
+});
+
+router.post("/bookings/:id/payments", requirePermission("rentals", "Admin"), async (req, res) => {
+  const booking = await prisma.rentalBooking.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+  const { amount, type, method, receiptNum, note } = req.body;
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ error: "amount must be a positive number" });
+  if (!["payment", "adjustment"].includes(type)) return res.status(400).json({ error: "type must be payment or adjustment" });
+  if (type === "payment" && !["cash", "check"].includes(method)) {
+    return res.status(400).json({ error: "method must be cash or check for a payment" });
+  }
+  if (type === "adjustment" && !note?.trim()) {
+    return res.status(400).json({ error: "A reason is required for an adjustment" });
+  }
+
+  const caller = await prisma.user.findUnique({ where: { id: req.user.userId }, select: { name: true } });
+  const payment = await prisma.rentalPayment.create({
     data: {
-      depositPaid: depositPaid !== undefined ? !!depositPaid : undefined,
-      depositMethod,
-      depositReceivedAt: depositPaid ? new Date() : undefined,
-      depositReceiptNum,
-      balancePaid: balancePaid !== undefined ? !!balancePaid : undefined,
-      balanceMethod,
-      balancePaidAt: balancePaid ? new Date() : undefined,
+      orgId: req.user.orgId, bookingId: booking.id, amount: amt, type,
+      method: type === "payment" ? method : null,
+      receiptNum: receiptNum || null, note: note || null,
+      recordedByName: caller?.name || "",
     },
   });
-  res.json(updated);
+  res.json(payment);
+});
+
+router.delete("/bookings/:id/payments/:paymentId", requirePermission("rentals", "Admin"), async (req, res) => {
+  const payment = await prisma.rentalPayment.findFirst({ where: { id: req.params.paymentId, bookingId: req.params.id, orgId: req.user.orgId } });
+  if (!payment) return res.status(404).json({ error: "Payment not found" });
+  await prisma.rentalPayment.delete({ where: { id: payment.id } });
+  res.json({ ok: true });
 });
 
 router.get("/bookings/:id/contract.pdf", requireReadAccess("rentals"), async (req, res) => {
   const booking = await prisma.rentalBooking.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!booking) return res.status(404).json({ error: "Booking not found" });
-  const [org, space] = await Promise.all([
+  const [org, space, payments] = await Promise.all([
     prisma.organization.findUnique({ where: { id: req.user.orgId } }),
     prisma.rentalSpace.findUnique({ where: { id: booking.spaceId } }),
+    prisma.rentalPayment.findMany({ where: { bookingId: booking.id, orgId: req.user.orgId } }),
   ]);
   const quote = computeRentalQuote(space, booking);
+  const balance = computeBookingBalance({ ...booking, payments });
 
-  const pdfBytes = await buildRentalContractPdf({ org, space, booking, quote });
+  const pdfBytes = await buildRentalContractPdf({ org, space, booking, quote, balance });
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Rental_${booking.renterName.replace(/\s+/g, "_")}.pdf"`);
   res.send(Buffer.from(pdfBytes));

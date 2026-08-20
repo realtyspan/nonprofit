@@ -30,7 +30,7 @@ function fmtDateTime(d) {
   return new Date(d).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 }
 
-async function buildRentalContractPdf({ org, space, booking, quote }) {
+async function buildRentalContractPdf({ org, space, booking, quote, balance }) {
   const doc = await PDFDocument.create();
   const page = doc.addPage([PAGE.width, PAGE.height]);
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -79,8 +79,15 @@ async function buildRentalContractPdf({ org, space, booking, quote }) {
   }
   draw(`Total: ${money(quote.total)}`, { f: bold, gap: 18 });
 
-  draw(`Deposit: ${money(booking.depositAmount)} — ${booking.depositPaid ? "received" : "due at signing"}`);
-  draw(`Balance: ${money((booking.quotedTotal ?? quote.total) - (booking.depositAmount || 0))} — ${booking.balancePaid ? "paid in full" : "due day of event"}`);
+  draw(`Deposit expected: ${money(booking.depositAmount)}`);
+  draw(`Total paid to date: ${money(balance.totalPaid)}${balance.totalAdjustments > 0 ? ` (plus ${money(balance.totalAdjustments)} adjustment)` : ""}`);
+  draw(
+    balance.balanceDue > 0
+      ? `Balance due: ${money(balance.balanceDue)} — due day of event`
+      : balance.balanceDue < 0
+      ? `Paid in full (${money(-balance.balanceDue)} credit)`
+      : "Paid in full"
+  );
   rule();
 
   draw("Terms", { f: bold, gap: 16 });
