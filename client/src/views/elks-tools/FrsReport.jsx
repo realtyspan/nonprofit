@@ -11,7 +11,7 @@ function readFileAsDataUrl(file) {
   });
 }
 
-const RUN_COLUMNS = "1.2fr 1fr 1fr 1fr auto auto";
+const RUN_COLUMNS = "1.2fr 1fr 1fr 1fr auto auto auto";
 
 export default function FrsReport() {
   const [fileName, setFileName] = useState("");
@@ -38,6 +38,16 @@ export default function FrsReport() {
     }
     setFileName(file.name);
     setFileData(await readFileAsDataUrl(file));
+  }
+
+  async function deleteRun(run) {
+    if (!window.confirm(`Delete the saved ${run.monthLabel} report? This removes both the source file and the CSV — you'd need to re-upload and regenerate to get them back.`)) return;
+    try {
+      await api.deleteFrsReportRun(run.id);
+      refreshRuns();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function generate() {
@@ -106,6 +116,7 @@ export default function FrsReport() {
           <div>Generated</div>
           <div>Source</div>
           <div>CSV</div>
+          <div></div>
         </div>
         {runs.map((r) => (
           <div key={r.id} style={{ display: "grid", gridTemplateColumns: RUN_COLUMNS, padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, alignItems: "center" }}>
@@ -123,6 +134,11 @@ export default function FrsReport() {
             <div>
               <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5 }} onClick={() => api.downloadFrsReportCsv(r.id, r.csvFileName)}>
                 ⬇ CSV
+              </button>
+            </div>
+            <div>
+              <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5, color: colors.danger }} onClick={() => deleteRun(r)}>
+                Delete
               </button>
             </div>
           </div>

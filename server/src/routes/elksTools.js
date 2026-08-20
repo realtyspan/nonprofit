@@ -96,4 +96,11 @@ router.get("/frs-report/runs/:id/csv", requireReadAccess("elks-tools"), async (r
   res.send(run.csvFile);
 });
 
+router.delete("/frs-report/runs/:id", requirePermission("elks-tools", "Admin"), async (req, res) => {
+  const run = await prisma.frsReportRun.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!run) return res.status(404).json({ error: "Report not found" });
+  await prisma.frsReportRun.delete({ where: { id: run.id } });
+  res.json({ ok: true });
+});
+
 module.exports = router;

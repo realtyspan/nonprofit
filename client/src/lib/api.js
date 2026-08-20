@@ -209,6 +209,7 @@ export const api = {
   listFrsReportRuns: () => request("/elks-tools/frs-report/runs"),
   downloadFrsReportSource: (id, filename) => download(`/elks-tools/frs-report/runs/${id}/source-file`, filename),
   downloadFrsReportCsv: (id, filename) => download(`/elks-tools/frs-report/runs/${id}/csv`, filename),
+  deleteFrsReportRun: (id) => request(`/elks-tools/frs-report/runs/${id}`, { method: "DELETE" }),
 };
 
 export { downloadTextFile };
