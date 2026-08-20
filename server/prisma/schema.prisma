@@ -44,6 +44,7 @@ model Organization {
   raffleCheckIns         RaffleCheckIn[]
   raffleExpenses         RaffleExpense[]
   raffleSignerDesignations RaffleSignerDesignation[]
+  frsReportRuns            FrsReportRun[]
 }
 
 model User {
@@ -666,4 +667,30 @@ model RaffleCheckIn {
 
   @@unique([gameId, ticketNumber])
   @@index([gameId])
+}
+
+// --- Elks Tools module ---
+// One saved run per lodge per month — regenerating a month's report
+// (correcting a mistake, re-uploading) replaces the prior save for that
+// month rather than piling up duplicates, since only one file per month is
+// ever actually the real submission.
+model FrsReportRun {
+  id               String   @id @default(cuid())
+  orgId            String
+  org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  year             Int
+  month            Int      // 1-12
+  monthLabel       String   // "May 2026" — display convenience
+  sourceFile       String   // base64 data URL of the uploaded QuickBooks .xlsx
+  sourceFileName   String
+  csvFile          String   // the generated CSV content
+  csvFileName      String
+  transactionCount Int
+  totalDebits      Float
+  totalCredits     Float
+  generatedByName  String
+  generatedAt      DateTime @default(now())
+
+  @@unique([orgId, year, month])
+  @@index([orgId])
 }

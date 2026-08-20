@@ -57,6 +57,15 @@ export const MODULES = [
       { key: "assign", label: "Assign", icon: icons.sliders, title: "Assign", subtitle: "Assign ticket ranges to sellers", requiresTier: "Admin" },
     ],
   },
+  {
+    key: "elks-tools",
+    label: "Elks Tools",
+    icon: icons.apps,
+    blurb: "Small utilities for lodge operations",
+    navItems: [
+      { key: "frs", label: "FRS Report", icon: icons.fileCheck, title: "FRS Monthly Actuals Report", subtitle: "Turn a QuickBooks Transaction Detail export into the Grand Lodge CSV" },
+    ],
+  },
 ];
 
 // Strict per-module tier check, same convention every view already uses

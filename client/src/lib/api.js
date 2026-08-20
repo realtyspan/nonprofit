@@ -33,6 +33,20 @@ async function request(path, { method = "GET", body } = {}) {
   return data;
 }
 
+// Triggers a browser save-as for text content already in hand (e.g. a CSV
+// returned inside a JSON response), same blob-URL-click mechanics as download().
+function downloadTextFile(content, filename, mimeType = "text/csv") {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // Downloads a binary (PDF) response and triggers a browser save-as, instead of parsing JSON.
 async function download(path, filename) {
   const headers = {};
@@ -190,7 +204,14 @@ export const api = {
   toggleRaffleCheckIn: (gameId, ticketNumber, hasGuest) => request(`/raffle/games/${gameId}/checkins/${ticketNumber}`, { method: "POST", body: { hasGuest } }),
 
   sendRaffleReminders: (gameId) => request(`/raffle/games/${gameId}/reminders/send`, { method: "POST" }),
+
+  generateFrsReport: (file, fileName) => request("/elks-tools/frs-report", { method: "POST", body: { file, fileName } }),
+  listFrsReportRuns: () => request("/elks-tools/frs-report/runs"),
+  downloadFrsReportSource: (id, filename) => download(`/elks-tools/frs-report/runs/${id}/source-file`, filename),
+  downloadFrsReportCsv: (id, filename) => download(`/elks-tools/frs-report/runs/${id}/csv`, filename),
 };
+
+export { downloadTextFile };
 
 // Unauthenticated endpoints for the public rental inquiry page — no token, separate base path.
 export const publicApi = {

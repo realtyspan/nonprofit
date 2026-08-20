@@ -35,6 +35,7 @@ import RaffleReport from "./views/RaffleReport";
 import RaffleDrawings from "./views/RaffleDrawings";
 import RaffleFinancials from "./views/RaffleFinancials";
 import RaffleCheckIn from "./views/RaffleCheckIn";
+import FrsReport from "./views/elks-tools/FrsReport";
 
 function PublicGate() {
   // Lets a cross-domain redirect from the marketing site (elkslodges.org)
@@ -235,6 +236,7 @@ function Shell() {
             {activeModuleKey === "raffle" && view === "drawings" && <RaffleDrawings gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "financials" && <RaffleFinancials />}
             {activeModuleKey === "raffle" && view === "checkin" && <RaffleCheckIn gameId={selectedRaffleGameId} />}
+            {activeModuleKey === "elks-tools" && view === "frs" && <FrsReport />}
             {view === "team" && canSeeTeam && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}
             {view === "profile" && <Profile />}
           </div>
