@@ -16,6 +16,7 @@ export default function RentalBookings({ spaces, onChanged }) {
   const [paying, setPaying] = useState(null);
   const [signing, setSigning] = useState(null);
   const [uploadingContract, setUploadingContract] = useState(null);
+  const [viewingHistory, setViewingHistory] = useState(null);
 
   function refresh() {
     api.listRentalBookings().then(setBookings).catch(() => {});
@@ -125,7 +126,11 @@ export default function RentalBookings({ spaces, onChanged }) {
           <div>Status</div>
         </div>
         {history.map((b) => (
-          <div key={b.id} style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13 }}>
+          <div
+            key={b.id}
+            onClick={() => setViewingHistory(b)}
+            style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, cursor: "pointer" }}
+          >
             <div>{b.renterName}</div>
             <div>{b.space?.name}</div>
             <div>{new Date(b.startAt).toLocaleDateString()}</div>
@@ -150,6 +155,9 @@ export default function RentalBookings({ spaces, onChanged }) {
       )}
       {uploadingContract && (
         <UploadContractModal booking={uploadingContract} onCancel={() => setUploadingContract(null)} onSaved={() => { setUploadingContract(null); refresh(); }} />
+      )}
+      {viewingHistory && (
+        <HistoryDetailModal booking={viewingHistory} onCancel={() => setViewingHistory(null)} onChanged={() => { setViewingHistory(null); refresh(); onChanged(); }} />
       )}
     </div>
   );
@@ -469,6 +477,151 @@ function UploadContractModal({ booking, onCancel, onSaved }) {
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
           <button style={button.ghost} onClick={onCancel}>Cancel</button>
           <button style={button.primary} onClick={save} disabled={busy || !contractFile}>{busy ? "Saving…" : "Save"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const RESTORE_LABEL = { cancelled: "confirmed", declined: "an inquiry", completed: "confirmed" };
+
+// View-only look at a completed/declined/cancelled booking's full record —
+// nothing about a booking is actually cleared when its status changes, this
+// just surfaces what was already there (payments, contract, decline
+// reason). Restore undoes a mistaken status change; Delete is only offered
+// once nothing real (a payment or a contract) is attached — same
+// immutability rule as raffle games: real activity makes a record
+// permanent, and Restore is the only way back at that point.
+function HistoryDetailModal({ booking, onCancel, onChanged }) {
+  const [payments, setPayments] = useState([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.listRentalPayments(booking.id).then(setPayments).catch(() => {});
+  }, [booking.id]);
+
+  const hasContract = !!(booking.contractSignatureImage || booking.uploadedContractFile);
+  const canDelete = payments.length === 0 && !hasContract;
+
+  async function restore() {
+    setError("");
+    setBusy(true);
+    try {
+      await api.restoreRentalBooking(booking.id);
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function del() {
+    setError("");
+    setBusy(true);
+    try {
+      await api.deleteRentalBooking(booking.id);
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}>
+      <div style={{ width: 480, maxWidth: "100%", background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)", display: "flex", flexDirection: "column", gap: 14, maxHeight: "88vh", overflow: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{booking.renterName}</div>
+          <span style={pill("#f0f0f3", colors.textSecondary)}>{booking.status}</span>
+        </div>
+        <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+          {booking.space?.name} · {new Date(booking.startAt).toLocaleString()} – {new Date(booking.endAt).toLocaleTimeString()}
+        </div>
+        <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+          {booking.renterEmail} {booking.renterPhone && `· ${formatPhone(booking.renterPhone)}`}<br />
+          {booking.renterAddress && <>{booking.renterAddress}<br /></>}
+          {booking.eventType && `${booking.eventType} · `}{booking.expectedGuests ?? "—"} guests · {booking.isMember ? "Member" : "Non-member"} rate
+        </div>
+
+        {booking.status === "declined" && booking.declineReason && (
+          <div style={{ background: colors.warningBg, color: colors.warning, borderRadius: 8, padding: 10, fontSize: 12.5 }}>
+            Declined: {booking.declineReason}
+          </div>
+        )}
+
+        {booking.quotedTotal != null && (
+          <div style={{ background: "#fafafa", borderRadius: 10, padding: 12, fontSize: 13 }}>
+            <Row label="Quoted total" value={money(booking.quotedTotal)} />
+            <Row label="Paid" value={money(booking.totalPaid || 0)} />
+            <Row label="Balance" value={money(booking.balanceDue ?? booking.quotedTotal)} />
+          </div>
+        )}
+
+        {payments.length > 0 && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: colors.textSecondary, marginBottom: 6 }}>Payment history</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {payments.map((p) => (
+                <div key={p.id} style={{ fontSize: 12.5, color: colors.textSecondary }}>
+                  {p.type === "adjustment" ? "Adjustment" : "Payment"} · {money(p.amount)} · {new Date(p.recordedAt).toLocaleDateString()}
+                  {p.type === "payment" ? ` · ${p.method}` : ` · ${p.note}`}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {hasContract && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: colors.textSecondary, marginBottom: 6 }}>Contract</div>
+            {booking.contractSignatureImage && (
+              <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 4 }}>
+                Signed in-app by {booking.contractSignedName} — {new Date(booking.contractSignedAt).toLocaleString()}
+              </div>
+            )}
+            {booking.uploadedContractFile && (
+              <a href={booking.uploadedContractFile} download={booking.uploadedContractFileName || "contract"} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: colors.accent, fontWeight: 600 }}>
+                📄 Uploaded contract — {new Date(booking.uploadedContractAt).toLocaleString()}
+              </a>
+            )}
+          </div>
+        )}
+
+        {booking.notes && (
+          <div style={{ fontSize: 12.5, color: colors.textSecondary }}><strong>Notes:</strong> {booking.notes}</div>
+        )}
+
+        {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+
+        <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          <button style={button.ghost} disabled={busy} onClick={restore}>
+            {busy ? "Restoring…" : `Restore to ${RESTORE_LABEL[booking.status]}`}
+          </button>
+          {!confirmDelete ? (
+            canDelete ? (
+              <button style={{ ...button.ghost, color: colors.danger }} onClick={() => setConfirmDelete(true)}>Delete permanently</button>
+            ) : (
+              <div style={{ fontSize: 11.5, color: colors.textTertiary }}>
+                Can't be deleted — this booking has {payments.length > 0 ? "payment records" : "a contract"} attached. Restore it instead if it was cancelled/declined/completed by mistake.
+              </div>
+            )
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ fontSize: 12, color: colors.textSecondary }}>Delete this booking permanently? This can't be undone.</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={button.ghost} onClick={() => setConfirmDelete(false)}>Never mind</button>
+                <button style={{ ...button.primary, background: colors.danger }} disabled={busy} onClick={del}>{busy ? "Deleting…" : "Delete permanently"}</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button style={button.ghost} onClick={onCancel}>Close</button>
         </div>
       </div>
     </div>

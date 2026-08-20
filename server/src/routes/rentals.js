@@ -165,6 +165,45 @@ router.post("/bookings/:id/complete", requirePermission("rentals", "Admin"), asy
   res.json(updated);
 });
 
+const HISTORY_STATUSES = ["completed", "declined", "cancelled"];
+
+// Undoes a cancel/decline/complete made in error — lands on the status the
+// booking was actually in before, not just "confirmed" for everything: a
+// declined booking was never confirmed in the first place, so it goes back
+// to an inquiry rather than skipping straight to confirmed.
+router.post("/bookings/:id/restore", requirePermission("rentals", "Admin"), async (req, res) => {
+  const booking = await prisma.rentalBooking.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (!HISTORY_STATUSES.includes(booking.status)) {
+    return res.status(400).json({ error: "Only a completed, declined, or cancelled booking can be restored" });
+  }
+  const restoredStatus = booking.status === "declined" ? "inquiry" : "confirmed";
+  const updated = await prisma.rentalBooking.update({ where: { id: booking.id }, data: { status: restoredStatus, declineReason: null } });
+  res.json(updated);
+});
+
+// Permanently removes a booking logged in error. Same immutability rule as
+// raffle games: once real activity exists (a payment recorded, a contract
+// drawn or uploaded), the record is the history and Restore is the only way
+// back — not Delete. Only a "clean" history entry with nothing real
+// attached can be removed.
+router.delete("/bookings/:id", requirePermission("rentals", "Admin"), async (req, res) => {
+  const booking = await prisma.rentalBooking.findFirst({ where: { id: req.params.id, orgId: req.user.orgId }, include: { payments: true } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (!HISTORY_STATUSES.includes(booking.status)) {
+    return res.status(400).json({ error: "Only a completed, declined, or cancelled booking can be deleted" });
+  }
+  if (booking.payments.length > 0) {
+    return res.status(400).json({ error: "This booking has payment records — restore it instead of deleting" });
+  }
+  if (booking.contractSignatureImage || booking.uploadedContractFile) {
+    return res.status(400).json({ error: "This booking has a contract attached — restore it instead of deleting" });
+  }
+  await prisma.rentalBooking.delete({ where: { id: booking.id } });
+  await removeCalendarEventFor("rental-booking", booking.id);
+  res.json({ ok: true });
+});
+
 // Captures an in-person drawn signature (staff hands their device to the
 // renter at the counter) — a canvas image plus IP and timestamp for a basic
 // audit trail. Not a substitute for a dedicated e-sign vendor's identity
