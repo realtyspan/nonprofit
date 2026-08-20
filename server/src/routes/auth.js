@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const prisma = require("../lib/prisma");
 const { signToken, requireAuth, loadPermissions } = require("../lib/auth");
-const { MODULES } = require("../../prisma/backfill-permissions");
+const { MODULE_KEYS } = require("../lib/moduleKeys");
 const { sendEmail } = require("../lib/notifications");
 const { resetPasswordHtml } = require("../lib/authEmails");
 
@@ -15,7 +15,7 @@ const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 // still works during rollout — mapped through the exact same table the
 // one-time backfill script used, so behavior stays consistent either way.
 const LEGACY_ROLE_GRANTS = {
-  Head: { orgTier: "Owner", moduleGrants: MODULES.map((module) => ({ module, tier: "Admin" })) },
+  Head: { orgTier: "Owner", moduleGrants: MODULE_KEYS.map((module) => ({ module, tier: "Admin" })) },
   Chairperson: { orgTier: null, moduleGrants: [{ module: "bell-jar", tier: "Helper" }] },
   Preparer: { orgTier: null, moduleGrants: [{ module: "bell-jar", tier: "Helper" }] },
   Cashier: { orgTier: null, moduleGrants: [{ module: "bell-jar", tier: "Helper" }] },

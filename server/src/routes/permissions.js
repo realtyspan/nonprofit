@@ -2,7 +2,7 @@ const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requireOwner, requirePermission } = require("../lib/auth");
 const { notifyOwnerSetChanged } = require("../lib/notifications");
-const { MODULES } = require("../../prisma/backfill-permissions");
+const { MODULE_KEYS } = require("../lib/moduleKeys");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -65,7 +65,7 @@ router.patch("/org-tier/:userId", requireOwner, async (req, res) => {
 router.put("/module-grant/:userId/:module", async (req, res) => {
   const { module } = req.params;
   const { tier } = req.body; // "Admin" | "Helper" | "Viewer"
-  if (!MODULES.includes(module)) return res.status(400).json({ error: `module must be one of ${MODULES.join(", ")}` });
+  if (!MODULE_KEYS.includes(module)) return res.status(400).json({ error: `module must be one of ${MODULE_KEYS.join(", ")}` });
   if (!["Admin", "Helper", "Viewer"].includes(tier)) return res.status(400).json({ error: "tier must be Admin, Helper, or Viewer" });
 
   const isOwner = req.orgTier === "Owner";
