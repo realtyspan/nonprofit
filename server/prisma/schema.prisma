@@ -340,6 +340,9 @@ model RentalBooking {
   contractSignatureImage String? // base64 PNG data URL, drawn in-person on staff's device at signing
   contractSignedIp    String?  // basic audit trail — no third-party e-sign vendor is used here
   contractSignedAt    DateTime?
+  uploadedContractFile     String? // base64 data URL — a scan/photo of a physically-signed paper contract, an alternative to the in-app drawn signature above
+  uploadedContractFileName String?
+  uploadedContractAt       DateTime?
   createdAt          DateTime @default(now())
 
   payments RentalPayment[]

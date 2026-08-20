@@ -20,8 +20,10 @@ function readFileAsDataUrl(file) {
 }
 
 // value/onChange work on { receiptFile, receiptFileName } — both empty
-// strings when nothing's attached.
-export default function ReceiptField({ receiptFile, receiptFileName, onChange, label = "Receipt (optional)" }) {
+// strings when nothing's attached. `itemLabel` names the thing being
+// attached in the button/alt text (defaults to "receipt" for the expense
+// use case; pass e.g. "contract" when reused elsewhere).
+export default function ReceiptField({ receiptFile, receiptFileName, onChange, label = "Receipt (optional)", itemLabel = "receipt" }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const isPdf = receiptFile?.startsWith("data:application/pdf");
@@ -56,17 +58,17 @@ export default function ReceiptField({ receiptFile, receiptFileName, onChange, l
       <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b" }}>{label}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {isImage && (
-          <img src={receiptFile} alt="Receipt" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, border: `1px solid ${colors.border}` }} />
+          <img src={receiptFile} alt={itemLabel} style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, border: `1px solid ${colors.border}` }} />
         )}
         {isPdf && (
-          <a href={receiptFile} download={receiptFileName || "receipt.pdf"} style={{ fontSize: 12, color: colors.accent, fontWeight: 600 }}>
-            📄 {receiptFileName || "receipt.pdf"}
+          <a href={receiptFile} download={receiptFileName || `${itemLabel}.pdf`} style={{ fontSize: 12, color: colors.accent, fontWeight: 600 }}>
+            📄 {receiptFileName || `${itemLabel}.pdf`}
           </a>
         )}
         <label style={{ cursor: "pointer" }}>
           <input type="file" accept="image/*,application/pdf" onChange={handleFile} style={{ display: "none" }} />
           <span style={{ ...button.ghost, display: "inline-block", padding: "6px 12px", fontSize: 12.5 }}>
-            {busy ? "Attaching…" : receiptFile ? "Replace receipt" : "Attach receipt"}
+            {busy ? "Attaching…" : receiptFile ? `Replace ${itemLabel}` : `Attach ${itemLabel}`}
           </span>
         </label>
         {receiptFile && !busy && (

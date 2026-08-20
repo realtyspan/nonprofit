@@ -3,6 +3,7 @@ import { colors, card, pill, button, input as inputStyle, money } from "../lib/t
 import { api } from "../lib/api";
 import { computeRentalQuote } from "../lib/rentalPricing";
 import SignaturePad from "../components/SignaturePad";
+import ReceiptField from "../components/ReceiptField";
 import { formatPhone, stripPhone } from "../lib/phone";
 
 const HISTORY_STATUSES = ["completed", "declined", "cancelled"];
@@ -14,6 +15,7 @@ export default function RentalBookings({ spaces, onChanged }) {
   const [reviewing, setReviewing] = useState(null);
   const [paying, setPaying] = useState(null);
   const [signing, setSigning] = useState(null);
+  const [uploadingContract, setUploadingContract] = useState(null);
 
   function refresh() {
     api.listRentalBookings().then(setBookings).catch(() => {});
@@ -104,6 +106,7 @@ export default function RentalBookings({ spaces, onChanged }) {
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
               <button style={button.ghost} onClick={() => setPaying(b)}>Payment</button>
               <button style={button.ghost} onClick={() => setSigning(b)}>{b.contractSignatureImage ? "Signed" : "Sign"}</button>
+              <button style={button.ghost} onClick={() => setUploadingContract(b)}>{b.uploadedContractFile ? "Contract uploaded" : "Upload contract"}</button>
               <button style={button.ghost} onClick={() => api.downloadRentalContractPdf(b.id, b.renterName)}>Contract</button>
               <button style={button.ghost} onClick={() => act(() => api.completeRentalBooking(b.id))}>Complete</button>
               <button style={button.ghost} onClick={() => { if (confirm("Cancel this booking?")) act(() => api.cancelRentalBooking(b.id)); }}>Cancel</button>
@@ -144,6 +147,9 @@ export default function RentalBookings({ spaces, onChanged }) {
       )}
       {signing && (
         <SignModal booking={signing} onCancel={() => setSigning(null)} onSaved={() => { setSigning(null); refresh(); }} />
+      )}
+      {uploadingContract && (
+        <UploadContractModal booking={uploadingContract} onCancel={() => setUploadingContract(null)} onSaved={() => { setUploadingContract(null); refresh(); }} />
       )}
     </div>
   );
@@ -409,6 +415,60 @@ function SignModal({ booking, onCancel, onSaved }) {
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
           <button style={button.ghost} onClick={onCancel}>Cancel</button>
           <button style={button.primary} onClick={save} disabled={busy || !name.trim() || !signatureImage}>{busy ? "Saving…" : "Save signature"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// A second, equally valid way to get a signed contract on record — some
+// renters prefer a physical paper contract signed in person; staff scans or
+// photographs it and attaches it here instead of drawing a signature
+// in-app. Independent of SignModal: a booking can have either, both, or
+// neither.
+function UploadContractModal({ booking, onCancel, onSaved }) {
+  const [contractFile, setContractFile] = useState(booking.uploadedContractFile || "");
+  const [contractFileName, setContractFileName] = useState(booking.uploadedContractFileName || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save() {
+    setError("");
+    setBusy(true);
+    try {
+      await api.uploadRentalContract(booking.id, { receiptFile: contractFile, receiptFileName: contractFileName });
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}>
+      <div style={{ width: 420, maxWidth: "100%", background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)", display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>Upload signed contract</div>
+        <div style={{ fontSize: 12.5, color: colors.textSecondary }}>For a renter who signed a physical paper contract instead — attach a photo or scan as the permanent record.</div>
+
+        {booking.uploadedContractFile && (
+          <div style={{ fontSize: 11.5, color: colors.textTertiary }}>
+            Already uploaded {new Date(booking.uploadedContractAt).toLocaleString()} — uploading again replaces it.
+          </div>
+        )}
+
+        <ReceiptField
+          label="Signed contract (image or PDF)"
+          itemLabel="contract"
+          receiptFile={contractFile}
+          receiptFileName={contractFileName}
+          onChange={({ receiptFile, receiptFileName }) => { setContractFile(receiptFile); setContractFileName(receiptFileName); }}
+        />
+
+        {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button style={button.ghost} onClick={onCancel}>Cancel</button>
+          <button style={button.primary} onClick={save} disabled={busy || !contractFile}>{busy ? "Saving…" : "Save"}</button>
         </div>
       </div>
     </div>

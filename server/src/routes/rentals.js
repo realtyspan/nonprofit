@@ -182,6 +182,23 @@ router.post("/bookings/:id/sign", requirePermission("rentals", "Admin"), async (
   res.json(updated);
 });
 
+// A second, equally valid way to get a signed contract on record: some
+// renters prefer a physical paper contract signed in person, which staff
+// then scans/photographs and attaches here instead of drawing a signature
+// in-app. Independent of /sign above — a booking can have either, both, or
+// neither; nothing gates on one over the other.
+router.post("/bookings/:id/contract-upload", requirePermission("rentals", "Admin"), async (req, res) => {
+  const booking = await prisma.rentalBooking.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  const { receiptFile, receiptFileName } = req.body;
+  if (!receiptFile) return res.status(400).json({ error: "A signed contract file is required" });
+  const updated = await prisma.rentalBooking.update({
+    where: { id: booking.id },
+    data: { uploadedContractFile: receiptFile, uploadedContractFileName: receiptFileName || null, uploadedContractAt: new Date() },
+  });
+  res.json(updated);
+});
+
 // --- Payments ---
 // One row per payment received or credit applied, instead of the old
 // depositPaid/balancePaid booleans — any amount, any number of times, plus
