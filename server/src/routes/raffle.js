@@ -684,7 +684,7 @@ router.get("/games/:gameId/expenses", requireReadAccess("raffle"), async (req, r
 });
 
 router.post("/games/:gameId/expenses", requirePermission("raffle", "Admin"), async (req, res) => {
-  const { date, payee, checkNum, amount, category } = req.body;
+  const { date, payee, checkNum, amount, category, receiptFile, receiptFileName } = req.body;
   if (!payee || !payee.trim()) return res.status(400).json({ error: "payee is required" });
   if (!EXPENSE_CATEGORIES.includes(category)) return res.status(400).json({ error: "Invalid category" });
   const amt = Number(amount);
@@ -694,6 +694,7 @@ router.post("/games/:gameId/expenses", requirePermission("raffle", "Admin"), asy
     data: {
       orgId: req.user.orgId, gameId: req.raffleGame.id, payee: payee.trim(),
       checkNum: checkNum || "", amount: amt, category,
+      receiptFile: receiptFile || null, receiptFileName: receiptFileName || null,
       ...(date ? { date: new Date(date) } : {}),
     },
   });

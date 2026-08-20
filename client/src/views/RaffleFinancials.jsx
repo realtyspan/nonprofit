@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money, mono } from "../lib/tokens";
 import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
+import ReceiptField from "../components/ReceiptField";
 
 const EXPENSE_CATEGORIES = [
   { value: "tickets", label: "Tickets" },
@@ -100,7 +101,7 @@ export default function RaffleFinancials() {
 function GameFinancialCard({ game, onChanged }) {
   const [expenses, setExpenses] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ date: "", payee: "", checkNum: "", amount: "", category: "tickets" });
+  const [form, setForm] = useState({ date: "", payee: "", checkNum: "", amount: "", category: "tickets", receiptFile: "", receiptFileName: "" });
   const [estimate, setEstimate] = useState(String(game.estimatedExpenses));
   const [savingEstimate, setSavingEstimate] = useState(false);
   const [error, setError] = useState("");
@@ -120,7 +121,7 @@ function GameFinancialCard({ game, onChanged }) {
     setError("");
     try {
       await api.createRaffleExpense(game.gameId, { ...form, amount: Number(form.amount) });
-      setForm({ date: "", payee: "", checkNum: "", amount: "", category: "tickets" });
+      setForm({ date: "", payee: "", checkNum: "", amount: "", category: "tickets", receiptFile: "", receiptFileName: "" });
       setShowForm(false);
       refreshExpenses();
       onChanged();
@@ -174,37 +175,54 @@ function GameFinancialCard({ game, onChanged }) {
       </div>
 
       {showForm && (
-        <form onSubmit={submit} style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr 1fr 1fr 1.4fr auto", gap: 10, alignItems: "end" }}>
-          <Field label="Date"><input style={inputStyle} type="date" required value={form.date} onChange={(e) => set("date", e.target.value)} /></Field>
-          <Field label="Payee"><input style={inputStyle} required value={form.payee} onChange={(e) => set("payee", e.target.value)} /></Field>
-          <Field label="Check #"><input style={inputStyle} value={form.checkNum} onChange={(e) => set("checkNum", e.target.value)} /></Field>
-          <Field label="Amount"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.amount} onChange={(e) => set("amount", e.target.value)} /></Field>
-          <Field label="Category">
-            <select style={inputStyle} value={form.category} onChange={(e) => set("category", e.target.value)}>
-              {EXPENSE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-          </Field>
-          <button style={button.primary} type="submit">Add</button>
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr 1fr 1fr 1.4fr auto", gap: 10, alignItems: "end" }}>
+            <Field label="Date"><input style={inputStyle} type="date" required value={form.date} onChange={(e) => set("date", e.target.value)} /></Field>
+            <Field label="Payee"><input style={inputStyle} required value={form.payee} onChange={(e) => set("payee", e.target.value)} /></Field>
+            <Field label="Check #"><input style={inputStyle} value={form.checkNum} onChange={(e) => set("checkNum", e.target.value)} /></Field>
+            <Field label="Amount"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.amount} onChange={(e) => set("amount", e.target.value)} /></Field>
+            <Field label="Category">
+              <select style={inputStyle} value={form.category} onChange={(e) => set("category", e.target.value)}>
+                {EXPENSE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </Field>
+            <button style={button.primary} type="submit">Add</button>
+          </div>
+          <ReceiptField
+            receiptFile={form.receiptFile}
+            receiptFileName={form.receiptFileName}
+            onChange={({ receiptFile, receiptFileName }) => setForm((f) => ({ ...f, receiptFile, receiptFileName }))}
+          />
         </form>
       )}
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 
       <div style={{ border: `1px solid ${colors.borderLight}`, borderRadius: 10, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1.3fr auto", padding: "8px 14px", fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary, borderBottom: `1px solid ${colors.borderLight}` }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1.3fr 0.7fr auto", padding: "8px 14px", fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary, borderBottom: `1px solid ${colors.borderLight}` }}>
           <div>Date</div>
           <div>Payee</div>
           <div>Check #</div>
           <div>Amount</div>
           <div>Category</div>
+          <div>Receipt</div>
           <div></div>
         </div>
         {expenses.map((e) => (
-          <div key={e.id} style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1.3fr auto", padding: "10px 14px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, alignItems: "center" }}>
+          <div key={e.id} style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1.3fr 0.7fr auto", padding: "10px 14px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, alignItems: "center" }}>
             <div style={{ fontFamily: mono }}>{formatUtcDate(e.date)}</div>
             <div>{e.payee}</div>
             <div style={{ fontFamily: mono }}>{e.checkNum}</div>
             <div style={{ fontFamily: mono }}>{money(e.amount)}</div>
             <div><span style={pill("#f0f0f3", colors.textSecondary)}>{CATEGORY_LABEL[e.category] || e.category}</span></div>
+            <div>
+              {e.receiptFile ? (
+                <a href={e.receiptFile} download={e.receiptFileName || "receipt"} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: colors.accent, fontWeight: 600 }}>
+                  {e.receiptFile.startsWith("data:image/") ? "🖼 View" : "📄 View"}
+                </a>
+              ) : (
+                <span style={{ color: colors.textTertiary, fontSize: 12.5 }}>—</span>
+              )}
+            </div>
             <div><button style={{ ...button.ghost, padding: "4px 10px", fontSize: 11.5, color: colors.danger }} onClick={() => deleteExpense(e.id)}>Delete</button></div>
           </div>
         ))}

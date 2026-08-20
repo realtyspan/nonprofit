@@ -235,6 +235,8 @@ model Disbursement {
   category  String   // ticket_purchase | license_fee | indirect
   quarter   Int
   year      Int
+  receiptFile     String? // base64 data URL of an attached receipt image or PDF
+  receiptFileName String? // original filename, for a friendlier download than a generic name
   createdAt DateTime @default(now())
 
   @@index([orgId])
@@ -599,6 +601,8 @@ model RaffleExpense {
   checkNum  String
   amount    Float
   category  String   // tickets | license_fee | equipment_supplies | services | rent | other
+  receiptFile     String? // base64 data URL of an attached receipt image or PDF
+  receiptFileName String? // original filename, for a friendlier download than a generic name
   createdAt DateTime @default(now())
 
   @@index([orgId])

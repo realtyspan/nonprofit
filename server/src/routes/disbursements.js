@@ -17,7 +17,7 @@ router.get("/", requireReadAccess("bell-jar"), async (req, res) => {
 });
 
 router.post("/", requirePermission("bell-jar", "Helper"), async (req, res) => {
-  const { date, payee, checkNum, amount, category } = req.body;
+  const { date, payee, checkNum, amount, category, receiptFile, receiptFileName } = req.body;
   if (!payee || !checkNum || amount === undefined || !category) {
     return res.status(400).json({ error: "payee, checkNum, amount, category are required" });
   }
@@ -39,6 +39,8 @@ router.post("/", requirePermission("bell-jar", "Helper"), async (req, res) => {
       category,
       quarter: quarterOf(d),
       year: d.getFullYear(),
+      receiptFile: receiptFile || null,
+      receiptFileName: receiptFileName || null,
     },
   });
   res.json(row);

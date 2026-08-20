@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money, mono } from "../lib/tokens";
 import { api } from "../lib/api";
+import ReceiptField from "../components/ReceiptField";
 
 const CATEGORY_META = {
   ticket_purchase: { label: "Ticket purchase (A5)", bg: colors.successBg, color: colors.success },
@@ -11,7 +12,7 @@ const CATEGORY_META = {
 export default function Ledger() {
   const [rows, setRows] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ date: "", payee: "", checkNum: "", amount: "", category: "ticket_purchase" });
+  const [form, setForm] = useState({ date: "", payee: "", checkNum: "", amount: "", category: "ticket_purchase", receiptFile: "", receiptFileName: "" });
   const [error, setError] = useState("");
 
   function refresh() {
@@ -28,7 +29,7 @@ export default function Ledger() {
     setError("");
     try {
       await api.createDisbursement({ ...form, amount: Number(form.amount) });
-      setForm({ date: "", payee: "", checkNum: "", amount: "", category: "ticket_purchase" });
+      setForm({ date: "", payee: "", checkNum: "", amount: "", category: "ticket_purchase", receiptFile: "", receiptFileName: "" });
       setShowForm(false);
       refresh();
     } catch (err) {
@@ -52,40 +53,57 @@ export default function Ledger() {
       </div>
 
       {showForm && (
-        <form onSubmit={submit} style={{ ...card, display: "grid", gridTemplateColumns: "1fr 1.4fr 1fr 1fr 1.2fr auto", gap: 10, alignItems: "end" }}>
-          <Field label="Date"><input style={inputStyle} type="date" required value={form.date} onChange={(e) => set("date", e.target.value)} /></Field>
-          <Field label="Payee"><input style={inputStyle} required value={form.payee} onChange={(e) => set("payee", e.target.value)} /></Field>
-          <Field label="Check #"><input style={inputStyle} required value={form.checkNum} onChange={(e) => set("checkNum", e.target.value)} /></Field>
-          <Field label="Amount"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.amount} onChange={(e) => set("amount", e.target.value)} /></Field>
-          <Field label="Category">
-            <select style={inputStyle} value={form.category} onChange={(e) => set("category", e.target.value)}>
-              <option value="ticket_purchase">Ticket purchase (A5)</option>
-              <option value="license_fee">License fee</option>
-              <option value="indirect">Indirect disbursement</option>
-            </select>
-          </Field>
-          <button style={button.primary} type="submit">Add</button>
-          {error && <div style={{ gridColumn: "1 / -1", color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+        <form onSubmit={submit} style={{ ...card, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr 1fr 1fr 1.2fr auto", gap: 10, alignItems: "end" }}>
+            <Field label="Date"><input style={inputStyle} type="date" required value={form.date} onChange={(e) => set("date", e.target.value)} /></Field>
+            <Field label="Payee"><input style={inputStyle} required value={form.payee} onChange={(e) => set("payee", e.target.value)} /></Field>
+            <Field label="Check #"><input style={inputStyle} required value={form.checkNum} onChange={(e) => set("checkNum", e.target.value)} /></Field>
+            <Field label="Amount"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.amount} onChange={(e) => set("amount", e.target.value)} /></Field>
+            <Field label="Category">
+              <select style={inputStyle} value={form.category} onChange={(e) => set("category", e.target.value)}>
+                <option value="ticket_purchase">Ticket purchase (A5)</option>
+                <option value="license_fee">License fee</option>
+                <option value="indirect">Indirect disbursement</option>
+              </select>
+            </Field>
+            <button style={button.primary} type="submit">Add</button>
+          </div>
+          <ReceiptField
+            receiptFile={form.receiptFile}
+            receiptFileName={form.receiptFileName}
+            onChange={({ receiptFile, receiptFileName }) => setForm((f) => ({ ...f, receiptFile, receiptFileName }))}
+          />
+          {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
         </form>
       )}
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1.3fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary, borderBottom: `1px solid ${colors.borderLight}` }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1.3fr 0.8fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary, borderBottom: `1px solid ${colors.borderLight}` }}>
           <div>Date</div>
           <div>Payee</div>
           <div>Check #</div>
           <div>Amount</div>
           <div>Category</div>
+          <div>Receipt</div>
         </div>
         {rows.map((r) => {
           const meta = CATEGORY_META[r.category];
           return (
-            <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1.3fr", padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13.5, alignItems: "center" }}>
+            <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1.3fr 0.8fr", padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13.5, alignItems: "center" }}>
               <div style={{ fontFamily: mono }}>{new Date(r.date).toLocaleDateString(undefined, { timeZone: "UTC" })}</div>
               <div>{r.payee}</div>
               <div style={{ fontFamily: mono }}>{r.checkNum}</div>
               <div style={{ fontFamily: mono }}>{money(r.amount)}</div>
               <div><span style={pill(meta.bg, meta.color)}>{meta.label}</span></div>
+              <div>
+                {r.receiptFile ? (
+                  <a href={r.receiptFile} download={r.receiptFileName || "receipt"} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: colors.accent, fontWeight: 600 }}>
+                    {r.receiptFile.startsWith("data:image/") ? "🖼 View" : "📄 View"}
+                  </a>
+                ) : (
+                  <span style={{ color: colors.textTertiary, fontSize: 12.5 }}>—</span>
+                )}
+              </div>
             </div>
           );
         })}
