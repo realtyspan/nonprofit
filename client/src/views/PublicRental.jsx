@@ -10,7 +10,7 @@ const MS_PER_HOUR = 1000 * 60 * 60;
 const EMPTY_FORM = {
   spaceId: "", renterName: "", renterEmail: "", renterPhone: "", renterAddress: "",
   isMember: false, eventType: "", expectedGuests: "", startAt: "", endAt: "",
-  roundTables: "", longTables: "", chairs: "", kitchenUse: "", chafingDishes: "", wantsLinen: false, notes: "",
+  notes: "",
   website: "", // honeypot — real visitors never see this field
 };
 
@@ -158,27 +158,6 @@ export default function PublicRental({ slug, embed }) {
                     <div style={{ fontSize: 12, color: colors.warning, background: colors.warningBg, borderRadius: 8, padding: 10 }}>
                       Heads up — this time overlaps a date the Lodge already has booked or held. You can still submit; we'll confirm actual availability.
                     </div>
-                  )}
-
-                  <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", color: t.textSecondary, marginTop: 6 }}>Equipment (optional)</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10 }}>
-                    <Field label="60&quot; round tables" t={t}><input style={inputStyle} type="number" min="0" value={form.roundTables} onChange={(e) => set("roundTables", e.target.value)} /></Field>
-                    <Field label="8' tables" t={t}><input style={inputStyle} type="number" min="0" value={form.longTables} onChange={(e) => set("longTables", e.target.value)} /></Field>
-                    <Field label="Chairs" t={t}><input style={inputStyle} type="number" min="0" value={form.chairs} onChange={(e) => set("chairs", e.target.value)} /></Field>
-                    <Field label="Kitchen use" t={t}>
-                      <select style={inputStyle} value={form.kitchenUse} onChange={(e) => set("kitchenUse", e.target.value)}>
-                        <option value="">None</option>
-                        <option value="no_oven">No oven</option>
-                        <option value="with_oven">With oven</option>
-                      </select>
-                    </Field>
-                    <Field label="Chafing dishes" t={t}><input style={inputStyle} type="number" min="0" value={form.chafingDishes} onChange={(e) => set("chafingDishes", e.target.value)} /></Field>
-                  </div>
-                  {space.offersLinen && (
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                      <input type="checkbox" checked={form.wantsLinen} onChange={(e) => set("wantsLinen", e.target.checked)} />
-                      Add linen service
-                    </label>
                   )}
                 </div>
 
