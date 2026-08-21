@@ -73,6 +73,10 @@ function SpaceModal({ space, onCancel, onSaved }) {
     kitchenNoOvenFee: space.kitchenNoOvenFee ?? 0,
     kitchenWithOvenFee: space.kitchenWithOvenFee ?? 0,
     chafingDishFee: space.chafingDishFee ?? 0,
+    offersLinen: space.offersLinen ?? false,
+    linenRoundTableFee: space.linenRoundTableFee ?? 0,
+    linenLongTableFee: space.linenLongTableFee ?? 0,
+    linenPerGuestFee: space.linenPerGuestFee ?? 0,
     depositAmount: space.depositAmount ?? 0,
     active: space.active ?? true,
   });
@@ -86,7 +90,8 @@ function SpaceModal({ space, onCancel, onSaved }) {
   const numericKeys = [
     "capacity", "blockHours", "baseRateMember", "baseRateNonMember", "overageRateMember", "overageRateNonMember",
     "bartenderBaseRate", "bartenderOverageRate", "roundTableFee", "longTableFee", "chairFee",
-    "kitchenNoOvenFee", "kitchenWithOvenFee", "chafingDishFee", "depositAmount",
+    "kitchenNoOvenFee", "kitchenWithOvenFee", "chafingDishFee",
+    "linenRoundTableFee", "linenLongTableFee", "linenPerGuestFee", "depositAmount",
   ];
 
   async function submit(e) {
@@ -148,6 +153,20 @@ function SpaceModal({ space, onCancel, onSaved }) {
             <Field label="Kitchen (with oven)"><input style={inputStyle} type="number" step="0.01" min="0" value={form.kitchenWithOvenFee} onChange={(e) => set("kitchenWithOvenFee", e.target.value)} /></Field>
             <Field label="Chafing dish (ea)"><input style={inputStyle} type="number" step="0.01" min="0" value={form.chafingDishFee} onChange={(e) => set("chafingDishFee", e.target.value)} /></Field>
           </div>
+        </Section>
+
+        <Section title="Linen service">
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, marginBottom: 8 }}>
+            <input type="checkbox" checked={form.offersLinen} onChange={(e) => set("offersLinen", e.target.checked)} />
+            Offered for this space
+          </label>
+          {form.offersLinen && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              <Field label="Round table (ea)"><input style={inputStyle} type="number" step="0.01" min="0" value={form.linenRoundTableFee} onChange={(e) => set("linenRoundTableFee", e.target.value)} /></Field>
+              <Field label="8' table (ea)"><input style={inputStyle} type="number" step="0.01" min="0" value={form.linenLongTableFee} onChange={(e) => set("linenLongTableFee", e.target.value)} /></Field>
+              <Field label="Per guest"><input style={inputStyle} type="number" step="0.01" min="0" value={form.linenPerGuestFee} onChange={(e) => set("linenPerGuestFee", e.target.value)} /></Field>
+            </div>
+          )}
         </Section>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, alignItems: "end" }}>

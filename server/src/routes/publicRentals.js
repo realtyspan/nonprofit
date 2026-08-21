@@ -46,6 +46,7 @@ const PUBLIC_SPACE_FIELDS = {
   offersBartender: true, bartenderBaseRate: true, bartenderOverageRate: true,
   roundTableFee: true, longTableFee: true, chairFee: true,
   kitchenNoOvenFee: true, kitchenWithOvenFee: true, chafingDishFee: true,
+  offersLinen: true, linenRoundTableFee: true, linenLongTableFee: true, linenPerGuestFee: true,
   depositAmount: true,
 };
 
@@ -92,7 +93,7 @@ router.post(
       return res.json({ ok: true }); // silently drop suspected bot submissions
     }
 
-    const { spaceId, renterName, renterEmail, renterPhone, renterAddress, isMember, eventType, expectedGuests, startAt, endAt, wantsBartender, roundTables, longTables, chairs, kitchenUse, chafingDishes, notes } = req.body;
+    const { spaceId, renterName, renterEmail, renterPhone, renterAddress, isMember, eventType, expectedGuests, startAt, endAt, wantsBartender, wantsLinen, roundTables, longTables, chairs, kitchenUse, chafingDishes, notes } = req.body;
 
     if (!spaceId || !renterName || !renterEmail || !startAt || !endAt) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -111,6 +112,7 @@ router.post(
         startAt: lodgeDateTimeStringToUtc(startAt),
         endAt: lodgeDateTimeStringToUtc(endAt),
         wantsBartender: !!wantsBartender,
+        wantsLinen: !!wantsLinen,
         roundTables: Number(roundTables) || 0,
         longTables: Number(longTables) || 0,
         chairs: Number(chairs) || 0,

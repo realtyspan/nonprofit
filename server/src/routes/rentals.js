@@ -62,6 +62,7 @@ router.post("/bookings", requirePermission("rentals", "Helper"), async (req, res
       startAt: lodgeDateTimeStringToUtc(req.body.startAt),
       endAt: lodgeDateTimeStringToUtc(req.body.endAt),
       wantsBartender: !!req.body.wantsBartender,
+      wantsLinen: !!req.body.wantsLinen,
       roundTables: Number(req.body.roundTables) || 0,
       longTables: Number(req.body.longTables) || 0,
       chairs: Number(req.body.chairs) || 0,
@@ -83,7 +84,7 @@ router.patch("/bookings/:id", requirePermission("rentals", "Helper"), async (req
 
   const {
     renterName, renterEmail, renterPhone, renterAddress, isMember, eventType, expectedGuests,
-    startAt, endAt, wantsBartender, roundTables, longTables, chairs, kitchenUse, chafingDishes, notes,
+    startAt, endAt, wantsBartender, wantsLinen, roundTables, longTables, chairs, kitchenUse, chafingDishes, notes,
   } = req.body;
 
   const updated = await prisma.rentalBooking.update({
@@ -96,6 +97,7 @@ router.patch("/bookings/:id", requirePermission("rentals", "Helper"), async (req
       startAt: startAt ? lodgeDateTimeStringToUtc(startAt) : undefined,
       endAt: endAt ? lodgeDateTimeStringToUtc(endAt) : undefined,
       wantsBartender: wantsBartender !== undefined ? !!wantsBartender : undefined,
+      wantsLinen: wantsLinen !== undefined ? !!wantsLinen : undefined,
       roundTables: roundTables !== undefined ? Number(roundTables) || 0 : undefined,
       longTables: longTables !== undefined ? Number(longTables) || 0 : undefined,
       chairs: chairs !== undefined ? Number(chairs) || 0 : undefined,

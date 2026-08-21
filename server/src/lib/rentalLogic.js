@@ -22,7 +22,7 @@ function overlaps(aStart, aEnd, bStart, bEnd) {
   return aStart < bEnd && bStart < aEnd;
 }
 
-// booking: { startAt, endAt, isMember, wantsBartender, roundTables, longTables, chairs, kitchenUse, chafingDishes }
+// booking: { startAt, endAt, isMember, wantsBartender, wantsLinen, expectedGuests, roundTables, longTables, chairs, kitchenUse, chafingDishes }
 function computeRentalQuote(space, booking) {
   const hours = (new Date(booking.endAt) - new Date(booking.startAt)) / MS_PER_HOUR;
   const overageHours = Math.max(0, hours - space.blockHours);
@@ -33,6 +33,12 @@ function computeRentalQuote(space, booking) {
 
   const bartenderCost = booking.wantsBartender
     ? space.bartenderBaseRate + overageHours * space.bartenderOverageRate
+    : 0;
+
+  const linenCost = booking.wantsLinen
+    ? (booking.roundTables || 0) * space.linenRoundTableFee +
+      (booking.longTables || 0) * space.linenLongTableFee +
+      (booking.expectedGuests || 0) * space.linenPerGuestFee
     : 0;
 
   const kitchenFee =
@@ -49,9 +55,9 @@ function computeRentalQuote(space, booking) {
     (booking.chafingDishes || 0) * space.chafingDishFee +
     kitchenFee;
 
-  const total = spaceCost + bartenderCost + equipmentCost;
+  const total = spaceCost + bartenderCost + linenCost + equipmentCost;
 
-  return { hours, overageHours, spaceCost, bartenderCost, equipmentCost, total };
+  return { hours, overageHours, spaceCost, bartenderCost, linenCost, equipmentCost, total };
 }
 
 // booking.payments: that booking's RentalPayment rows. balanceDue is

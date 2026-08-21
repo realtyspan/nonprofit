@@ -167,16 +167,17 @@ function ReviewModal({ booking, onCancel, onDone }) {
   const [deposit, setDeposit] = useState(booking.space?.depositAmount ?? 0);
   const [declineReason, setDeclineReason] = useState("");
   const [wantsBartender, setWantsBartender] = useState(booking.wantsBartender || false);
+  const [wantsLinen, setWantsLinen] = useState(booking.wantsLinen || false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const quote = computeRentalQuote(booking.space, { ...booking, wantsBartender });
+  const quote = computeRentalQuote(booking.space, { ...booking, wantsBartender, wantsLinen });
 
   async function confirm() {
     setError("");
     setBusy(true);
     try {
-      if (wantsBartender !== booking.wantsBartender) {
-        await api.updateRentalBooking(booking.id, { wantsBartender });
+      if (wantsBartender !== booking.wantsBartender || wantsLinen !== booking.wantsLinen) {
+        await api.updateRentalBooking(booking.id, { wantsBartender, wantsLinen });
       }
       await api.confirmRentalBooking(booking.id, { depositAmount: Number(deposit) });
       onDone();
@@ -219,10 +220,18 @@ function ReviewModal({ booking, onCancel, onDone }) {
           </label>
         )}
 
+        {booking.space?.offersLinen && (
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 14 }}>
+            <input type="checkbox" checked={wantsLinen} onChange={(e) => setWantsLinen(e.target.checked)} />
+            Add linen service
+          </label>
+        )}
+
         {quote && (
           <div style={{ background: "#fafafa", borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginBottom: 14 }}>
             <Row label="Space" value={money(quote.spaceCost)} />
             {wantsBartender && <Row label="Bartender" value={money(quote.bartenderCost)} />}
+            {wantsLinen && <Row label="Linen" value={money(quote.linenCost)} />}
             {quote.equipmentCost > 0 && <Row label="Equipment / kitchen" value={money(quote.equipmentCost)} />}
             <div style={{ borderTop: `1px solid ${colors.border}`, marginTop: 4, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
               <span>Total</span>
@@ -632,7 +641,7 @@ function BookingForm({ spaces, onCreated, onError, error }) {
   const [form, setForm] = useState({
     spaceId: spaces[0]?.id || "", renterName: "", renterEmail: "", renterPhone: "", renterAddress: "",
     isMember: false, eventType: "", expectedGuests: "", startAt: "", endAt: "",
-    wantsBartender: false, roundTables: "", longTables: "", chairs: "", kitchenUse: "", chafingDishes: "", notes: "",
+    wantsBartender: false, wantsLinen: false, roundTables: "", longTables: "", chairs: "", kitchenUse: "", chafingDishes: "", notes: "",
   });
   const [busy, setBusy] = useState(false);
 
@@ -687,6 +696,14 @@ function BookingForm({ spaces, onCreated, onError, error }) {
         {space?.offersBartender && (
           <Field label="Bartender?">
             <select style={inputStyle} value={form.wantsBartender ? "yes" : "no"} onChange={(e) => set("wantsBartender", e.target.value === "yes")}>
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </Field>
+        )}
+        {space?.offersLinen && (
+          <Field label="Linen?">
+            <select style={inputStyle} value={form.wantsLinen ? "yes" : "no"} onChange={(e) => set("wantsLinen", e.target.value === "yes")}>
               <option value="no">No</option>
               <option value="yes">Yes</option>
             </select>

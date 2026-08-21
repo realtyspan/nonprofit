@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { colors, card, button, input as inputStyle, money } from "../lib/tokens";
+import { colors, card, button, input as inputStyle } from "../lib/tokens";
 import { publicApi } from "../lib/api";
-import { computeRentalQuote } from "../lib/rentalPricing";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
 import DateTimeField from "../components/DateTimeField";
 import { formatPhone, stripPhone } from "../lib/phone";
@@ -11,7 +10,7 @@ const MS_PER_HOUR = 1000 * 60 * 60;
 const EMPTY_FORM = {
   spaceId: "", renterName: "", renterEmail: "", renterPhone: "", renterAddress: "",
   isMember: false, eventType: "", expectedGuests: "", startAt: "", endAt: "",
-  roundTables: "", longTables: "", chairs: "", kitchenUse: "", chafingDishes: "", notes: "",
+  roundTables: "", longTables: "", chairs: "", kitchenUse: "", chafingDishes: "", wantsLinen: false, notes: "",
   website: "", // honeypot — real visitors never see this field
 };
 
@@ -56,7 +55,6 @@ export default function PublicRental({ slug, embed }) {
 
   const space = useMemo(() => page?.spaces.find((s) => s.id === form.spaceId), [page, form.spaceId]);
   const busyForSpace = useMemo(() => (page?.busy || []).filter((b) => b.spaceId === form.spaceId), [page, form.spaceId]);
-  const quote = space ? computeRentalQuote(space, form) : null;
   const conflictWarning = space && form.startAt && form.endAt && overlapsBuffered(form.startAt, form.endAt, busyForSpace);
 
   function set(k, v) {
@@ -113,7 +111,10 @@ export default function PublicRental({ slug, embed }) {
         ) : (
           <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             <div style={cardStyle}>
-              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Choose a space</div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Choose a space</div>
+              <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 12 }}>
+                Pricing depends on event type and guest count — contact us and we'll work out the details together.
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
                 {page.spaces.map((s) => (
                   <button
@@ -128,9 +129,6 @@ export default function PublicRental({ slug, embed }) {
                   >
                     <div style={{ fontWeight: 700, fontSize: 13.5 }}>{s.name}</div>
                     {s.capacity && <div style={{ fontSize: 11.5, color: t.textSecondary }}>Up to {s.capacity} guests</div>}
-                    <div style={{ fontSize: 11.5, color: t.textSecondary, marginTop: 4 }}>
-                      {money(s.baseRateNonMember)} ({s.blockHours} hrs) · {money(s.baseRateMember)} members
-                    </div>
                   </button>
                 ))}
               </div>
@@ -176,12 +174,11 @@ export default function PublicRental({ slug, embed }) {
                     </Field>
                     <Field label="Chafing dishes" t={t}><input style={inputStyle} type="number" min="0" value={form.chafingDishes} onChange={(e) => set("chafingDishes", e.target.value)} /></Field>
                   </div>
-
-                  {quote && (
-                    <div style={{ background: theme.bg ? "rgba(127,127,127,.12)" : "#fafafa", borderRadius: 10, padding: 12, fontSize: 13, marginTop: 6 }}>
-                      Estimated total: <strong>{money(quote.total)}</strong>
-                      <div style={{ fontSize: 11.5, color: t.textTertiary, marginTop: 2 }}>A deposit is required to hold the date once confirmed — final pricing is confirmed by the Lodge.</div>
-                    </div>
+                  {space.offersLinen && (
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                      <input type="checkbox" checked={form.wantsLinen} onChange={(e) => set("wantsLinen", e.target.checked)} />
+                      Add linen service
+                    </label>
                   )}
                 </div>
 

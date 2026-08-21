@@ -1,0 +1,8 @@
+-- AlterTable
+ALTER TABLE "RentalSpace" ADD COLUMN     "offersLinen" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "linenRoundTableFee" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "linenLongTableFee" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "linenPerGuestFee" DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "RentalBooking" ADD COLUMN     "wantsLinen" BOOLEAN NOT NULL DEFAULT false;

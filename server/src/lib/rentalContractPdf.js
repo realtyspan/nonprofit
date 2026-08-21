@@ -74,6 +74,9 @@ async function buildRentalContractPdf({ org, space, booking, quote, balance }) {
   if (booking.wantsBartender) {
     draw(`Bartender service: ${money(quote.bartenderCost)}`);
   }
+  if (booking.wantsLinen) {
+    draw(`Linen service: ${money(quote.linenCost)}`);
+  }
   if (quote.equipmentCost > 0) {
     draw(`Equipment & kitchen fees: ${money(quote.equipmentCost)}`);
   }

@@ -27,6 +27,7 @@ function detailRows({ booking, space, quote }) {
   if (booking.kitchenUse) equipment.push(booking.kitchenUse === "with_oven" ? "Kitchen (with oven)" : "Kitchen (no oven)");
   if (booking.chafingDishes) equipment.push(`${booking.chafingDishes} chafing dish(es)`);
   if (booking.wantsBartender) equipment.push("Bartender");
+  if (booking.wantsLinen) equipment.push("Linen service");
   if (equipment.length) rows.push(["Equipment", equipment.join(", ")]);
   if (quote) rows.push(["Estimated total", `$${quote.total.toFixed(2)}`]);
   if (booking.notes) rows.push(["Notes", booking.notes]);

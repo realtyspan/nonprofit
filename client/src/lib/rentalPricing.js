@@ -15,6 +15,12 @@ export function computeRentalQuote(space, booking) {
 
   const bartenderCost = booking.wantsBartender ? space.bartenderBaseRate + overageHours * space.bartenderOverageRate : 0;
 
+  const linenCost = booking.wantsLinen
+    ? (Number(booking.roundTables) || 0) * space.linenRoundTableFee +
+      (Number(booking.longTables) || 0) * space.linenLongTableFee +
+      (Number(booking.expectedGuests) || 0) * space.linenPerGuestFee
+    : 0;
+
   const kitchenFee =
     booking.kitchenUse === "no_oven" ? space.kitchenNoOvenFee : booking.kitchenUse === "with_oven" ? space.kitchenWithOvenFee : 0;
 
@@ -25,7 +31,7 @@ export function computeRentalQuote(space, booking) {
     (Number(booking.chafingDishes) || 0) * space.chafingDishFee +
     kitchenFee;
 
-  const total = spaceCost + bartenderCost + equipmentCost;
+  const total = spaceCost + bartenderCost + linenCost + equipmentCost;
 
-  return { hours, overageHours, spaceCost, bartenderCost, equipmentCost, total };
+  return { hours, overageHours, spaceCost, bartenderCost, linenCost, equipmentCost, total };
 }

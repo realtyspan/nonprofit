@@ -300,6 +300,10 @@ model RentalSpace {
   kitchenNoOvenFee     Float    @default(0)
   kitchenWithOvenFee   Float    @default(0)
   chafingDishFee       Float    @default(0) // per dish (sterno fee)
+  offersLinen          Boolean  @default(false)
+  linenRoundTableFee   Float    @default(0) // per 60" round table
+  linenLongTableFee    Float    @default(0) // per 8' table
+  linenPerGuestFee     Float    @default(0) // per expected guest — combines with the per-table fees, not instead of them
   depositAmount        Float    @default(0) // default reservation deposit, applied toward the total
   active               Boolean  @default(true)
   createdAt            DateTime @default(now())
@@ -328,6 +332,7 @@ model RentalBooking {
   startAt            DateTime
   endAt              DateTime
   wantsBartender     Boolean  @default(false)
+  wantsLinen         Boolean  @default(false)
   roundTables        Int      @default(0)
   longTables         Int      @default(0)
   chairs             Int      @default(0)
