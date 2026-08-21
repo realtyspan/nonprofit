@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
 import { computeRentalQuote } from "../lib/rentalPricing";
@@ -17,6 +17,10 @@ export default function RentalBookings({ spaces, onChanged }) {
   const [signing, setSigning] = useState(null);
   const [uploadingContract, setUploadingContract] = useState(null);
   const [viewingHistory, setViewingHistory] = useState(null);
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyStatusFilter, setHistoryStatusFilter] = useState("all");
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
 
   function refresh() {
     api.listRentalBookings().then(setBookings).catch(() => {});
@@ -27,6 +31,17 @@ export default function RentalBookings({ spaces, onChanged }) {
   const inquiries = bookings.filter((b) => b.status === "inquiry");
   const confirmed = bookings.filter((b) => b.status === "confirmed");
   const history = bookings.filter((b) => HISTORY_STATUSES.includes(b.status));
+
+  const filteredHistory = useMemo(() => {
+    return history.filter((b) => {
+      if (historyStatusFilter !== "all" && b.status !== historyStatusFilter) return false;
+      if (historySearch && !b.renterName.toLowerCase().includes(historySearch.trim().toLowerCase())) return false;
+      const startDate = new Date(b.startAt);
+      if (historyFrom && startDate < new Date(historyFrom)) return false;
+      if (historyTo && startDate > new Date(`${historyTo}T23:59:59`)) return false;
+      return true;
+    });
+  }, [history, historySearch, historyStatusFilter, historyFrom, historyTo]);
 
   async function act(fn) {
     try {
@@ -119,13 +134,38 @@ export default function RentalBookings({ spaces, onChanged }) {
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "14px 18px", fontSize: 15, fontWeight: 700, borderBottom: `1px solid ${colors.borderLight}` }}>History</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
+          <input style={{ ...inputStyle, width: 160 }} placeholder="Search by name" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} />
+          <select style={{ ...inputStyle, width: 150 }} value={historyStatusFilter} onChange={(e) => setHistoryStatusFilter(e.target.value)}>
+            <option value="all">All statuses</option>
+            <option value="completed">Completed</option>
+            <option value="declined">Declined</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: colors.textSecondary }}>
+            From <input style={{ ...inputStyle, width: 140 }} type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} />
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: colors.textSecondary }}>
+            To <input style={{ ...inputStyle, width: 140 }} type="date" value={historyTo} onChange={(e) => setHistoryTo(e.target.value)} />
+          </label>
+          {(historySearch || historyStatusFilter !== "all" || historyFrom || historyTo) && (
+            <button
+              type="button"
+              style={{ ...button.ghost, padding: "6px 10px", fontSize: 12 }}
+              onClick={() => { setHistorySearch(""); setHistoryStatusFilter("all"); setHistoryFrom(""); setHistoryTo(""); }}
+            >
+              Clear filters
+            </button>
+          )}
+          <div style={{ marginLeft: "auto", fontSize: 12, color: colors.textSecondary }}>{filteredHistory.length} of {history.length}</div>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
           <div>Renter</div>
           <div>Space</div>
           <div>Date</div>
           <div>Status</div>
         </div>
-        {history.map((b) => (
+        {filteredHistory.map((b) => (
           <div
             key={b.id}
             onClick={() => setViewingHistory(b)}
@@ -137,7 +177,11 @@ export default function RentalBookings({ spaces, onChanged }) {
             <div style={{ textTransform: "capitalize", color: colors.textSecondary }}>{b.status}</div>
           </div>
         ))}
-        {history.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>Nothing here yet.</div>}
+        {filteredHistory.length === 0 && (
+          <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>
+            {history.length === 0 ? "Nothing here yet." : "No history records match these filters."}
+          </div>
+        )}
       </div>
 
       {reviewing && (
@@ -513,6 +557,7 @@ function HistoryDetailModal({ booking, onCancel, onChanged }) {
 
   const hasContract = !!(booking.contractSignatureImage || booking.uploadedContractFile);
   const canDelete = payments.length === 0 && !hasContract;
+  const hasCollectedFunds = payments.some((p) => p.type === "payment");
 
   async function restore() {
     setError("");
@@ -614,8 +659,19 @@ function HistoryDetailModal({ booking, onCancel, onChanged }) {
             canDelete ? (
               <button style={{ ...button.ghost, color: colors.danger }} onClick={() => setConfirmDelete(true)}>Delete permanently</button>
             ) : (
-              <div style={{ fontSize: 11.5, color: colors.textTertiary }}>
-                Can't be deleted — this booking has {payments.length > 0 ? "payment records" : "a contract"} attached. Restore it instead if it was cancelled/declined/completed by mistake.
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 11.5, color: colors.textTertiary }}>
+                  {payments.length > 0 && hasContract
+                    ? "Can't be deleted — this booking has payment records and a contract attached. Remove the payment(s) from the Payment screen first (a contract can't be removed) — or restore it instead if it was cancelled/declined/completed by mistake."
+                    : payments.length > 0
+                    ? "Can't be deleted — this booking has payment records attached. Remove the payment(s) from the Payment screen first, then this can be deleted — or restore it instead if it was cancelled/declined/completed by mistake."
+                    : "Can't be deleted — this booking has a signed or uploaded contract attached. Restore it instead if it was cancelled/declined/completed by mistake."}
+                </div>
+                {hasCollectedFunds && (
+                  <div style={{ fontSize: 11.5, color: colors.danger, background: colors.dangerBg, borderRadius: 6, padding: 8 }}>
+                    Cash or a check has already been collected against this booking. Removing that payment record here affects your financial records for this booking — make sure that's accounted for before removing it.
+                  </div>
+                )}
               </div>
             )
           ) : (

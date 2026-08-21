@@ -16,6 +16,7 @@ export const colors = {
   warningBg: "#fef3c7",
   warningAmber: "#d97706",
   danger: "#dc2626",
+  dangerBg: "#fef2f2",
   indigo: "#4338ca",
   indigoBg: "#eef0ff",
   nearBlack: "#18181b",
