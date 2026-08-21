@@ -52,12 +52,22 @@ async function validateRentalSpaceIds(orgId, rentalSpaceIds) {
   return null;
 }
 
+function isCalendarAdmin(req) {
+  return req.orgTier === "Owner" || req.moduleGrants.calendar === "Admin";
+}
+
 router.get("/events", requireReadAccess("calendar"), async (req, res) => {
   const { start, end } = req.query;
   const where = { orgId: req.user.orgId };
   if (start && end) {
     where.startAt = { lte: new Date(end) };
     where.endAt = { gte: new Date(start) };
+  }
+  // A private item is only visible to whoever created it — except a calendar
+  // Admin or org Owner, who can see everyone's for accountability. Everyone
+  // else's public/internal events are unaffected by this.
+  if (!isCalendarAdmin(req)) {
+    where.OR = [{ visibility: { not: "private" } }, { createdByUserId: req.user.userId }];
   }
   const events = await prisma.calendarEvent.findMany({
     where,
@@ -79,28 +89,51 @@ router.get("/recurrences/:id", requireReadAccess("calendar"), async (req, res) =
 // rentalSpaceIds only applies to one-off events — a recurring room commitment
 // (e.g. a twice-monthly meeting) is created from Rental Space > Internal
 // Blocks instead, which already has its own recurrence support.
-router.post("/events", requirePermission("calendar", "Admin"), async (req, res) => {
+// Anyone with calendar read access can create a "private" item for
+// themselves (a personal reminder, not shown to anyone else) — everything
+// else (internal/public, recurring, rental-space-linked) still requires
+// calendar Admin, unchanged from before private items existed.
+router.post("/events", requireReadAccess("calendar"), async (req, res) => {
   const { title, description, location, linkUrl, startAt, endAt, allDay, visibility, color, recurrence, rentalSpaceIds } = req.body;
   if (!title || !startAt || !endAt) return res.status(400).json({ error: "Missing required fields" });
 
+  const isPrivate = visibility === "private";
+  const isAdmin = isCalendarAdmin(req);
+  if (!isAdmin && !isPrivate) {
+    return res.status(403).json({ error: "Requires Admin on calendar to create a shared event — you can still add a private item just for yourself" });
+  }
+  if (recurrence && !isAdmin) {
+    return res.status(403).json({ error: "Requires Admin on calendar to create a recurring event" });
+  }
+  if (isPrivate && recurrence) {
+    return res.status(400).json({ error: "Private items can't be recurring" });
+  }
+
+  const caller = await prisma.user.findUnique({ where: { id: req.user.userId }, select: { name: true } });
+
   if (!recurrence) {
-    if (rentalSpaceIds?.length > 0 && !canManageRentals(req)) {
+    const spaceIds = isPrivate ? [] : rentalSpaceIds;
+    if (spaceIds?.length > 0 && !canManageRentals(req)) {
       return res.status(403).json({ error: "Requires Admin on rentals to mark an event as using a rental space" });
     }
-    const spaceError = await validateRentalSpaceIds(req.user.orgId, rentalSpaceIds);
+    const spaceError = await validateRentalSpaceIds(req.user.orgId, spaceIds);
     if (spaceError) return res.status(400).json({ error: spaceError });
 
     const start = lodgeDateTimeStringToUtc(startAt), end = lodgeDateTimeStringToUtc(endAt);
-    if (rentalSpaceIds?.length > 0) {
-      const conflicts = await findSpaceConflicts(rentalSpaceIds, start, end);
+    if (spaceIds?.length > 0) {
+      const conflicts = await findSpaceConflicts(spaceIds, start, end);
       if (conflicts.length > 0) return res.status(409).json({ error: "This space is already booked or blocked for an overlapping time", conflicts });
     }
 
     const event = await prisma.calendarEvent.create({
-      data: { orgId: req.user.orgId, title, description, location, linkUrl, startAt: start, endAt: end, allDay: !!allDay, visibility: visibility || "internal", color, source: "manual" },
+      data: {
+        orgId: req.user.orgId, title, description, location, linkUrl, startAt: start, endAt: end, allDay: !!allDay,
+        visibility: visibility || "internal", color, source: "manual",
+        createdByUserId: req.user.userId, createdByName: caller?.name || "",
+      },
     });
-    await syncRentalBlocksForEvent(req.user.orgId, event, rentalSpaceIds);
-    return res.json({ ...event, rentalSpaceIds: rentalSpaceIds || [] });
+    await syncRentalBlocksForEvent(req.user.orgId, event, spaceIds);
+    return res.json({ ...event, rentalSpaceIds: spaceIds || [] });
   }
 
   const { freq, interval, byWeekday, byWeekdayOrdinal, startDate, endDate, startTime, endTime } = recurrence;
@@ -118,7 +151,11 @@ router.post("/events", requirePermission("calendar", "Admin"), async (req, res) 
   if (occurrences.length === 0) return res.status(400).json({ error: "That recurrence rule doesn't produce any occurrences in range" });
 
   await prisma.calendarEvent.createMany({
-    data: occurrences.map((o) => ({ orgId: req.user.orgId, title, description, location, linkUrl, startAt: o.startAt, endAt: o.endAt, allDay: !!allDay, visibility: visibility || "internal", color, source: "manual", recurrenceId: rec.id })),
+    data: occurrences.map((o) => ({
+      orgId: req.user.orgId, title, description, location, linkUrl, startAt: o.startAt, endAt: o.endAt, allDay: !!allDay,
+      visibility: visibility || "internal", color, source: "manual", recurrenceId: rec.id,
+      createdByUserId: req.user.userId, createdByName: caller?.name || "",
+    })),
   });
 
   const events = await prisma.calendarEvent.findMany({ where: { recurrenceId: rec.id }, orderBy: { startAt: "asc" } });
@@ -126,12 +163,25 @@ router.post("/events", requirePermission("calendar", "Admin"), async (req, res) 
 });
 
 // Edits a single occurrence in place — does not affect the rest of a series.
-router.patch("/events/:id", requirePermission("calendar", "Admin"), async (req, res) => {
+// A non-admin may only edit their own private item (and can't turn it into a
+// shared or rental-space-linked event); a calendar Admin/Owner can edit anything.
+router.patch("/events/:id", requireReadAccess("calendar"), async (req, res) => {
   const event = await prisma.calendarEvent.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!event) return res.status(404).json({ error: "Event not found" });
   if (event.source !== "manual") return res.status(400).json({ error: "This event is managed by another module — edit it from there" });
 
-  const { title, description, location, linkUrl, startAt, endAt, allDay, visibility, color, rentalSpaceIds } = req.body;
+  const isAdmin = isCalendarAdmin(req);
+  const isOwnPrivate = event.visibility === "private" && event.createdByUserId === req.user.userId;
+  if (!isAdmin && !isOwnPrivate) {
+    return res.status(403).json({ error: "Requires Admin on calendar, or this must be your own private item" });
+  }
+
+  const { title, description, location, linkUrl, startAt, endAt, allDay, color } = req.body;
+  let { visibility, rentalSpaceIds } = req.body;
+  if (!isAdmin) {
+    visibility = undefined; // a non-admin can't change a private item's visibility
+    rentalSpaceIds = undefined; // ...or link it to a rental space
+  }
 
   // Recurring occurrences don't get the rental-space option — only genuinely
   // one-off events do (see the create route's comment for why).
@@ -160,10 +210,15 @@ router.patch("/events/:id", requirePermission("calendar", "Admin"), async (req, 
   res.json({ ...updated, rentalSpaceIds: rentalSpaceIds !== undefined ? rentalSpaceIds : undefined });
 });
 
-router.delete("/events/:id", requirePermission("calendar", "Admin"), async (req, res) => {
+router.delete("/events/:id", requireReadAccess("calendar"), async (req, res) => {
   const event = await prisma.calendarEvent.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!event) return res.status(404).json({ error: "Event not found" });
   if (event.source !== "manual") return res.status(400).json({ error: "This event is managed by another module — remove it from there" });
+  const isAdmin = isCalendarAdmin(req);
+  const isOwnPrivate = event.visibility === "private" && event.createdByUserId === req.user.userId;
+  if (!isAdmin && !isOwnPrivate) {
+    return res.status(403).json({ error: "Requires Admin on calendar, or this must be your own private item" });
+  }
   await prisma.calendarEvent.delete({ where: { id: event.id } }); // cascades to any RentalBlocks it spawned
   res.json({ ok: true });
 });
@@ -187,9 +242,14 @@ router.patch("/recurrences/:id", requirePermission("calendar", "Admin"), async (
   });
 
   const occurrences = generateOccurrences({ freq: updated.freq, interval: updated.interval, byWeekday: updated.byWeekday, byWeekdayOrdinal: updated.byWeekdayOrdinal, startDate: updated.startDate, endDate: updated.endDate, startTime: updated.startTime, endTime: updated.endTime, allDay: updated.allDay });
+  const caller = await prisma.user.findUnique({ where: { id: req.user.userId }, select: { name: true } });
   await prisma.calendarEvent.deleteMany({ where: { recurrenceId: rec.id } });
   await prisma.calendarEvent.createMany({
-    data: occurrences.map((o) => ({ orgId: req.user.orgId, title: updated.title, description: updated.description, location: updated.location, linkUrl: updated.linkUrl, startAt: o.startAt, endAt: o.endAt, allDay: updated.allDay, visibility: updated.visibility, color: updated.color, source: "manual", recurrenceId: rec.id })),
+    data: occurrences.map((o) => ({
+      orgId: req.user.orgId, title: updated.title, description: updated.description, location: updated.location, linkUrl: updated.linkUrl,
+      startAt: o.startAt, endAt: o.endAt, allDay: updated.allDay, visibility: updated.visibility, color: updated.color, source: "manual", recurrenceId: rec.id,
+      createdByUserId: req.user.userId, createdByName: caller?.name || "",
+    })),
   });
 
   const events = await prisma.calendarEvent.findMany({ where: { recurrenceId: rec.id }, orderBy: { startAt: "asc" } });

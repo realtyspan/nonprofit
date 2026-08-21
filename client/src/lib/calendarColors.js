@@ -10,8 +10,12 @@ export const EVENT_COLORS = {
   manual: { bg: "#1f9d55", text: "#ffffff" }, // Lodge events
   "rental-booking": { bg: "#4338ca", text: "#ffffff" }, // Rental bookings
   "rental-block": { bg: "#6b7280", text: "#ffffff" }, // Internal holds
+  private: { bg: "#a855f7", text: "#ffffff" }, // Private items — only visible to their creator (plus calendar Admin/Owner)
 };
 
-export function eventColorFor(source) {
+// Private items get their own color regardless of source (they're always
+// source "manual") — pass the event's visibility, not just its source.
+export function eventColorFor(source, visibility) {
+  if (visibility === "private") return EVENT_COLORS.private;
   return EVENT_COLORS[source] || EVENT_COLORS.manual;
 }

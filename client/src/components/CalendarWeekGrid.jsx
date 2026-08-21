@@ -77,7 +77,7 @@ export default function CalendarWeekGrid({ anchorDate, events, onSelectDay, onSe
               }}
             >
               {dayEvents.map((e) => {
-                const ec = eventColorFor(e.source);
+                const ec = eventColorFor(e.source, e.visibility);
                 return (
                   <div
                     key={e.id}

@@ -67,6 +67,7 @@ model User {
   raffleSignerDesignations RaffleSignerDesignation[]
   raffleAssignments      RaffleTicket[] @relation("RaffleAssignedSeller")
   passwordResets         PasswordReset[]
+  createdCalendarEvents  CalendarEvent[]
 
   @@index([orgId])
 }
@@ -463,16 +464,20 @@ model CalendarEvent {
   allDay        Boolean  @default(false)
   source        String   @default("manual") // manual | rental-booking | rental-block
   sourceId      String?  // originating record id, for sync/dedupe when the source changes
-  visibility    String   @default("internal") // public | internal
+  visibility    String   @default("internal") // public | internal | private (only visible to createdByUserId, plus calendar Admin/Owner)
   color         String?
   recurrenceId  String?
   recurrence    CalendarRecurrence? @relation(fields: [recurrenceId], references: [id])
   rentalBlocks  RentalBlock[]        // blocks spawned when this one-off event "uses a rental space"
+  createdByUserId String?
+  createdBy       User?  @relation(fields: [createdByUserId], references: [id])
+  createdByName   String @default("") // denormalized — survives the user's own deletion, keeps "created by" accountability display working
   createdAt     DateTime @default(now())
 
   @@index([orgId])
   @@index([sourceId])
   @@index([recurrenceId])
+  @@index([createdByUserId])
 }
 
 model CalendarRecurrence {

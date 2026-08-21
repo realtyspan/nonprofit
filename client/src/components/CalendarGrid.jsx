@@ -70,7 +70,7 @@ export default function CalendarGrid({ month, events, onSelectDay, onSelectEvent
                 {day.getDate()}
               </div>
               {visible.map((e) => {
-                const ec = eventColorFor(e.source);
+                const ec = eventColorFor(e.source, e.visibility);
                 return (
                   <div
                     key={e.id}

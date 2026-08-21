@@ -224,7 +224,7 @@ function Shell() {
             {activeModuleKey === "rentals" && view === "bookings" && <RentalBookings spaces={rentalSpaces} onChanged={refreshRentals} />}
             {activeModuleKey === "rentals" && view === "spaces" && <RentalSpaces spaces={rentalSpaces} onChanged={refreshRentals} />}
             {activeModuleKey === "rentals" && view === "blocks" && <RentalBlocks spaces={rentalSpaces} />}
-            {activeModuleKey === "calendar" && view === "month" && <CalendarView rentalSpaces={rentalSpaces} permissions={permissions} />}
+            {activeModuleKey === "calendar" && view === "month" && <CalendarView rentalSpaces={rentalSpaces} permissions={permissions} currentUserId={session?.user?.id} />}
             {activeModuleKey === "raffle" && view === "manage" && <ManageRaffles games={raffleGames} gameId={selectedRaffleGameId} onGamesChanged={refreshRaffleGames} />}
             {activeModuleKey === "raffle" && view === "grid" && <RaffleGrid gameId={selectedRaffleGameId} permissions={permissions} currentUserId={session?.user?.id} />}
             {activeModuleKey === "raffle" && view === "sellers" && <RaffleSellers gameId={selectedRaffleGameId} permissions={permissions} />}

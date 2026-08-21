@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { colors, card, button, input as inputStyle } from "../lib/tokens";
+import { colors, card, button, pill, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import CalendarGrid from "../components/CalendarGrid";
 import CalendarWeekGrid from "../components/CalendarWeekGrid";
@@ -41,8 +41,9 @@ function addDays(d, n) {
   return r;
 }
 
-export default function CalendarView({ rentalSpaces = [], permissions }) {
+export default function CalendarView({ rentalSpaces = [], permissions, currentUserId }) {
   const canManageRentals = permissions?.orgTier === "Owner" || permissions?.moduleGrants?.rentals === "Admin";
+  const isCalendarAdmin = permissions?.orgTier === "Owner" || permissions?.moduleGrants?.calendar === "Admin";
   const [viewMode, setViewMode] = useState("month"); // "month" | "week"
   const [month, setMonth] = useState(() => new Date()); // anchor date — a day within the displayed month or week
   const [events, setEvents] = useState([]);
@@ -105,12 +106,15 @@ export default function CalendarView({ rentalSpaces = [], permissions }) {
         <Legend color={EVENT_COLORS.manual.bg} label="Lodge events" />
         <Legend color={EVENT_COLORS["rental-booking"].bg} label="Rental bookings" />
         <Legend color={EVENT_COLORS["rental-block"].bg} label="Internal holds" />
+        <Legend color={EVENT_COLORS.private.bg} label="Private items" />
       </div>
 
       {detailEvent && (
         <EventDetailModal
           event={detailEvent}
           rentalSpaces={rentalSpaces}
+          isCalendarAdmin={isCalendarAdmin}
+          currentUserId={currentUserId}
           onClose={() => setDetailEvent(null)}
           onEdit={(mode) => { setFormState({ mode, event: detailEvent }); setDetailEvent(null); }}
           onDeleted={() => { setDetailEvent(null); refresh(); }}
@@ -122,6 +126,7 @@ export default function CalendarView({ rentalSpaces = [], permissions }) {
           state={formState}
           rentalSpaces={rentalSpaces}
           canManageRentals={canManageRentals}
+          isCalendarAdmin={isCalendarAdmin}
           onCancel={() => setFormState(null)}
           onSaved={() => { setFormState(null); refresh(); }}
         />
@@ -139,9 +144,12 @@ function Legend({ color, label }) {
   );
 }
 
-function EventDetailModal({ event, rentalSpaces, onClose, onEdit, onDeleted }) {
+function EventDetailModal({ event, rentalSpaces, isCalendarAdmin, currentUserId, onClose, onEdit, onDeleted }) {
   const isManual = event.source === "manual";
   const isRecurring = !!event.recurrenceId;
+  const isPrivate = event.visibility === "private";
+  const isOwnPrivate = isPrivate && event.createdByUserId === currentUserId;
+  const canManage = isManual && (isCalendarAdmin || isOwnPrivate);
   const usedSpaceNames = (event.rentalSpaceIds || [])
     .map((id) => rentalSpaces.find((s) => s.id === id)?.name)
     .filter(Boolean);
@@ -169,7 +177,15 @@ function EventDetailModal({ event, rentalSpaces, onClose, onEdit, onDeleted }) {
 
   return (
     <ModalShell onCancel={onClose} width={380}>
-      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{event.title}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>{event.title}</div>
+        {isPrivate && <span style={pill("#f3e8ff", EVENT_COLORS.private.bg)}>Private</span>}
+      </div>
+      {isPrivate && !isOwnPrivate && (
+        <div style={{ fontSize: 11.5, color: colors.textTertiary, marginBottom: 4 }}>
+          Created by {event.createdByName || "someone else"} — visible to you as calendar Admin.
+        </div>
+      )}
       <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 4 }}>
         {new Date(event.startAt).toLocaleString()} – {new Date(event.endAt).toLocaleTimeString()}
       </div>
@@ -197,7 +213,7 @@ function EventDetailModal({ event, rentalSpaces, onClose, onEdit, onDeleted }) {
         </div>
       )}
 
-      {isManual && !confirmDelete && (
+      {canManage && !confirmDelete && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {isRecurring ? (
             <>
@@ -232,7 +248,7 @@ function EventDetailModal({ event, rentalSpaces, onClose, onEdit, onDeleted }) {
   );
 }
 
-function EventFormModal({ state, rentalSpaces, canManageRentals, onCancel, onSaved }) {
+function EventFormModal({ state, rentalSpaces, canManageRentals, isCalendarAdmin, onCancel, onSaved }) {
   const { mode, event, defaultDate } = state;
   const isSeries = mode === "editSeries";
   const start = defaultDate ? new Date(defaultDate) : event ? new Date(event.startAt) : new Date();
@@ -251,7 +267,7 @@ function EventFormModal({ state, rentalSpaces, canManageRentals, onCancel, onSav
   const [allDay, setAllDay] = useState(event?.allDay || false);
   const [startAt, setStartAt] = useState(toLocalInput(event?.startAt || start));
   const [endAt, setEndAt] = useState(toLocalInput(event?.endAt || end));
-  const [visibility, setVisibility] = useState(event?.visibility || "internal");
+  const [visibility, setVisibility] = useState(event?.visibility || (isCalendarAdmin ? "internal" : "private"));
   const [repeats, setRepeats] = useState(mode === "editSeries");
   const [rentalSpaceIds, setRentalSpaceIds] = useState(event?.rentalSpaceIds || []);
   const [freq, setFreq] = useState("weekly");
@@ -303,11 +319,15 @@ function EventFormModal({ state, rentalSpaces, canManageRentals, onCancel, onSav
     setRentalSpaceIds((cur) => (cur.includes(id) ? cur.filter((s) => s !== id) : [...cur, id]));
   }
 
+  const isPrivate = visibility === "private";
+
   // Only a genuinely one-off event can block a rental space — a recurring
   // room commitment already has its own tool (Rental Space > Internal
   // Blocks recurrence), so this option is hidden for anything repeating.
+  // Private items never link to a rental space either — that's a facility
+  // scheduling action, not something a personal note should trigger.
   const isOneOff = !repeats && mode !== "editSeries" && !event?.recurrenceId;
-  const showRentalSpaceOption = isOneOff && canManageRentals && rentalSpaces.length > 0;
+  const showRentalSpaceOption = isOneOff && canManageRentals && !isPrivate && rentalSpaces.length > 0;
 
   function recurrenceFields() {
     if (freq === "monthly" && monthlyMode === "weekday") {
@@ -395,14 +415,28 @@ function EventFormModal({ state, rentalSpaces, canManageRentals, onCancel, onSav
           </div>
         )}
 
-        <Field label="Visibility">
-          <select style={inputStyle} value={visibility} onChange={(e) => setVisibility(e.target.value)}>
-            <option value="internal">Internal only</option>
-            <option value="public">Public (shows on embedded calendar)</option>
-          </select>
-        </Field>
+        {isCalendarAdmin ? (
+          <Field label="Visibility">
+            <select
+              style={inputStyle}
+              value={visibility}
+              onChange={(e) => {
+                setVisibility(e.target.value);
+                if (e.target.value === "private") { setRepeats(false); setRentalSpaceIds([]); }
+              }}
+            >
+              <option value="internal">Internal only</option>
+              <option value="public">Public (shows on embedded calendar)</option>
+              <option value="private">Private (only visible to you)</option>
+            </select>
+          </Field>
+        ) : (
+          <div style={{ fontSize: 12, color: colors.textSecondary, background: "#f3e8ff", borderRadius: 8, padding: 10 }}>
+            This will be a private item — visible only to you (and calendar Admins, for accountability). You don't have Admin access on Calendar, so you can't add a shared event.
+          </div>
+        )}
 
-        {mode === "new" && (
+        {mode === "new" && isCalendarAdmin && !isPrivate && (
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
             <input type="checkbox" checked={repeats} onChange={(e) => setRepeats(e.target.checked)} />
             Repeats
