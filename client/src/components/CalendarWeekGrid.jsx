@@ -72,8 +72,8 @@ export default function CalendarWeekGrid({ anchorDate, events, onSelectDay, onSe
               key={`d${i}`}
               onClick={() => onSelectDay?.(day)}
               style={{
-                minHeight: 300, padding: 6, borderRight: (i + 1) % 7 === 0 ? "none" : `1px solid ${t.borderLight}`,
-                cursor: onSelectDay ? "pointer" : "default", display: "flex", flexDirection: "column", gap: 4,
+                minHeight: 300, minWidth: 0, padding: 6, borderRight: (i + 1) % 7 === 0 ? "none" : `1px solid ${t.borderLight}`,
+                cursor: onSelectDay ? "pointer" : "default", display: "flex", flexDirection: "column", gap: 4, overflow: "hidden",
               }}
             >
               {dayEvents.map((e) => {

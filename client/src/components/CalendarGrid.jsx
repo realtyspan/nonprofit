@@ -57,9 +57,9 @@ export default function CalendarGrid({ month, events, onSelectDay, onSelectEvent
               key={i}
               onClick={() => onSelectDay?.(day)}
               style={{
-                minHeight: 92, padding: 6, borderRight: (i + 1) % 7 === 0 ? "none" : `1px solid ${t.borderLight}`,
+                minHeight: 92, minWidth: 0, padding: 6, borderRight: (i + 1) % 7 === 0 ? "none" : `1px solid ${t.borderLight}`,
                 borderBottom: `1px solid ${t.borderLight}`, background: inMonth ? t.surface : t.bg,
-                cursor: onSelectDay ? "pointer" : "default", display: "flex", flexDirection: "column", gap: 3,
+                cursor: onSelectDay ? "pointer" : "default", display: "flex", flexDirection: "column", gap: 3, overflow: "hidden",
               }}
             >
               <div style={{
