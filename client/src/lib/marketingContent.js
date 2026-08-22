@@ -54,10 +54,10 @@ export const MARKETING_MODULES = {
   raffle: {
     slug: "raffle",
     name: "Raffle",
-    tagline: "Run your annual raffle without losing track of a single ticket",
+    tagline: "Run your raffles without losing track of a single ticket",
     icon: icons.ticket,
     badge: "For NYS-licensed raffles — also a Games of Chance activity",
-    heroHeadline: "Run your annual raffle without losing track of a single ticket",
+    heroHeadline: "Run your raffles without losing track of a single ticket",
     heroSubhead: "Sell tickets, run drawings, check people in on the night of, and know — in real time — whether you're staying within NYS's net-proceeds thresholds.",
     features: [
       { icon: icons.grid, title: "Ticket Grid", body: "Every ticket, at a glance — reserved, sold, or funds received, recorded with buyer info and payment method as sales happen." },
