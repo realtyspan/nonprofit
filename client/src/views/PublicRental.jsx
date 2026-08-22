@@ -148,7 +148,7 @@ export default function PublicRental({ slug, embed }) {
                       Cancel
                     </button>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
                     <DateTimeField label="Start" value={form.startAt} onChange={(v) => set("startAt", v)} t={t} />
                     <DateTimeField label="End" value={form.endAt} onChange={(v) => set("endAt", v)} t={t} />
                     <Field label="Event type" t={t}><input style={inputStyle} value={form.eventType} onChange={(e) => set("eventType", e.target.value)} placeholder="Birthday, memorial, corporate…" /></Field>

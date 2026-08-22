@@ -89,7 +89,7 @@ export default function CalendarWeekGrid({ anchorDate, events, onSelectDay, onSe
                     }}
                   >
                     <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</div>
-                    <div style={{ fontSize: 10, opacity: 0.9 }}>
+                    <div style={{ fontSize: 10, opacity: 0.9, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {e.allDay ? "All day" : `${formatTime(new Date(e.startAt))} – ${formatTime(new Date(e.endAt))}`}
                     </div>
                   </div>
