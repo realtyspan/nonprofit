@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { hasModuleTier } from "../lib/modules";
 import { formatUtcDate } from "../lib/dates";
 import { formatPhone, stripPhone } from "../lib/phone";
+import Modal from "../components/Modal";
 
 const STATUS_STYLE = {
   available: { bg: "#ffffff", border: colors.border, text: colors.textSecondary, label: "Available" },
@@ -271,8 +272,7 @@ function RaffleTicketModal({ gameId, ticket, permissions, onClose, onChanged }) 
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, overflowY: "auto", padding: 24 }} onClick={onClose}>
-      <div style={{ width: 440, background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }} onClick={(e) => e.stopPropagation()}>
+    <Modal onCancel={onClose} width={440}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
           <div style={{ fontSize: 20, fontWeight: 800 }}>Ticket #{ticket.number}</div>
           <span style={pill(s.bg, s.text)}>{s.label}</span>
@@ -298,7 +298,7 @@ function RaffleTicketModal({ gameId, ticket, permissions, onClose, onChanged }) 
               </div>
             )}
             <Field label="Buyer name"><input style={inputStyle} value={buyer} onChange={(e) => setBuyer(e.target.value)} /></Field>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
               <Field label="Phone"><input style={inputStyle} value={formatPhone(phone)} onChange={(e) => setPhone(stripPhone(e.target.value))} /></Field>
               <Field label="Email"><input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
             </div>
@@ -364,14 +364,13 @@ function RaffleTicketModal({ gameId, ticket, permissions, onClose, onChanged }) 
         {ticket.status === "available" && !canHelp && (
           <div style={{ fontSize: 13, color: colors.textSecondary }}>This ticket is available. You have read-only access to the raffle module.</div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
 function TenderFields({ tenderType, setTenderType, tenderAmount, setTenderAmount, checkNumber, setCheckNumber }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: tenderType === "check" ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10 }}>
       <Field label="Tender">
         <select style={inputStyle} value={tenderType} onChange={(e) => setTenderType(e.target.value)}>
           <option value="cash">Cash</option>

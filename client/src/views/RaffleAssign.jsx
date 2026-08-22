@@ -97,7 +97,7 @@ export default function RaffleAssign({ gameId }) {
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
       {notice && <div style={{ color: colors.success, fontSize: 12.5 }}>{notice}</div>}
 
-      <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button style={button.primary} disabled={busy || !sellerId || ticketNumbers.length === 0} onClick={assign}>Assign to seller</button>
         <button style={button.ghost} disabled={busy || ticketNumbers.length === 0} onClick={unassign}>Unassign</button>
       </div>

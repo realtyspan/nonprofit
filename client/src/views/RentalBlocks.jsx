@@ -2,6 +2,9 @@ import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import DateTimeField from "../components/DateTimeField";
+import DataList from "../components/DataList";
+import Modal from "../components/Modal";
+import { useIsMobile } from "../lib/viewport";
 
 const WEEKDAYS = [
   { key: "SU", label: "S" }, { key: "MO", label: "M" }, { key: "TU", label: "T" }, { key: "WE", label: "W" },
@@ -14,6 +17,7 @@ const WEEKDAY_FULL = [
 const ORDINALS = [{ v: 1, label: "1st" }, { v: 2, label: "2nd" }, { v: 3, label: "3rd" }, { v: 4, label: "4th" }, { v: -1, label: "Last" }];
 
 export default function RentalBlocks({ spaces }) {
+  const isMobile = useIsMobile();
   const [blocks, setBlocks] = useState([]);
   const [formState, setFormState] = useState(null); // { mode: "new"|"editOne"|"editSeries", block? }
   const [detailBlock, setDetailBlock] = useState(null);
@@ -26,7 +30,7 @@ export default function RentalBlocks({ spaces }) {
 
   return (
     <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
+      <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "center", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 700 }}>Internal blocks</div>
           <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>Hold a space for the Lodge's own use — a meeting, a members-only function, maintenance. Shown as unavailable on the public calendar by default.</div>
@@ -34,33 +38,29 @@ export default function RentalBlocks({ spaces }) {
         <button style={button.ghost} onClick={() => setFormState({ mode: "new" })}>+ Add block</button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr 1.2fr 1fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
-        <div>Space</div>
-        <div>Start</div>
-        <div>End</div>
-        <div>Reason</div>
-        <div></div>
-      </div>
-      {blocks.map((b) => (
-        <div
-          key={b.id}
-          onClick={() => setDetailBlock(b)}
-          style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr 1.2fr 1fr", padding: "12px 18px", alignItems: "center", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13.5, cursor: "pointer" }}
-        >
-          <div style={{ fontWeight: 600 }}>{b.space?.name}</div>
-          <div>{new Date(b.startAt).toLocaleString()}</div>
-          <div>{new Date(b.endAt).toLocaleString()}</div>
-          <div style={{ color: colors.textSecondary }}>{b.reason || "—"}</div>
-          <div style={{ display: "flex", gap: 6 }}>
-            {b.recurrenceId && <span style={pill("#f0f0f3", colors.textSecondary)}>Repeats</span>}
-            {b.calendarEventId && <span style={pill(colors.indigoBg, colors.indigo)}>From Calendar</span>}
-            <span style={pill(b.visibleOnPublicCalendar ? colors.indigoBg : "#f0f0f3", b.visibleOnPublicCalendar ? colors.indigo : colors.textSecondary)}>
-              {b.visibleOnPublicCalendar ? "Public" : "Internal only"}
-            </span>
-          </div>
-        </div>
-      ))}
-      {blocks.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No internal blocks.</div>}
+      <DataList
+        rows={blocks}
+        onRowClick={(b) => setDetailBlock(b)}
+        emptyMessage="No internal blocks."
+        columns={[
+          { key: "space", label: "Space", grid: "1.2fr", primary: true, render: (b) => b.space?.name },
+          { key: "start", label: "Start", grid: "1fr", render: (b) => new Date(b.startAt).toLocaleString() },
+          { key: "end", label: "End", grid: "1fr", render: (b) => new Date(b.endAt).toLocaleString() },
+          { key: "reason", label: "Reason", grid: "1.2fr", render: (b) => <span style={{ color: colors.textSecondary }}>{b.reason || "—"}</span> },
+          {
+            key: "flags", label: "", grid: "1fr",
+            render: (b) => (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {b.recurrenceId && <span style={pill("#f0f0f3", colors.textSecondary)}>Repeats</span>}
+                {b.calendarEventId && <span style={pill(colors.indigoBg, colors.indigo)}>From Calendar</span>}
+                <span style={pill(b.visibleOnPublicCalendar ? colors.indigoBg : "#f0f0f3", b.visibleOnPublicCalendar ? colors.indigo : colors.textSecondary)}>
+                  {b.visibleOnPublicCalendar ? "Public" : "Internal only"}
+                </span>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       {detailBlock && (
         <BlockDetailModal
@@ -116,7 +116,7 @@ function BlockDetailModal({ block, onClose, onEdit, onDeleted }) {
   }
 
   return (
-    <ModalShell onCancel={onClose} width={380}>
+    <Modal onCancel={onClose} width={380}>
       <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{block.space?.name}</div>
       <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 4 }}>
         {new Date(block.startAt).toLocaleString()} – {new Date(block.endAt).toLocaleTimeString()}
@@ -165,7 +165,7 @@ function BlockDetailModal({ block, onClose, onEdit, onDeleted }) {
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
         <button style={button.ghost} onClick={onClose}>Close</button>
       </div>
-    </ModalShell>
+    </Modal>
   );
 }
 
@@ -263,12 +263,8 @@ function BlockFormModal({ state, spaces, onCancel, onSaved }) {
   if (loadingSeries) return null;
 
   return (
-    <ModalShell onCancel={onCancel} width={460}>
+    <Modal onCancel={onCancel} width={460} title={mode === "new" ? "Add internal block" : mode === "editSeries" ? "Edit entire series" : "Edit block"}>
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>
-          {mode === "new" ? "Add internal block" : mode === "editSeries" ? "Edit entire series" : "Edit block"}
-        </div>
-
         <Field label="Space">
           <select style={inputStyle} value={spaceId} onChange={(e) => setSpaceId(e.target.value)} disabled={mode !== "new"}>
             {spaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -276,7 +272,7 @@ function BlockFormModal({ state, spaces, onCancel, onSaved }) {
         </Field>
         <Field label="Reason"><input style={inputStyle} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Trustees meeting" /></Field>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
           <DateTimeField label="Start" value={startAt} onChange={setStartAt} />
           <DateTimeField label="End" value={endAt} onChange={setEndAt} />
         </div>
@@ -295,7 +291,7 @@ function BlockFormModal({ state, spaces, onCancel, onSaved }) {
 
         {(repeats || mode === "editSeries") && (
           <div style={{ border: `1px solid ${colors.borderLight}`, borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
               <Field label="Frequency">
                 <select style={inputStyle} value={freq} onChange={(e) => setFreq(e.target.value)}>
                   <option value="weekly">Weekly</option>
@@ -377,7 +373,7 @@ function BlockFormModal({ state, spaces, onCancel, onSaved }) {
           <button type="submit" style={button.primary} disabled={busy || !spaceId}>{busy ? "Saving…" : "Save"}</button>
         </div>
       </form>
-    </ModalShell>
+    </Modal>
   );
 }
 
@@ -391,16 +387,6 @@ function toDateInput(date) {
 }
 function hhmm(datetimeLocal) {
   return datetimeLocal.slice(11, 16);
-}
-
-function ModalShell({ children, onCancel, width }) {
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, overflowY: "auto", padding: 24 }} onClick={onCancel}>
-      <div style={{ width, background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }} onClick={(e) => e.stopPropagation()}>
-        {children}
-      </div>
-    </div>
-  );
 }
 
 function Field({ label, children }) {

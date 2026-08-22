@@ -38,7 +38,7 @@ export default function RaffleReport({ games, gameId }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ ...card, display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ fontSize: 15, fontWeight: 700 }}>Sales and revenue</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
           <Stat label="Total tickets" value={stats.total} />
           <Stat label="Sold or better" value={stats.sold + stats.fundsReceived} />
           <Stat label="Revenue collected" value={money(stats.revenue)} />

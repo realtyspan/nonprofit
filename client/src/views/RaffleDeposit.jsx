@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { colors, card, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
+import DataList from "../components/DataList";
 
 export default function RaffleDeposit({ gameId }) {
   const [tickets, setTickets] = useState([]);
@@ -81,19 +82,22 @@ export default function RaffleDeposit({ gameId }) {
       {notice && <div style={{ color: colors.success, fontSize: 12.5 }}>{notice}</div>}
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "auto 0.6fr 1.4fr 1fr 1fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
-          <div></div><div>#</div><div>Buyer</div><div>Status</div><div>Amount</div>
-        </div>
-        {tickets.map((t) => (
-          <div key={t.number} onClick={() => toggle(t.number)} style={{ display: "grid", gridTemplateColumns: "auto 0.6fr 1.4fr 1fr 1fr", padding: "10px 18px", alignItems: "center", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13.5, cursor: "pointer" }}>
-            <input type="checkbox" checked={selected.has(t.number)} onChange={() => toggle(t.number)} onClick={(e) => e.stopPropagation()} />
-            <div style={{ fontWeight: 700 }}>#{t.number}</div>
-            <div>{t.buyer}</div>
-            <div style={{ textTransform: "capitalize", color: colors.textSecondary }}>{t.status}</div>
-            <div>{t.tenderAmount != null ? money(t.tenderAmount) : "—"}</div>
-          </div>
-        ))}
-        {tickets.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No sold or reserved tickets awaiting deposit.</div>}
+        <DataList
+          rows={tickets}
+          keyField="number"
+          onRowClick={(t) => toggle(t.number)}
+          emptyMessage="No sold or reserved tickets awaiting deposit."
+          columns={[
+            {
+              key: "check", label: "", grid: "auto",
+              render: (t) => <input type="checkbox" checked={selected.has(t.number)} onChange={() => toggle(t.number)} onClick={(e) => e.stopPropagation()} />,
+            },
+            { key: "number", label: "#", grid: "0.6fr", primary: true, render: (t) => <span style={{ fontWeight: 700 }}>#{t.number}</span> },
+            { key: "buyer", label: "Buyer", grid: "1.4fr", render: (t) => t.buyer },
+            { key: "status", label: "Status", grid: "1fr", render: (t) => <span style={{ textTransform: "capitalize", color: colors.textSecondary }}>{t.status}</span> },
+            { key: "amount", label: "Amount", grid: "1fr", render: (t) => t.tenderAmount != null ? money(t.tenderAmount) : "—" },
+          ]}
+        />
       </div>
     </div>
   );

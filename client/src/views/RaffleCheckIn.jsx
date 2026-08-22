@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { colors, card, pill, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import { formatPhone, stripPhone } from "../lib/phone";
+import DataList from "../components/DataList";
 
 // Polls every 4s so multiple people checking tickets in at the door (each on
 // their own device) see each other's check-ins, and each other's sales,
@@ -157,15 +158,16 @@ export default function RaffleCheckIn({ gameId }) {
           <div style={{ fontSize: 15, fontWeight: 700 }}>Checked in ({checkIns.length})</div>
           <div style={{ fontSize: 11.5, color: colors.textSecondary }}>Updates automatically</div>
         </div>
-        {checkIns.map((c) => (
-          <div key={c.id} style={{ display: "grid", gridTemplateColumns: "0.6fr 1fr 1fr 1fr", padding: "10px 18px", alignItems: "center", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13 }}>
-            <div style={{ fontWeight: 700 }}>#{c.ticketNumber}</div>
-            <div>{c.hasGuest ? "+1 guest" : "—"}</div>
-            <div style={{ color: colors.textSecondary }}>{c.checkedInByName}</div>
-            <div style={{ fontSize: 11.5, color: colors.textTertiary }}>{new Date(c.checkedInAt).toLocaleTimeString()}</div>
-          </div>
-        ))}
-        {checkIns.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No one checked in yet.</div>}
+        <DataList
+          rows={checkIns}
+          emptyMessage="No one checked in yet."
+          columns={[
+            { key: "ticket", label: "Ticket #", grid: "0.6fr", primary: true, render: (c) => <span style={{ fontWeight: 700 }}>#{c.ticketNumber}</span> },
+            { key: "guest", label: "Guest", grid: "1fr", render: (c) => c.hasGuest ? "+1 guest" : "—" },
+            { key: "checkedInBy", label: "Checked in by", grid: "1fr", render: (c) => <span style={{ color: colors.textSecondary }}>{c.checkedInByName}</span> },
+            { key: "time", label: "Time", grid: "1fr", render: (c) => <span style={{ fontSize: 11.5, color: colors.textTertiary }}>{new Date(c.checkedInAt).toLocaleTimeString()}</span> },
+          ]}
+        />
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { colors, card, pill, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import { MODULES } from "../lib/modules";
+import DataList from "../components/DataList";
 
 const GC7Q_SLOTS = ["Head", "Preparer", "Member"];
 
@@ -58,16 +59,75 @@ export default function Team({ permissions, onPermissionsChanged }) {
           />
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.6fr 0.8fr 2fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
-          <div>Name</div>
-          <div>Email</div>
-          <div>Org tier</div>
-          <div>Module access</div>
-        </div>
-        {users.map((u) => (
-          <UserRow key={u.id} user={u} isOwner={isOwner} adminModules={adminModules} isSelf={u.id === session?.user?.id} onChange={act} />
-        ))}
-        {users.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No teammates yet.</div>}
+        <DataList
+          rows={users}
+          emptyMessage="No teammates yet."
+          columns={[
+            {
+              key: "name", label: "Name", grid: "1.2fr", primary: true,
+              render: (u) => (
+                <>
+                  {u.name}
+                  {u.id === session?.user?.id && <span style={{ color: colors.textTertiary, fontWeight: 400 }}> (you)</span>}
+                </>
+              ),
+            },
+            { key: "email", label: "Email", grid: "1.6fr", render: (u) => <span style={{ color: colors.textSecondary }}>{u.email}</span> },
+            {
+              key: "orgTier", label: "Org tier", grid: "0.8fr",
+              render: (u) => isOwner ? (
+                <select
+                  style={{ ...inputStyle, fontSize: 12, padding: "5px 6px" }}
+                  value={u.orgTier || ""}
+                  onChange={(e) => act(() => api.setOrgTier(u.id, e.target.value || null))}
+                >
+                  <option value="">—</option>
+                  <option value="Viewer">Viewer</option>
+                  <option value="Owner">Owner</option>
+                </select>
+              ) : u.orgTier ? (
+                <span style={pill(colors.indigoBg, colors.indigo)}>{u.orgTier}</span>
+              ) : (
+                <span style={{ color: colors.textTertiary }}>—</span>
+              ),
+            },
+            {
+              key: "moduleAccess", label: "Module access", grid: "2fr", fullWidthOnMobile: true,
+              render: (u) => (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                  {MODULES.map((m) => {
+                    const tier = u.moduleGrants?.[m.key];
+                    const canEdit = isOwner || adminModules.includes(m.key);
+                    if (!canEdit) {
+                      return tier ? (
+                        <span key={m.key} style={pill("#f0f0f3", colors.textSecondary)}>{m.label}: {tier}</span>
+                      ) : null;
+                    }
+                    return (
+                      <label key={m.key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: colors.textSecondary }}>
+                        {m.label}
+                        <select
+                          style={{ ...inputStyle, fontSize: 11.5, padding: "4px 6px", width: "auto" }}
+                          value={tier || ""}
+                          onChange={(e) => {
+                            const newTier = e.target.value;
+                            if (!newTier) act(() => api.removeModuleGrant(u.id, m.key));
+                            else act(() => api.setModuleGrant(u.id, m.key, newTier));
+                          }}
+                        >
+                          <option value="">—</option>
+                          <option value="Viewer">Viewer</option>
+                          <option value="Helper">Helper</option>
+                          {isOwner && <option value="Admin">Admin</option>}
+                        </select>
+                      </label>
+                    );
+                  })}
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
 
       {(isOwner || adminModules.includes("bell-jar")) && (
@@ -88,65 +148,6 @@ export default function Team({ permissions, onPermissionsChanged }) {
           assignSigner={api.assignRaffleSigner}
         />
       )}
-    </div>
-  );
-}
-
-function UserRow({ user, isOwner, adminModules, isSelf, onChange }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.6fr 0.8fr 2fr", padding: "12px 18px", alignItems: "center", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13 }}>
-      <div style={{ fontWeight: 600 }}>
-        {user.name}
-        {isSelf && <span style={{ color: colors.textTertiary, fontWeight: 400 }}> (you)</span>}
-      </div>
-      <div style={{ color: colors.textSecondary }}>{user.email}</div>
-      <div>
-        {isOwner ? (
-          <select
-            style={{ ...inputStyle, fontSize: 12, padding: "5px 6px" }}
-            value={user.orgTier || ""}
-            onChange={(e) => onChange(() => api.setOrgTier(user.id, e.target.value || null))}
-          >
-            <option value="">—</option>
-            <option value="Viewer">Viewer</option>
-            <option value="Owner">Owner</option>
-          </select>
-        ) : user.orgTier ? (
-          <span style={pill(colors.indigoBg, colors.indigo)}>{user.orgTier}</span>
-        ) : (
-          <span style={{ color: colors.textTertiary }}>—</span>
-        )}
-      </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-        {MODULES.map((m) => {
-          const tier = user.moduleGrants?.[m.key];
-          const canEdit = isOwner || adminModules.includes(m.key);
-          if (!canEdit) {
-            return tier ? (
-              <span key={m.key} style={pill("#f0f0f3", colors.textSecondary)}>{m.label}: {tier}</span>
-            ) : null;
-          }
-          return (
-            <label key={m.key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: colors.textSecondary }}>
-              {m.label}
-              <select
-                style={{ ...inputStyle, fontSize: 11.5, padding: "4px 6px", width: "auto" }}
-                value={tier || ""}
-                onChange={(e) => {
-                  const newTier = e.target.value;
-                  if (!newTier) onChange(() => api.removeModuleGrant(user.id, m.key));
-                  else onChange(() => api.setModuleGrant(user.id, m.key, newTier));
-                }}
-              >
-                <option value="">—</option>
-                <option value="Viewer">Viewer</option>
-                <option value="Helper">Helper</option>
-                {isOwner && <option value="Admin">Admin</option>}
-              </select>
-            </label>
-          );
-        })}
-      </div>
     </div>
   );
 }

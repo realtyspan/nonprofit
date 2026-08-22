@@ -91,7 +91,7 @@ function ProfileCard({ me, labels, onSaved }) {
         <Field label="Role">
           <input style={{ ...inputStyle, background: "#f4f4f6", color: colors.textSecondary }} value={accessSummary(me, labels)} disabled />
         </Field>
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
           <Field label="Title"><input style={inputStyle} placeholder="Chairperson" value={form.title} onChange={(e) => set("title", e.target.value)} /></Field>
           <Field label="Phone"><input style={inputStyle} placeholder="(555) 123-4567" value={formatPhone(form.phone)} onChange={(e) => set("phone", stripPhone(e.target.value))} /></Field>
         </div>
@@ -149,7 +149,7 @@ function PasswordCard() {
         <Field label="Current password">
           <input style={inputStyle} type="password" required value={form.currentPassword} onChange={(e) => set("currentPassword", e.target.value)} />
         </Field>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
           <Field label="New password">
             <input style={inputStyle} type="password" required minLength={8} value={form.newPassword} onChange={(e) => set("newPassword", e.target.value)} />
           </Field>

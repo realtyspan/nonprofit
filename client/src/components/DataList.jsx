@@ -21,7 +21,9 @@ import { useIsMobile } from "../lib/viewport";
 //     "desktop" per useIsMobile's breakpoint) isn't wide enough for them and they wrap and stack up
 //     against the right edge instead of reading as a clean action bar.
 // }]
-export default function DataList({ columns, rows, keyField = "id", onRowClick, emptyMessage = "Nothing here yet." }) {
+// rowStyle?: (row) => style object merged onto that row's container (e.g. to
+//   highlight the currently-selected record) — applied on both desktop and mobile.
+export default function DataList({ columns, rows, keyField = "id", onRowClick, rowStyle, emptyMessage = "Nothing here yet." }) {
   const isMobile = useIsMobile();
 
   if (rows.length === 0) {
@@ -44,6 +46,7 @@ export default function DataList({ columns, rows, keyField = "id", onRowClick, e
             onClick={onRowClick ? () => onRowClick(row) : undefined}
             style={{
               padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, cursor: onRowClick ? "pointer" : "default",
+              ...rowStyle?.(row),
             }}
           >
             <div style={{ display: "grid", gridTemplateColumns, alignItems: "center" }}>
@@ -72,6 +75,7 @@ export default function DataList({ columns, rows, keyField = "id", onRowClick, e
           style={{
             border: `1px solid ${colors.borderLight}`, borderRadius: 10, padding: 14,
             display: "flex", flexDirection: "column", gap: 8, cursor: onRowClick ? "pointer" : "default",
+            ...rowStyle?.(row),
           }}
         >
           {primaryCol && <div style={{ fontSize: 14.5, fontWeight: 700 }}>{primaryCol.render(row)}</div>}

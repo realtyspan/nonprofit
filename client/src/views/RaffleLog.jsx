@@ -53,9 +53,9 @@ export default function RaffleLog({ gameId }) {
       {logs.map((l) => {
         const [bg, text] = TYPE_COLOR[l.type] || ["#f0f0f3", colors.textSecondary];
         return (
-          <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13 }}>
+          <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13 }}>
             <span style={pill(bg, text)}>{TYPE_LABEL[l.type] || l.type}</span>
-            <div style={{ flex: 1 }}>{l.text}</div>
+            <div style={{ flex: 1, minWidth: 120 }}>{l.text}</div>
             <div style={{ fontSize: 11.5, color: colors.textTertiary, whiteSpace: "nowrap" }}>{new Date(l.createdAt).toLocaleString()}</div>
           </div>
         );

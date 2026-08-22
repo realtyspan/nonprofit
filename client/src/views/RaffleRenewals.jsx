@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { colors, card, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
+import DataList from "../components/DataList";
+import { useIsMobile } from "../lib/viewport";
 
 export default function RaffleRenewals({ gameId }) {
+  const isMobile = useIsMobile();
   const [calls, setCalls] = useState([]);
   const [ticketNumber, setTicketNumber] = useState("");
   const [note, setNote] = useState("");
@@ -38,12 +41,12 @@ export default function RaffleRenewals({ gameId }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <form onSubmit={logCall} style={{ ...card, display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
+      <form onSubmit={logCall} style={{ ...card, display: "flex", alignItems: isMobile ? "stretch" : "flex-end", flexDirection: isMobile ? "column" : "row", gap: 12, flexWrap: "wrap" }}>
         <Field label="Ticket #">
-          <input style={{ ...inputStyle, width: 100 }} value={ticketNumber} onChange={(e) => setTicketNumber(e.target.value.replace(/\D/g, ""))} />
+          <input style={{ ...inputStyle, width: isMobile ? "100%" : 100 }} value={ticketNumber} onChange={(e) => setTicketNumber(e.target.value.replace(/\D/g, ""))} />
         </Field>
         <Field label="Note">
-          <input style={{ ...inputStyle, width: 320 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Left voicemail, will call back Tuesday" />
+          <input style={{ ...inputStyle, width: isMobile ? "100%" : 320 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Left voicemail, will call back Tuesday" />
         </Field>
         <button type="submit" style={button.primary} disabled={busy || !ticketNumber}>Log call</button>
         {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
@@ -54,15 +57,16 @@ export default function RaffleRenewals({ gameId }) {
           <div style={{ fontSize: 15, fontWeight: 700 }}>Renewal calls</div>
           <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>Outreach calls logged for this year's raffle.</div>
         </div>
-        {calls.map((c) => (
-          <div key={c.id} style={{ display: "grid", gridTemplateColumns: "0.6fr 1.6fr 1fr 1fr", padding: "10px 18px", alignItems: "center", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13 }}>
-            <div style={{ fontWeight: 700 }}>#{c.ticketNumber}</div>
-            <div style={{ color: colors.textSecondary }}>{c.note || "—"}</div>
-            <div>{c.calledByName}</div>
-            <div style={{ fontSize: 11.5, color: colors.textTertiary }}>{new Date(c.calledAt).toLocaleString()}</div>
-          </div>
-        ))}
-        {calls.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No calls logged yet.</div>}
+        <DataList
+          rows={calls}
+          emptyMessage="No calls logged yet."
+          columns={[
+            { key: "ticket", label: "Ticket #", grid: "0.6fr", primary: true, render: (c) => <span style={{ fontWeight: 700 }}>#{c.ticketNumber}</span> },
+            { key: "note", label: "Note", grid: "1.6fr", render: (c) => <span style={{ color: colors.textSecondary }}>{c.note || "—"}</span> },
+            { key: "calledBy", label: "Called by", grid: "1fr", render: (c) => c.calledByName },
+            { key: "calledAt", label: "When", grid: "1fr", render: (c) => <span style={{ fontSize: 11.5, color: colors.textTertiary }}>{new Date(c.calledAt).toLocaleString()}</span> },
+          ]}
+        />
       </div>
     </div>
   );

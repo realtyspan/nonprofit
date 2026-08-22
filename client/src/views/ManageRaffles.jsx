@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
+import DataList from "../components/DataList";
+import Modal from "../components/Modal";
 
 // Game management (start a raffle, correct its details, open/close it) — kept
 // separate from Report, which is pure reporting (stats, payment reminders).
@@ -34,7 +36,7 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {selectedGame && (
         <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
             <div style={{ fontSize: 15, fontWeight: 700 }}>
               {selectedGame.name} — tickets #{selectedGame.startNumber}–#{selectedGame.endNumber}
             </div>
@@ -65,27 +67,27 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
           <div style={{ fontSize: 15, fontWeight: 700 }}>All raffles</div>
           <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>Use the selector above to switch which one you're viewing/working in.</div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr 0.6fr auto", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
-          <div>Name</div><div>Tickets</div><div>Price</div><div>Dates</div><div>Status</div><div></div>
-        </div>
-        {games.map((g) => (
-          <div key={g.id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr 0.6fr auto", padding: "10px 18px", alignItems: "center", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, background: g.id === gameId ? "#faf9ff" : undefined }}>
-            <div style={{ fontWeight: 600 }}>{g.name}</div>
-            <div>#{g.startNumber}–#{g.endNumber}</div>
-            <div>{money(g.ticketPrice)}</div>
-            <div style={{ fontSize: 12, color: colors.textSecondary }}>{formatUtcDate(g.raffleStartDate)} – {formatUtcDate(g.raffleEndDate)}</div>
-            <span style={pill(g.status === "active" ? colors.successBg : "#f0f0f3", g.status === "active" ? colors.success : colors.textSecondary)}>{g.status}</span>
-            <div style={{ display: "flex", gap: 6 }}>
-              {g.status === "active" && (
-                <>
+        <DataList
+          rows={games}
+          rowStyle={(g) => (g.id === gameId ? { background: "#faf9ff" } : undefined)}
+          emptyMessage="No raffles yet."
+          columns={[
+            { key: "name", label: "Name", grid: "1.4fr", primary: true, render: (g) => g.name },
+            { key: "tickets", label: "Tickets", grid: "1fr", render: (g) => `#${g.startNumber}–#${g.endNumber}` },
+            { key: "price", label: "Price", grid: "1fr", render: (g) => money(g.ticketPrice) },
+            { key: "dates", label: "Dates", grid: "1fr", render: (g) => <span style={{ fontSize: 12, color: colors.textSecondary }}>{formatUtcDate(g.raffleStartDate)} – {formatUtcDate(g.raffleEndDate)}</span> },
+            { key: "status", label: "Status", grid: "0.6fr", render: (g) => <span style={pill(g.status === "active" ? colors.successBg : "#f0f0f3", g.status === "active" ? colors.success : colors.textSecondary)}>{g.status}</span> },
+            {
+              key: "actions", label: "", footerRow: true,
+              render: (g) => g.status === "active" ? (
+                <div style={{ display: "flex", gap: 6 }}>
                   <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} onClick={() => setEditingGame(g)}>Edit</button>
                   <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} onClick={() => setDeletingGame(g)}>Delete</button>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
-        {games.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No raffles yet.</div>}
+                </div>
+              ) : null,
+            },
+          ]}
+        />
       </div>
 
       {!showNewGameForm ? (
@@ -160,7 +162,7 @@ function NewGameForm({ onCancel, onCreated }) {
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <Field label="Name"><input style={inputStyle} required value={name} onChange={(e) => setName(e.target.value)} placeholder="2026 400 Club" /></Field>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
           <Field label="First ticket #"><input style={inputStyle} type="number" min="1" required value={startNumber} onChange={(e) => setStartNumber(e.target.value)} /></Field>
           <Field label="Last ticket #"><input style={inputStyle} type="number" min="1" required value={endNumber} onChange={(e) => setEndNumber(e.target.value)} /></Field>
         </div>
@@ -168,7 +170,7 @@ function NewGameForm({ onCancel, onCreated }) {
 
         <Field label="Ticket price"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={ticketPrice} onChange={(e) => setTicketPrice(e.target.value)} /></Field>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
           <Field label="Raffle start date"><input style={inputStyle} type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} /></Field>
           <Field label="Closing date / final drawing"><input style={inputStyle} type="date" required value={endDate} onChange={(e) => setEndDate(e.target.value)} /></Field>
         </div>
@@ -225,42 +227,39 @@ function EditGameModal({ game, onCancel, onSaved }) {
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-      <div style={{ width: 460, background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }}>
-        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Edit "{game.name}"</div>
-        <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 16 }}>
-          Adding tickets is always safe. Shrinking the range only works if every ticket you're removing is still unsold and unreserved.
+    <Modal onCancel={onCancel} width={460} title={`Edit "${game.name}"`}>
+      <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 16 }}>
+        Adding tickets is always safe. Shrinking the range only works if every ticket you're removing is still unsold and unreserved.
+      </div>
+
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <Field label="Name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+          <Field label="First ticket #"><input style={inputStyle} type="number" min="1" required value={form.startNumber} onChange={(e) => set("startNumber", e.target.value)} /></Field>
+          <Field label="Last ticket #"><input style={inputStyle} type="number" min="1" required value={form.endNumber} onChange={(e) => set("endNumber", e.target.value)} /></Field>
+        </div>
+        {ticketCount > 0 && (
+          <div style={{ fontSize: 11.5, color: rangeShrinking ? colors.warningAmber : colors.textSecondary }}>
+            {ticketCount} ticket{ticketCount === 1 ? "" : "s"} total{rangeShrinking ? " — shrinking from " + game.totalTickets : ""}
+          </div>
+        )}
+
+        <Field label="Ticket price"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.ticketPrice} onChange={(e) => set("ticketPrice", e.target.value)} /></Field>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+          <Field label="Raffle start date"><input style={inputStyle} type="date" required value={form.startDate} onChange={(e) => set("startDate", e.target.value)} /></Field>
+          <Field label="Closing date / final drawing"><input style={inputStyle} type="date" required value={form.endDate} onChange={(e) => set("endDate", e.target.value)} /></Field>
         </div>
 
-        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <Field label="Name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
+        {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="First ticket #"><input style={inputStyle} type="number" min="1" required value={form.startNumber} onChange={(e) => set("startNumber", e.target.value)} /></Field>
-            <Field label="Last ticket #"><input style={inputStyle} type="number" min="1" required value={form.endNumber} onChange={(e) => set("endNumber", e.target.value)} /></Field>
-          </div>
-          {ticketCount > 0 && (
-            <div style={{ fontSize: 11.5, color: rangeShrinking ? colors.warningAmber : colors.textSecondary }}>
-              {ticketCount} ticket{ticketCount === 1 ? "" : "s"} total{rangeShrinking ? " — shrinking from " + game.totalTickets : ""}
-            </div>
-          )}
-
-          <Field label="Ticket price"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.ticketPrice} onChange={(e) => set("ticketPrice", e.target.value)} /></Field>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="Raffle start date"><input style={inputStyle} type="date" required value={form.startDate} onChange={(e) => set("startDate", e.target.value)} /></Field>
-            <Field label="Closing date / final drawing"><input style={inputStyle} type="date" required value={form.endDate} onChange={(e) => set("endDate", e.target.value)} /></Field>
-          </div>
-
-          {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-            <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
-            <button type="submit" style={button.primary} disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+          <button type="submit" style={button.primary} disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -282,21 +281,18 @@ function DeleteRaffleModal({ game, onCancel, onDeleted }) {
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-      <div style={{ width: 440, background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }}>
-        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Delete "{game.name}"?</div>
-        <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 16 }}>
-          This permanently removes the raffle, all {game.totalTickets.toLocaleString()} tickets, every sale and payment recorded against them, and any drawings set up for it. This can't be undone.
-        </div>
-        {error && <div style={{ color: colors.danger, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <button style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
-          <button style={{ ...button.primary, background: colors.danger }} onClick={confirmDelete} disabled={busy}>
-            {busy ? "Deleting…" : "Delete permanently"}
-          </button>
-        </div>
+    <Modal onCancel={onCancel} width={440} title={`Delete "${game.name}"?`}>
+      <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 16 }}>
+        This permanently removes the raffle, all {game.totalTickets.toLocaleString()} tickets, every sale and payment recorded against them, and any drawings set up for it. This can't be undone.
       </div>
-    </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        <button style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+        <button style={{ ...button.primary, background: colors.danger }} onClick={confirmDelete} disabled={busy}>
+          {busy ? "Deleting…" : "Delete permanently"}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

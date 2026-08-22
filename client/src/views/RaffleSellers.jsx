@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { colors, card, pill, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import { hasModuleTier } from "../lib/modules";
+import DataList from "../components/DataList";
 
 export default function RaffleSellers({ gameId, permissions }) {
   const isAdmin = hasModuleTier(permissions, "raffle", "Admin") || permissions?.orgTier === "Owner";
@@ -52,25 +53,25 @@ export default function RaffleSellers({ gameId, permissions }) {
       </div>
       {error && <div style={{ padding: "10px 18px", color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: isAdmin ? "1.6fr 1fr 1fr 1fr 1fr" : "1.6fr 1fr 1fr 1fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
-        <div>Name</div>
-        <div>Tier</div>
-        <div>Sold</div>
-        <div>Funds received</div>
-        {isAdmin && <div></div>}
-      </div>
-      {sellers.map((u) => {
-        const stats = salesBySeller[u.id] || { sold: 0, fundsReceived: 0 };
-        return (
-          <div key={u.id} style={{ display: "grid", gridTemplateColumns: isAdmin ? "1.6fr 1fr 1fr 1fr 1fr" : "1.6fr 1fr 1fr 1fr", padding: "12px 18px", alignItems: "center", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13.5 }}>
-            <div>
-              <div style={{ fontWeight: 600 }}>{u.name}</div>
-              <div style={{ fontSize: 11.5, color: colors.textSecondary }}>{u.email}</div>
-            </div>
-            <div><span style={pill(colors.indigoBg, colors.indigo)}>{u.moduleGrants.raffle}</span></div>
-            <div>{stats.sold}</div>
-            <div>{stats.fundsReceived}</div>
-            {isAdmin && (
+      <DataList
+        rows={sellers}
+        emptyMessage="No one has raffle access yet — add someone from Team."
+        columns={[
+          {
+            key: "name", label: "Name", grid: "1.6fr", primary: true,
+            render: (u) => (
+              <>
+                <div style={{ fontWeight: 600 }}>{u.name}</div>
+                <div style={{ fontSize: 11.5, fontWeight: 400, color: colors.textSecondary }}>{u.email}</div>
+              </>
+            ),
+          },
+          { key: "tier", label: "Tier", grid: "1fr", render: (u) => <span style={pill(colors.indigoBg, colors.indigo)}>{u.moduleGrants.raffle}</span> },
+          { key: "sold", label: "Sold", grid: "1fr", render: (u) => (salesBySeller[u.id] || { sold: 0 }).sold },
+          { key: "fundsReceived", label: "Funds received", grid: "1fr", render: (u) => (salesBySeller[u.id] || { fundsReceived: 0 }).fundsReceived },
+          ...(isAdmin ? [{
+            key: "actions", label: "", grid: "1fr",
+            render: (u) => (
               <select
                 style={{ ...inputStyle, width: 140 }}
                 value={u.moduleGrants.raffle}
@@ -82,11 +83,10 @@ export default function RaffleSellers({ gameId, permissions }) {
                 <option value="Admin">Admin</option>
                 <option value="">Remove access</option>
               </select>
-            )}
-          </div>
-        );
-      })}
-      {sellers.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No one has raffle access yet — add someone from Team.</div>}
+            ),
+          }] : []),
+        ]}
+      />
     </div>
   );
 }

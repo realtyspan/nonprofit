@@ -3,6 +3,8 @@ import { colors, card, pill, button, input as inputStyle, money, mono } from "..
 import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
 import ReceiptField from "../components/ReceiptField";
+import DataList from "../components/DataList";
+import { useIsMobile } from "../lib/viewport";
 
 const EXPENSE_CATEGORIES = [
   { value: "tickets", label: "Tickets" },
@@ -77,7 +79,7 @@ export default function RaffleFinancials() {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14 }}>
         <SummaryCard label="Total receipts" value={f.totalReceipts} />
         <SummaryCard label="Total prize value" value={f.totalPrizeValue} sub="from Drawings" />
         <SummaryCard label="Total expenses" value={f.totalActualExpenses} />
@@ -99,6 +101,7 @@ export default function RaffleFinancials() {
 }
 
 function GameFinancialCard({ game, onChanged }) {
+  const isMobile = useIsMobile();
   const [expenses, setExpenses] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ date: "", payee: "", checkNum: "", amount: "", category: "tickets", receiptFile: "", receiptFileName: "" });
@@ -156,7 +159,7 @@ function GameFinancialCard({ game, onChanged }) {
 
   return (
     <div style={{ ...card, display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "center", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", gap: 10 }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{game.name}</div>
           <div style={{ fontSize: 12, color: colors.textSecondary }}>
@@ -166,17 +169,17 @@ function GameFinancialCard({ game, onChanged }) {
         <button style={button.ghost} onClick={() => setShowForm((s) => !s)}>{showForm ? "− Cancel" : "+ Add expense"}</button>
       </div>
 
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
-        <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+      <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "flex-end", flexDirection: isMobile ? "column" : "row", gap: 10 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b", width: isMobile ? "100%" : undefined }}>
           Estimated non-prize expenses (planning only)
-          <input style={{ ...inputStyle, width: 140 }} type="number" step="0.01" min="0" value={estimate} onChange={(e) => setEstimate(e.target.value)} />
+          <input style={{ ...inputStyle, width: isMobile ? "100%" : 140 }} type="number" step="0.01" min="0" value={estimate} onChange={(e) => setEstimate(e.target.value)} />
         </label>
         <button style={button.ghost} disabled={savingEstimate} onClick={saveEstimate}>{savingEstimate ? "Saving…" : "Save estimate"}</button>
       </div>
 
       {showForm && (
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr 1fr 1fr 1.4fr auto", gap: 10, alignItems: "end" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
             <Field label="Date"><input style={inputStyle} type="date" required value={form.date} onChange={(e) => set("date", e.target.value)} /></Field>
             <Field label="Payee"><input style={inputStyle} required value={form.payee} onChange={(e) => set("payee", e.target.value)} /></Field>
             <Field label="Check #"><input style={inputStyle} value={form.checkNum} onChange={(e) => set("checkNum", e.target.value)} /></Field>
@@ -186,6 +189,8 @@ function GameFinancialCard({ game, onChanged }) {
                 {EXPENSE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
             </Field>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button style={button.primary} type="submit">Add</button>
           </div>
           <ReceiptField
@@ -198,35 +203,31 @@ function GameFinancialCard({ game, onChanged }) {
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 
       <div style={{ border: `1px solid ${colors.borderLight}`, borderRadius: 10, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1.3fr 0.7fr auto", padding: "8px 14px", fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary, borderBottom: `1px solid ${colors.borderLight}` }}>
-          <div>Date</div>
-          <div>Payee</div>
-          <div>Check #</div>
-          <div>Amount</div>
-          <div>Category</div>
-          <div>Receipt</div>
-          <div></div>
-        </div>
-        {expenses.map((e) => (
-          <div key={e.id} style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1.3fr 0.7fr auto", padding: "10px 14px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, alignItems: "center" }}>
-            <div style={{ fontFamily: mono }}>{formatUtcDate(e.date)}</div>
-            <div>{e.payee}</div>
-            <div style={{ fontFamily: mono }}>{e.checkNum}</div>
-            <div style={{ fontFamily: mono }}>{money(e.amount)}</div>
-            <div><span style={pill("#f0f0f3", colors.textSecondary)}>{CATEGORY_LABEL[e.category] || e.category}</span></div>
-            <div>
-              {e.receiptFile ? (
+        <DataList
+          rows={expenses}
+          emptyMessage="No expenses recorded yet."
+          columns={[
+            { key: "date", label: "Date", grid: "1fr", render: (e) => <span style={{ fontFamily: mono }}>{formatUtcDate(e.date)}</span> },
+            { key: "payee", label: "Payee", grid: "1.6fr", primary: true, render: (e) => e.payee },
+            { key: "check", label: "Check #", grid: "1fr", render: (e) => <span style={{ fontFamily: mono }}>{e.checkNum}</span> },
+            { key: "amount", label: "Amount", grid: "1fr", render: (e) => <span style={{ fontFamily: mono }}>{money(e.amount)}</span> },
+            { key: "category", label: "Category", grid: "1.3fr", render: (e) => <span style={pill("#f0f0f3", colors.textSecondary)}>{CATEGORY_LABEL[e.category] || e.category}</span> },
+            {
+              key: "receipt", label: "Receipt", grid: "0.7fr",
+              render: (e) => e.receiptFile ? (
                 <a href={e.receiptFile} download={e.receiptFileName || "receipt"} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: colors.accent, fontWeight: 600 }}>
                   {e.receiptFile.startsWith("data:image/") ? "🖼 View" : "📄 View"}
                 </a>
               ) : (
                 <span style={{ color: colors.textTertiary, fontSize: 12.5 }}>—</span>
-              )}
-            </div>
-            <div><button style={{ ...button.ghost, padding: "4px 10px", fontSize: 11.5, color: colors.danger }} onClick={() => deleteExpense(e.id)}>Delete</button></div>
-          </div>
-        ))}
-        {expenses.length === 0 && <div style={{ padding: 14, fontSize: 12.5, color: colors.textSecondary }}>No expenses recorded yet.</div>}
+              ),
+            },
+            {
+              key: "actions", label: "", grid: "auto", fullWidthOnMobile: true,
+              render: (e) => <button style={{ ...button.ghost, padding: "4px 10px", fontSize: 11.5, color: colors.danger }} onClick={() => deleteExpense(e.id)}>Delete</button>,
+            },
+          ]}
+        />
       </div>
     </div>
   );

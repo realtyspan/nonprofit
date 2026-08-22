@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
+import DataList from "../components/DataList";
+import Modal from "../components/Modal";
 
 function isOverdue(drawingDate) {
   const d = new Date(drawingDate);
@@ -165,8 +167,7 @@ function ConductDrawingModal({ gameId, drawing, onCancel, onDrawn, onError }) {
   }
 
   return (
-    <ModalShell onCancel={onCancel} width={420}>
-      <div style={{ fontSize: 16, fontWeight: 700 }}>Conduct drawing</div>
+    <Modal onCancel={onCancel} width={420} title="Conduct drawing">
       <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2, marginBottom: 16 }}>
         {drawing.name} · {formatUtcDate(drawing.drawingDate)} · {money(drawing.prizeAmount)}
       </div>
@@ -194,7 +195,7 @@ function ConductDrawingModal({ gameId, drawing, onCancel, onDrawn, onError }) {
           <button type="button" style={button.ghost} onClick={onCancel}>Cancel</button>
         </div>
       </div>
-    </ModalShell>
+    </Modal>
   );
 }
 
@@ -221,28 +222,21 @@ function WinnersTable({ winners, gameId, onChanged, onError }) {
 
   return (
     <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 0.8fr 1.3fr 0.9fr 1.3fr 1fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
-        <div>Drawing</div>
-        <div>Date</div>
-        <div>Ticket #</div>
-        <div>Buyer</div>
-        <div>Prize</div>
-        <div>Pool</div>
-        <div></div>
-      </div>
-      {winners.map((w) => (
-        <div key={w.id} style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 0.8fr 1.3fr 0.9fr 1.3fr 1fr", padding: "12px 18px", alignItems: "center", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13 }}>
-          <div style={{ fontWeight: 600 }}>{w.name}</div>
-          <div style={{ color: colors.textSecondary }}>{formatUtcDate(w.drawnAt || w.drawingDate)}</div>
-          <div style={{ color: colors.indigo, fontWeight: 700 }}>#{w.winningTicket}</div>
-          <div>{w.winningBuyer}</div>
-          <div>{money(w.prizeAmount)}</div>
-          <div style={{ color: colors.textSecondary }}>{w.eligibleCount} eligible {w.drawMode === "manual" ? "(manual)" : "(random)"}</div>
-          <div>
-            <button style={{ ...button.ghost, color: colors.danger }} disabled={busyId === w.id} onClick={() => redraw(w)}>Redraw</button>
-          </div>
-        </div>
-      ))}
+      <DataList
+        rows={winners}
+        columns={[
+          { key: "drawing", label: "Drawing", grid: "1.3fr", primary: true, render: (w) => w.name },
+          { key: "date", label: "Date", grid: "1fr", render: (w) => <span style={{ color: colors.textSecondary }}>{formatUtcDate(w.drawnAt || w.drawingDate)}</span> },
+          { key: "ticket", label: "Ticket #", grid: "0.8fr", render: (w) => <span style={{ color: colors.indigo, fontWeight: 700 }}>#{w.winningTicket}</span> },
+          { key: "buyer", label: "Buyer", grid: "1.3fr", render: (w) => w.winningBuyer },
+          { key: "prize", label: "Prize", grid: "0.9fr", render: (w) => money(w.prizeAmount) },
+          { key: "pool", label: "Pool", grid: "1.3fr", render: (w) => <span style={{ color: colors.textSecondary }}>{w.eligibleCount} eligible {w.drawMode === "manual" ? "(manual)" : "(random)"}</span> },
+          {
+            key: "actions", label: "", grid: "auto", fullWidthOnMobile: true,
+            render: (w) => <button style={{ ...button.ghost, color: colors.danger }} disabled={busyId === w.id} onClick={() => redraw(w)}>Redraw</button>,
+          },
+        ]}
+      />
     </div>
   );
 }
@@ -274,11 +268,10 @@ function DrawingFormModal({ gameId, state, onCancel, onSaved }) {
   }
 
   return (
-    <ModalShell onCancel={onCancel} width={420}>
+    <Modal onCancel={onCancel} width={420} title={mode === "edit" ? "Edit drawing" : "New drawing"}>
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>{mode === "edit" ? "Edit drawing" : "New drawing"}</div>
         <Field label="Name"><input style={inputStyle} required value={name} onChange={(e) => setName(e.target.value)} placeholder="1st Prize" /></Field>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
           <Field label="Date"><input style={inputStyle} type="date" required value={drawingDate} onChange={(e) => setDrawingDate(e.target.value)} /></Field>
           <Field label="Type">
             <select style={inputStyle} value={drawingType} onChange={(e) => setDrawingType(e.target.value)}>
@@ -295,17 +288,7 @@ function DrawingFormModal({ gameId, state, onCancel, onSaved }) {
           <button type="submit" style={button.primary} disabled={busy}>{busy ? "Saving…" : mode === "edit" ? "Save" : "Create"}</button>
         </div>
       </form>
-    </ModalShell>
-  );
-}
-
-function ModalShell({ children, onCancel, width }) {
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, overflowY: "auto", padding: 24 }} onClick={onCancel}>
-      <div style={{ width, background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }} onClick={(e) => e.stopPropagation()}>
-        {children}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
