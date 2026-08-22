@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money, mono } from "../lib/tokens";
 import { api } from "../lib/api";
+import { useIsMobile } from "../lib/viewport";
 
 function currentQuarter() {
   const now = new Date();
@@ -32,6 +33,7 @@ function roleLabel(r) {
 }
 
 export default function Reports({ permissions }) {
+  const isMobile = useIsMobile();
   const isBellJarAdmin = permissions?.moduleGrants?.["bell-jar"] === "Admin";
   const canEditInputs = !!permissions?.moduleGrants?.["bell-jar"];
   const canEditOrgProfile = permissions?.orgTier === "Owner" || isBellJarAdmin;
@@ -133,7 +135,7 @@ export default function Reports({ permissions }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px" }}>
+      <div style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "14px 20px" }}>
         <button
           style={button.ghost}
           onClick={() => { const p = shiftQuarter(year, quarter, -1); goToQuarter(p.year, p.quarter); }}
@@ -154,7 +156,7 @@ export default function Reports({ permissions }) {
         </button>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary }}>Jump to</span>
         <select value={quarter} onChange={(e) => setQuarter(Number(e.target.value))} style={{ border: `1px solid ${colors.border}`, borderRadius: 7, padding: "6px 10px", fontSize: 13 }}>
           {[1, 2, 3, 4].map((q) => <option key={q} value={q}>Q{q}</option>)}
@@ -182,12 +184,12 @@ export default function Reports({ permissions }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.3fr 1fr", gap: 18 }}>
         <div style={card}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Formula ledger</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {lines.map((l) => (
-              <div key={l.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderBottom: `1px solid ${colors.borderLight}`, paddingBottom: 8 }}>
+              <div key={l.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, borderBottom: `1px solid ${colors.borderLight}`, paddingBottom: 8 }}>
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: l.bold ? 700 : 500 }}>{l.label}</div>
                   <div style={{ fontSize: 11, fontFamily: mono, color: colors.textTertiary }}>{l.formula}</div>
@@ -212,7 +214,7 @@ export default function Reports({ permissions }) {
           <div style={card}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Documents</div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 12, borderBottom: `1px solid ${colors.borderLight}`, marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, paddingBottom: 12, borderBottom: `1px solid ${colors.borderLight}`, marginBottom: 12 }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>Schedule 1 (NYS form)</div>
                 <div style={{ fontSize: 11.5, color: colors.textSecondary }}>Real fillable form, stamped with this quarter's closed deals.</div>
@@ -221,7 +223,7 @@ export default function Reports({ permissions }) {
             </div>
             {s1Error && <div style={{ color: colors.danger, fontSize: 12.5, marginBottom: 12 }}>{s1Error}</div>}
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>GC-7Q (NYS form)</div>
                 <div style={{ fontSize: 11.5, color: colors.textSecondary }}>Real fillable form. Quarter checkbox and signatures must still be marked by hand.</div>
@@ -287,7 +289,7 @@ function CarryforwardCard({ year, quarter, report, canEdit, onSaved }) {
 
   return (
     <div style={card}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: editing ? 12 : 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: editing ? 12 : 0 }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 700 }}>Carryforward (C11 / C13)</div>
           <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>Not derivable from ledger data — entered per quarter.</div>
@@ -395,7 +397,7 @@ function OrgProfileCard({ org, canEdit, onSaved }) {
 
 function Row2({ label, value }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
       <span style={{ color: colors.textSecondary }}>{label}</span>
       <span style={{ fontFamily: mono, color: value ? colors.textPrimary : colors.textTertiary }}>{value || "—"}</span>
     </div>

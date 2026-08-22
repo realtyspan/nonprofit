@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { colors, card, button, input as inputStyle, money, mono } from "../lib/tokens";
 import { api } from "../lib/api";
+import DataList from "../components/DataList";
+import { useIsMobile } from "../lib/viewport";
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -23,6 +25,7 @@ function formatEntryDate(dateStr) {
 }
 
 export default function Worksheet({ deals, onSaved }) {
+  const isMobile = useIsMobile();
   const active = deals.filter((d) => d.status === "active");
   const [inputs, setInputs] = useState({}); // { [dealId]: { ticketsSold, cashPaid } }
   const [entryDate, setEntryDate] = useState(todayStr);
@@ -130,51 +133,63 @@ export default function Worksheet({ deals, onSaved }) {
       </div>
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: cols, padding: "12px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary, borderBottom: `1px solid ${colors.borderLight}` }}>
-          <div>Game</div>
-          <div>Tickets sold</div>
-          <div>Cash paid</div>
-          <div>Cash collected</div>
-          <div>Profit / loss</div>
-        </div>
-
-        {active.map((d) => {
-          const row = rowFor(d);
-          return (
-            <div key={d.id} style={{ display: "grid", gridTemplateColumns: cols, padding: "12px 18px", alignItems: "center", borderBottom: `1px solid ${colors.borderLight}`, fontSize: 13.5 }}>
-              <div>
-                <div style={{ fontWeight: 600 }}>{d.name}</div>
-                <div style={{ fontSize: 11.5, color: colors.textSecondary, fontFamily: mono, marginTop: 1 }}>
-                  {d.soldToDate.toLocaleString()} / {d.ticketCount.toLocaleString()} sold
-                </div>
-              </div>
-              <input
-                style={inputStyle}
-                type="number"
-                min="0"
-                placeholder="0"
-                value={inputs[d.id]?.ticketsSold ?? ""}
-                onChange={(e) => setField(d.id, "ticketsSold", e.target.value)}
-              />
-              <input
-                style={inputStyle}
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={inputs[d.id]?.cashPaid ?? ""}
-                onChange={(e) => setField(d.id, "cashPaid", e.target.value)}
-              />
-              <div style={{ fontFamily: mono }}>{money(row.cashCollected)}</div>
-              <div style={{ fontFamily: mono, fontWeight: 600, color: row.profitLoss >= 0 ? colors.success : colors.danger }}>
-                {row.profitLoss >= 0 ? "+" : ""}
-                {money(row.profitLoss)}
-              </div>
-            </div>
-          );
-        })}
-
-        {active.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No active games.</div>}
+        <DataList
+          rows={active}
+          emptyMessage="No active games."
+          columns={[
+            {
+              key: "game", label: "Game", grid: "1.6fr", primary: true,
+              render: (d) => (
+                <>
+                  <div style={{ fontWeight: 600 }}>{d.name}</div>
+                  <div style={{ fontSize: 11.5, fontWeight: 400, color: colors.textSecondary, fontFamily: mono, marginTop: 1 }}>
+                    {d.soldToDate.toLocaleString()} / {d.ticketCount.toLocaleString()} sold
+                  </div>
+                </>
+              ),
+            },
+            {
+              key: "ticketsSold", label: "Tickets sold", grid: "1fr",
+              render: (d) => (
+                <input
+                  style={{ ...inputStyle, width: 100 }}
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={inputs[d.id]?.ticketsSold ?? ""}
+                  onChange={(e) => setField(d.id, "ticketsSold", e.target.value)}
+                />
+              ),
+            },
+            {
+              key: "cashPaid", label: "Cash paid", grid: "1fr",
+              render: (d) => (
+                <input
+                  style={{ ...inputStyle, width: 100 }}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={inputs[d.id]?.cashPaid ?? ""}
+                  onChange={(e) => setField(d.id, "cashPaid", e.target.value)}
+                />
+              ),
+            },
+            { key: "cashCollected", label: "Cash collected", grid: "1fr", render: (d) => <div style={{ fontFamily: mono }}>{money(rowFor(d).cashCollected)}</div> },
+            {
+              key: "profitLoss", label: "Profit / loss", grid: "1fr",
+              render: (d) => {
+                const row = rowFor(d);
+                return (
+                  <div style={{ fontFamily: mono, fontWeight: 600, color: row.profitLoss >= 0 ? colors.success : colors.danger }}>
+                    {row.profitLoss >= 0 ? "+" : ""}
+                    {money(row.profitLoss)}
+                  </div>
+                );
+              },
+            },
+          ]}
+        />
 
         {active.length > 0 && (() => {
           const totals = active.reduce(
@@ -186,7 +201,18 @@ export default function Worksheet({ deals, onSaved }) {
             },
             { collected: 0, profit: 0 }
           );
-          return (
+          return isMobile ? (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13.5, fontWeight: 700 }}>
+              <div>Total</div>
+              <div style={{ textAlign: "right", fontFamily: mono }}>
+                <div>{money(totals.collected)}</div>
+                <div style={{ color: totals.profit >= 0 ? colors.success : colors.danger }}>
+                  {totals.profit >= 0 ? "+" : ""}
+                  {money(totals.profit)}
+                </div>
+              </div>
+            </div>
+          ) : (
             <div style={{ display: "grid", gridTemplateColumns: cols, padding: "12px 18px", alignItems: "center", fontSize: 13.5, fontWeight: 700 }}>
               <div>Total</div>
               <div />
@@ -210,50 +236,44 @@ export default function Worksheet({ deals, onSaved }) {
       </div>
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
+        <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "flex-end", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>Recent entries</div>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "flex-end", flexDirection: isMobile ? "column" : "row", gap: 10, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
             <Field label="Game">
-              <select style={{ ...inputStyle, width: 170 }} value={historyGameId} onChange={(e) => setHistoryGameId(e.target.value)}>
+              <select style={{ ...inputStyle, width: isMobile ? "100%" : 170 }} value={historyGameId} onChange={(e) => setHistoryGameId(e.target.value)}>
                 <option value="">All games</option>
                 {deals.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </Field>
             <Field label="From">
-              <input style={{ ...inputStyle, width: 145 }} type="date" value={historyFrom} max={historyTo} onChange={(e) => setHistoryFrom(e.target.value)} />
+              <input style={{ ...inputStyle, width: isMobile ? "100%" : 145 }} type="date" value={historyFrom} max={historyTo} onChange={(e) => setHistoryFrom(e.target.value)} />
             </Field>
             <Field label="To">
-              <input style={{ ...inputStyle, width: 145 }} type="date" value={historyTo} min={historyFrom} max={todayStr()} onChange={(e) => setHistoryTo(e.target.value)} />
+              <input style={{ ...inputStyle, width: isMobile ? "100%" : 145 }} type="date" value={historyTo} min={historyFrom} max={todayStr()} onChange={(e) => setHistoryTo(e.target.value)} />
             </Field>
             <button style={button.ghost} onClick={resetHistoryFilters}>Reset</button>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1.2fr 1fr 1fr 1fr 1fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
-          <div>Date &amp; time</div>
-          <div>Game</div>
-          <div>Tickets sold</div>
-          <div>Cash paid</div>
-          <div>Cash collected</div>
-          <div>Profit / loss</div>
-        </div>
-        {filteredHistory.map((h) => (
-          <div key={h.id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1.2fr 1fr 1fr 1fr 1fr", padding: "10px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, alignItems: "center" }}>
-            <div style={{ fontFamily: mono, fontSize: 12 }}>{formatEntryDate(h.date)}</div>
-            <div style={{ fontWeight: 600 }}>{h.dealName}</div>
-            <div style={{ fontFamily: mono }}>{h.ticketsSold}</div>
-            <div style={{ fontFamily: mono }}>{money(h.cashPaid)}</div>
-            <div style={{ fontFamily: mono }}>{money(h.cashCollected)}</div>
-            <div style={{ fontFamily: mono, fontWeight: 600, color: h.profitLoss >= 0 ? colors.success : colors.danger }}>
-              {h.profitLoss >= 0 ? "+" : ""}
-              {money(h.profitLoss)}
-            </div>
-          </div>
-        ))}
-        {filteredHistory.length === 0 && (
-          <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>
-            {history.length === 0 ? "No entries in this date range." : "No entries for this game in this date range."}
-          </div>
-        )}
+        <DataList
+          rows={filteredHistory}
+          emptyMessage={history.length === 0 ? "No entries in this date range." : "No entries for this game in this date range."}
+          columns={[
+            { key: "date", label: "Date & time", grid: "1.4fr", render: (h) => <div style={{ fontFamily: mono, fontSize: 12 }}>{formatEntryDate(h.date)}</div> },
+            { key: "game", label: "Game", grid: "1.2fr", primary: true, render: (h) => h.dealName },
+            { key: "ticketsSold", label: "Tickets sold", grid: "1fr", render: (h) => <div style={{ fontFamily: mono }}>{h.ticketsSold}</div> },
+            { key: "cashPaid", label: "Cash paid", grid: "1fr", render: (h) => <div style={{ fontFamily: mono }}>{money(h.cashPaid)}</div> },
+            { key: "cashCollected", label: "Cash collected", grid: "1fr", render: (h) => <div style={{ fontFamily: mono }}>{money(h.cashCollected)}</div> },
+            {
+              key: "profitLoss", label: "Profit / loss", grid: "1fr",
+              render: (h) => (
+                <div style={{ fontFamily: mono, fontWeight: 600, color: h.profitLoss >= 0 ? colors.success : colors.danger }}>
+                  {h.profitLoss >= 0 ? "+" : ""}
+                  {money(h.profitLoss)}
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
     </div>
   );

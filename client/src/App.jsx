@@ -236,7 +236,7 @@ function Shell() {
             </div>
           )}
 
-          <div style={{ flex: 1, padding: isMobile ? "16px 16px 40px" : "28px 32px 60px", overflow: "auto" }}>
+          <div style={{ flex: 1, minWidth: 0, padding: isMobile ? "16px 16px 40px" : "28px 32px 60px", overflowY: "auto", overflowX: "hidden" }}>
             {activeModuleKey === "bell-jar" && view === "dashboard" && <Dashboard deals={deals} />}
             {activeModuleKey === "bell-jar" && view === "worksheet" && <Worksheet deals={deals} onSaved={refreshDeals} />}
             {activeModuleKey === "bell-jar" && view === "deals" && <Deals deals={deals} onChanged={refreshDeals} permissions={permissions} />}
