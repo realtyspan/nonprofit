@@ -8,7 +8,7 @@ function resetPasswordHtml({ resetUrl, orgName }) {
     <tr><td align="center">
       <table role="presentation" width="480" cellspacing="0" cellpadding="0" border="0" style="max-width:480px;background:#ffffff;border-radius:8px;border:1px solid #E1DFDD;">
         <tr><td style="padding:28px 32px 8px 32px;">
-          <div style="font-size:15px;font-weight:700;">${orgName} — Bell Jar Manager</div>
+          <div style="font-size:15px;font-weight:700;">${orgName} — Charity Pulse</div>
         </td></tr>
         <tr><td style="padding:12px 32px 4px 32px;">
           <h1 style="margin:0 0 10px 0;font-size:18px;">Reset your password</h1>

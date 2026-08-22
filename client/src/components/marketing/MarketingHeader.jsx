@@ -19,8 +19,8 @@ export default function MarketingHeader({ activeSlug, onGetStarted, onLogin }) {
     <header style={{ borderBottom: `1px solid ${colors.border}`, background: "#fff", position: "sticky", top: 0, zIndex: 10 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 32px", flexWrap: "wrap", gap: 14 }}>
         <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
-          <img src={logo} alt="Bell Jar Manager" style={{ width: 32, height: 32, objectFit: "contain" }} />
-          <span style={{ fontWeight: 700, fontSize: 15 }}>Bell Jar Manager</span>
+          <img src={logo} alt="Charity Pulse" style={{ width: 32, height: 32, objectFit: "contain" }} />
+          <span style={{ fontWeight: 700, fontSize: 15 }}>Charity Pulse</span>
         </a>
 
         <nav style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>

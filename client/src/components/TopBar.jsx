@@ -11,7 +11,7 @@ export default function TopBar({ modules, activeModuleKey, onSwitchModule, modul
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", borderBottom: `1px solid ${colors.border}`, background: "#fff" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <img src={logo} alt="Bell Jar Manager" style={{ width: 26, height: 26, objectFit: "contain" }} />
+          <img src={logo} alt="Charity Pulse" style={{ width: 26, height: 26, objectFit: "contain" }} />
           <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
             <div style={{ fontWeight: 700, fontSize: 12.5, color: colors.textPrimary }}>{user?.orgName || "Your Lodge"}</div>
           </div>

@@ -5,7 +5,7 @@
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const BREVO_SENDER = {
-  name: process.env.BREVO_SENDER_NAME || "Bell Jar Manager",
+  name: process.env.BREVO_SENDER_NAME || "Charity Pulse",
   email: process.env.BREVO_SENDER_EMAIL || "no-reply@example.com",
 };
 

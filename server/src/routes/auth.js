@@ -195,7 +195,7 @@ router.post("/forgot-password", async (req, res) => {
       await sendEmail({
         to: user.email,
         toName: user.name,
-        subject: "Reset your Bell Jar Manager password",
+        subject: "Reset your Charity Pulse password",
         html: resetPasswordHtml({ resetUrl, orgName: user.org.name }),
       });
     } catch (err) {

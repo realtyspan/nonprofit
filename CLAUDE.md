@@ -1,4 +1,4 @@
-# Bell Jar Manager (Elks Lodge #2022)
+# Charity Pulse (Elks Lodge #2022)
 
 Compliance and operations app for Red Hook Rhinebeck Elks Lodge #2022 — built to replace manual tracking for NYS "Games of Chance" (Bell Jar) compliance, facility rentals, a shared calendar, and the annual "400 Club" raffle.
 

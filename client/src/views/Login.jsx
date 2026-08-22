@@ -49,8 +49,8 @@ export default function Login({ initialMode = "login", onBack }) {
           style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, cursor: onBack ? "pointer" : "default" }}
           onClick={onBack}
         >
-          <img src={logo} alt="Bell Jar Manager" style={{ width: 40, height: 40, objectFit: "contain" }} />
-          <div style={{ fontWeight: 700, fontSize: 16, color: colors.textPrimary }}>Bell Jar Manager</div>
+          <img src={logo} alt="Charity Pulse" style={{ width: 40, height: 40, objectFit: "contain" }} />
+          <div style={{ fontWeight: 700, fontSize: 16, color: colors.textPrimary }}>Charity Pulse</div>
         </div>
 
         {mode === "signup" && (
