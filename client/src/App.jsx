@@ -6,6 +6,8 @@ import { colors } from "./lib/tokens";
 import { MODULES, filterModulesForUser, filterNavItemsForUser } from "./lib/modules";
 import TopBar from "./components/TopBar";
 import Sidebar from "./components/Sidebar";
+import MobileNavDrawer from "./components/MobileNavDrawer";
+import { useIsMobile } from "./lib/viewport";
 import Hub from "./views/marketing/Hub";
 import ModulePage from "./views/marketing/ModulePage";
 import { MARKETING_MODULES } from "./lib/marketingContent";
@@ -69,6 +71,8 @@ function Shell() {
   const [raffleGames, setRaffleGames] = useState([]);
   const [selectedRaffleGameId, setSelectedRaffleGameId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const refreshDeals = useCallback(() => {
     api.listDeals().then(setDeals).catch(() => {});
@@ -187,23 +191,40 @@ function Shell() {
         moduleBadges={moduleBadges}
         onOpenProfile={() => setView("profile")}
         onOpenTeam={canSeeTeam ? () => setView("team") : null}
+        onOpenMenu={() => setDrawerOpen(true)}
+      />
+      <MobileNavDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        modules={visibleModules}
+        activeModuleKey={activeModuleKey}
+        onSwitchModule={switchModule}
+        moduleBadges={moduleBadges}
+        activeModule={activeModule}
+        view={view}
+        setView={setView}
+        navBadges={navBadges}
+        permissions={permissions}
+        canSeeTeam={canSeeTeam}
+        onOpenTeam={() => setView("team")}
+        onOpenProfile={() => setView("profile")}
       />
       <div style={{ display: "flex" }}>
-        {activeModule && <Sidebar module={activeModule} view={view} setView={setView} badges={navBadges} permissions={permissions} />}
+        {!isMobile && activeModule && <Sidebar module={activeModule} view={view} setView={setView} badges={navBadges} permissions={permissions} />}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "18px 32px", borderBottom: `1px solid ${colors.border}`, background: "#fff" }}>
+          <div style={{ padding: isMobile ? "14px 16px" : "18px 32px", borderBottom: `1px solid ${colors.border}`, background: "#fff" }}>
             <div style={{ fontSize: 19, fontWeight: 700, color: colors.textPrimary }}>{title}</div>
             <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>{subtitle}</div>
           </div>
 
           {activeModuleKey === "raffle" && (
-            <div style={{ padding: "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#fafafa", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ padding: isMobile ? "10px 16px" : "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#fafafa", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Raffle</span>
               {raffleGames.length > 0 ? (
                 <select
                   value={selectedRaffleGameId || ""}
                   onChange={(e) => setSelectedRaffleGameId(e.target.value)}
-                  style={{ border: `1px solid ${colors.border}`, borderRadius: 7, padding: "6px 10px", fontSize: 13, minWidth: 220 }}
+                  style={{ border: `1px solid ${colors.border}`, borderRadius: 7, padding: "6px 10px", fontSize: 13, minWidth: isMobile ? 0 : 220, flex: isMobile ? 1 : undefined }}
                 >
                   {raffleGames.map((g) => (
                     <option key={g.id} value={g.id}>{g.name} ({g.status})</option>
@@ -215,7 +236,7 @@ function Shell() {
             </div>
           )}
 
-          <div style={{ flex: 1, padding: "28px 32px 60px", overflow: "auto" }}>
+          <div style={{ flex: 1, padding: isMobile ? "16px 16px 40px" : "28px 32px 60px", overflow: "auto" }}>
             {activeModuleKey === "bell-jar" && view === "dashboard" && <Dashboard deals={deals} />}
             {activeModuleKey === "bell-jar" && view === "worksheet" && <Worksheet deals={deals} onSaved={refreshDeals} />}
             {activeModuleKey === "bell-jar" && view === "deals" && <Deals deals={deals} onChanged={refreshDeals} permissions={permissions} />}

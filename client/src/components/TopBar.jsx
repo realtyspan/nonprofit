@@ -1,22 +1,38 @@
 import React from "react";
 import { colors } from "../lib/tokens";
+import { icons } from "../lib/icons";
 import { useAuth } from "../lib/AuthContext";
+import { useIsMobile } from "../lib/viewport";
 import logo from "../assets/logo.png";
 
-export default function TopBar({ modules, activeModuleKey, onSwitchModule, moduleBadges, onOpenProfile, onOpenTeam }) {
+export default function TopBar({ modules, activeModuleKey, onSwitchModule, moduleBadges, onOpenProfile, onOpenTeam, onOpenMenu }) {
   const { session, logout } = useAuth();
   const user = session?.user;
+  const isMobile = useIsMobile();
 
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", borderBottom: `1px solid ${colors.border}`, background: "#fff" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+        {isMobile && (
+          <button
+            type="button"
+            onClick={onOpenMenu}
+            aria-label="Open menu"
+            style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: colors.textPrimary, display: "flex" }}
+          >
+            <span dangerouslySetInnerHTML={{ __html: icons.menu }} style={{ width: 24, height: 24, display: "flex" }} />
+          </button>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
           <img src={logo} alt="Charity Pulse" style={{ width: 26, height: 26, objectFit: "contain" }} />
-          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
-            <div style={{ fontWeight: 700, fontSize: 12.5, color: colors.textPrimary }}>{user?.orgName || "Your Lodge"}</div>
-          </div>
+          {!isMobile && (
+            <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
+              <div style={{ fontWeight: 700, fontSize: 12.5, color: colors.textPrimary }}>{user?.orgName || "Your Lodge"}</div>
+            </div>
+          )}
         </div>
 
+        {!isMobile && (
         <div style={{ display: "flex", gap: 4, background: colors.bg, borderRadius: 10, padding: 3 }}>
           {modules.map((m) => {
             const active = m.key === activeModuleKey;
@@ -41,10 +57,11 @@ export default function TopBar({ modules, activeModuleKey, onSwitchModule, modul
             );
           })}
         </div>
+        )}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {onOpenTeam && (
+        {!isMobile && onOpenTeam && (
           <button
             onClick={onOpenTeam}
             style={{ background: "transparent", border: "none", color: colors.textSecondary, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
@@ -59,9 +76,11 @@ export default function TopBar({ modules, activeModuleKey, onSwitchModule, modul
         >
           {initials(user?.name)}
         </button>
-        <button onClick={logout} style={{ background: "transparent", border: "none", color: colors.textSecondary, fontSize: 12, cursor: "pointer" }}>
-          Log out
-        </button>
+        {!isMobile && (
+          <button onClick={logout} style={{ background: "transparent", border: "none", color: colors.textSecondary, fontSize: 12, cursor: "pointer" }}>
+            Log out
+          </button>
+        )}
       </div>
     </div>
   );

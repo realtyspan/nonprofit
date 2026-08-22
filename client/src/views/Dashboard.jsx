@@ -33,7 +33,7 @@ export default function Dashboard({ deals }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14 }}>
         {stats.map((s) => (
           <div key={s.label} style={card}>
             <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>{s.label}</div>
@@ -45,7 +45,7 @@ export default function Dashboard({ deals }) {
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 }}>
         <div style={card}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Active deals &amp; prize threshold</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

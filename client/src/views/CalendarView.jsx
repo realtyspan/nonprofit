@@ -7,6 +7,7 @@ import CalendarToolbar from "../components/CalendarToolbar";
 import { EVENT_COLORS } from "../lib/calendarColors";
 import PublicLinkBox from "../components/PublicLinkBox";
 import DateTimeField from "../components/DateTimeField";
+import Modal from "../components/Modal";
 import { monthLabel, weekLabel } from "../lib/calendarLabels";
 
 const WEEKDAYS = [
@@ -176,7 +177,7 @@ function EventDetailModal({ event, rentalSpaces, isCalendarAdmin, currentUserId,
   }
 
   return (
-    <ModalShell onCancel={onClose} width={380}>
+    <Modal onCancel={onClose} width={380}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
         <div style={{ fontSize: 16, fontWeight: 700 }}>{event.title}</div>
         {isPrivate && <span style={pill("#f3e8ff", EVENT_COLORS.private.bg)}>Private</span>}
@@ -244,7 +245,7 @@ function EventDetailModal({ event, rentalSpaces, isCalendarAdmin, currentUserId,
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
         <button style={button.ghost} onClick={onClose}>Close</button>
       </div>
-    </ModalShell>
+    </Modal>
   );
 }
 
@@ -369,7 +370,7 @@ function EventFormModal({ state, rentalSpaces, canManageRentals, isCalendarAdmin
   if (loadingSeries) return null;
 
   return (
-    <ModalShell onCancel={onCancel} width={460}>
+    <Modal onCancel={onCancel} width={460}>
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ fontSize: 16, fontWeight: 700 }}>
           {mode === "new" ? "Add event" : mode === "editSeries" ? "Edit entire series" : "Edit event"}
@@ -380,7 +381,7 @@ function EventFormModal({ state, rentalSpaces, canManageRentals, isCalendarAdmin
           <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical", fontFamily: "inherit" }} value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
           <Field label="Location (optional)"><input style={inputStyle} value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Leave blank if at the lodge" /></Field>
           <Field label="Link (optional)"><input style={inputStyle} type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" /></Field>
         </div>
@@ -390,7 +391,7 @@ function EventFormModal({ state, rentalSpaces, canManageRentals, isCalendarAdmin
           All day
         </label>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
           <DateTimeField label="Start" value={startAt} onChange={setStartAt} />
           <DateTimeField label="End" value={endAt} onChange={setEndAt} />
         </div>
@@ -445,7 +446,7 @@ function EventFormModal({ state, rentalSpaces, canManageRentals, isCalendarAdmin
 
         {(repeats || mode === "editSeries") && (
           <div style={{ border: `1px solid ${colors.borderLight}`, borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
               <Field label="Frequency">
                 <select style={inputStyle} value={freq} onChange={(e) => setFreq(e.target.value)}>
                   <option value="daily">Daily</option>
@@ -493,7 +494,7 @@ function EventFormModal({ state, rentalSpaces, canManageRentals, isCalendarAdmin
           <button type="submit" style={button.primary} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
         </div>
       </form>
-    </ModalShell>
+    </Modal>
   );
 }
 
@@ -537,16 +538,6 @@ function MonthlyRecurrenceFields({ startAt, monthlyMode, setMonthlyMode, monthly
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function ModalShell({ children, onCancel, width }) {
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, overflowY: "auto", padding: 24 }} onClick={onCancel}>
-      <div style={{ width, background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }} onClick={(e) => e.stopPropagation()}>
-        {children}
-      </div>
     </div>
   );
 }

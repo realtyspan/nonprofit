@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { colors, card, button, money } from "../../lib/tokens";
 import { api, downloadTextFile } from "../../lib/api";
+import DataList from "../../components/DataList";
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -10,8 +11,6 @@ function readFileAsDataUrl(file) {
     reader.readAsDataURL(file);
   });
 }
-
-const RUN_COLUMNS = "1.2fr 1fr 1fr 1fr auto auto auto";
 
 export default function FrsReport() {
   const [fileName, setFileName] = useState("");
@@ -109,41 +108,29 @@ export default function FrsReport() {
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "12px 18px", borderBottom: `1px solid ${colors.borderLight}`, fontSize: 15, fontWeight: 700 }}>Saved reports</div>
-        <div style={{ display: "grid", gridTemplateColumns: RUN_COLUMNS, padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary, borderBottom: `1px solid ${colors.borderLight}` }}>
-          <div>Month</div>
-          <div>Transactions</div>
-          <div>Debits / Credits</div>
-          <div>Generated</div>
-          <div>Source</div>
-          <div>CSV</div>
-          <div></div>
-        </div>
-        {runs.map((r) => (
-          <div key={r.id} style={{ display: "grid", gridTemplateColumns: RUN_COLUMNS, padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, alignItems: "center" }}>
-            <div style={{ fontWeight: 600 }}>{r.monthLabel}</div>
-            <div>{r.transactionCount}</div>
-            <div>{money(r.totalDebits)} / {money(r.totalCredits)}</div>
-            <div style={{ fontSize: 12, color: colors.textSecondary }}>
-              {r.generatedByName} · {new Date(r.generatedAt).toLocaleDateString()}
-            </div>
-            <div>
-              <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5 }} onClick={() => api.downloadFrsReportSource(r.id, r.sourceFileName)}>
-                📄 Source
-              </button>
-            </div>
-            <div>
-              <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5 }} onClick={() => api.downloadFrsReportCsv(r.id, r.csvFileName)}>
-                ⬇ CSV
-              </button>
-            </div>
-            <div>
-              <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5, color: colors.danger }} onClick={() => deleteRun(r)}>
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
-        {runs.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No reports saved yet.</div>}
+        <DataList
+          rows={runs}
+          emptyMessage="No reports saved yet."
+          columns={[
+            { key: "month", label: "Month", grid: "1.2fr", primary: true, render: (r) => r.monthLabel },
+            { key: "transactions", label: "Transactions", grid: "1fr", render: (r) => r.transactionCount },
+            { key: "amounts", label: "Debits / Credits", grid: "1fr", render: (r) => `${money(r.totalDebits)} / ${money(r.totalCredits)}` },
+            {
+              key: "generated", label: "Generated", grid: "1fr",
+              render: (r) => <span style={{ fontSize: 12, color: colors.textSecondary }}>{r.generatedByName} · {new Date(r.generatedAt).toLocaleDateString()}</span>,
+            },
+            {
+              key: "actions", label: "", grid: "1.6fr", fullWidthOnMobile: true,
+              render: (r) => (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5 }} onClick={() => api.downloadFrsReportSource(r.id, r.sourceFileName)}>📄 Source</button>
+                  <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5 }} onClick={() => api.downloadFrsReportCsv(r.id, r.csvFileName)}>⬇ CSV</button>
+                  <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5, color: colors.danger }} onClick={() => deleteRun(r)}>Delete</button>
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
     </div>
   );

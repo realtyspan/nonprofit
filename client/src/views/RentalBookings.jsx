@@ -4,11 +4,15 @@ import { api } from "../lib/api";
 import { computeRentalQuote } from "../lib/rentalPricing";
 import SignaturePad from "../components/SignaturePad";
 import ReceiptField from "../components/ReceiptField";
+import DataList from "../components/DataList";
+import Modal from "../components/Modal";
+import { useIsMobile } from "../lib/viewport";
 import { formatPhone, stripPhone } from "../lib/phone";
 
 const HISTORY_STATUSES = ["completed", "declined", "cancelled"];
 
 export default function RentalBookings({ spaces, onChanged }) {
+  const isMobile = useIsMobile();
   const [bookings, setBookings] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [formError, setFormError] = useState("");
@@ -73,80 +77,85 @@ export default function RentalBookings({ spaces, onChanged }) {
           />
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1.2fr 1fr 1fr auto", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
-          <div>Renter</div>
-          <div>Space</div>
-          <div>Start</div>
-          <div>Guests</div>
-          <div></div>
-        </div>
-        {inquiries.map((b) => (
-          <div key={b.id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1.2fr 1fr 1fr auto", padding: "12px 18px", alignItems: "center", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13.5 }}>
-            <div>
-              <div style={{ fontWeight: 600 }}>{b.renterName}</div>
-              <div style={{ fontSize: 11.5, color: colors.textTertiary }}>{b.renterEmail}</div>
-            </div>
-            <div>{b.space?.name}</div>
-            <div>{new Date(b.startAt).toLocaleString()}</div>
-            <div>{b.expectedGuests ?? "—"}</div>
-            <button style={button.primary} onClick={() => setReviewing(b)}>Review</button>
-          </div>
-        ))}
-        {inquiries.length === 0 && !showForm && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No pending inquiries.</div>}
+        <DataList
+          rows={inquiries}
+          emptyMessage={showForm ? "" : "No pending inquiries."}
+          columns={[
+            {
+              key: "renter", label: "Renter", grid: "1.4fr", primary: true,
+              render: (b) => (
+                <>
+                  <div style={{ fontWeight: 600 }}>{b.renterName}</div>
+                  <div style={{ fontSize: 11.5, color: colors.textTertiary }}>{b.renterEmail}</div>
+                </>
+              ),
+            },
+            { key: "space", label: "Space", grid: "1.2fr", render: (b) => b.space?.name },
+            { key: "start", label: "Start", grid: "1fr", render: (b) => new Date(b.startAt).toLocaleString() },
+            { key: "guests", label: "Guests", grid: "1fr", render: (b) => b.expectedGuests ?? "—" },
+            {
+              key: "action", label: "", grid: "auto", fullWidthOnMobile: true,
+              render: (b) => <button style={button.primary} onClick={() => setReviewing(b)}>Review</button>,
+            },
+          ]}
+        />
       </div>
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "14px 18px", fontSize: 15, fontWeight: 700, borderBottom: `1px solid ${colors.borderLight}` }}>Confirmed bookings</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 0.9fr 0.9fr 1.6fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
-          <div>Renter</div>
-          <div>Space</div>
-          <div>Start</div>
-          <div>Total</div>
-          <div>Deposit / Balance</div>
-          <div></div>
-        </div>
-        {confirmed.map((b) => (
-          <div key={b.id} style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 0.9fr 0.9fr 1.6fr", padding: "12px 18px", alignItems: "center", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13 }}>
-            <div style={{ fontWeight: 600 }}>{b.renterName}</div>
-            <div>{b.space?.name}</div>
-            <div>{new Date(b.startAt).toLocaleDateString()}</div>
-            <div>{money(b.quotedTotal)}</div>
-            <div>
-              <div style={{ fontSize: 11.5, color: colors.textTertiary, marginBottom: 3 }}>{money(b.totalPaid || 0)} / {money(b.quotedTotal || 0)}</div>
-              {b.balanceDue > 0 ? (
-                <span style={pill(colors.warningBg, colors.warning)}>Balance due: {money(b.balanceDue)}</span>
-              ) : (
-                <span style={pill(colors.successBg, colors.success)}>Paid in full{b.balanceDue < 0 ? ` (${money(-b.balanceDue)} credit)` : ""}</span>
-              )}
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <button style={button.ghost} onClick={() => setPaying(b)}>Payment</button>
-              <button style={button.ghost} onClick={() => setSigning(b)}>{b.contractSignatureImage ? "Signed" : "Sign"}</button>
-              <button style={button.ghost} onClick={() => setUploadingContract(b)}>{b.uploadedContractFile ? "Contract uploaded" : "Upload contract"}</button>
-              <button style={button.ghost} onClick={() => api.downloadRentalContractPdf(b.id, b.renterName)}>Contract</button>
-              <button style={button.ghost} onClick={() => act(() => api.completeRentalBooking(b.id))}>Complete</button>
-              <button style={button.ghost} onClick={() => { if (confirm("Cancel this booking?")) act(() => api.cancelRentalBooking(b.id)); }}>Cancel</button>
-            </div>
-          </div>
-        ))}
-        {confirmed.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No confirmed bookings.</div>}
+        <DataList
+          rows={confirmed}
+          emptyMessage="No confirmed bookings."
+          columns={[
+            { key: "renter", label: "Renter", grid: "1.3fr", primary: true, render: (b) => b.renterName },
+            { key: "space", label: "Space", grid: "1fr", render: (b) => b.space?.name },
+            { key: "start", label: "Start", grid: "1fr", render: (b) => new Date(b.startAt).toLocaleDateString() },
+            { key: "total", label: "Total", grid: "0.9fr", render: (b) => money(b.quotedTotal) },
+            {
+              key: "balance", label: "Deposit / Balance", grid: "0.9fr",
+              render: (b) => (
+                <>
+                  <div style={{ fontSize: 11.5, color: colors.textTertiary, marginBottom: 3 }}>{money(b.totalPaid || 0)} / {money(b.quotedTotal || 0)}</div>
+                  {b.balanceDue > 0 ? (
+                    <span style={pill(colors.warningBg, colors.warning)}>Balance due: {money(b.balanceDue)}</span>
+                  ) : (
+                    <span style={pill(colors.successBg, colors.success)}>Paid in full{b.balanceDue < 0 ? ` (${money(-b.balanceDue)} credit)` : ""}</span>
+                  )}
+                </>
+              ),
+            },
+            {
+              key: "actions", label: "", grid: "1.6fr", fullWidthOnMobile: true,
+              render: (b) => (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: isMobile ? "flex-start" : "flex-end" }}>
+                  <button style={button.ghost} onClick={() => setPaying(b)}>Payment</button>
+                  <button style={button.ghost} onClick={() => setSigning(b)}>{b.contractSignatureImage ? "Signed" : "Sign"}</button>
+                  <button style={button.ghost} onClick={() => setUploadingContract(b)}>{b.uploadedContractFile ? "Contract uploaded" : "Upload contract"}</button>
+                  <button style={button.ghost} onClick={() => api.downloadRentalContractPdf(b.id, b.renterName)}>Contract</button>
+                  <button style={button.ghost} onClick={() => act(() => api.completeRentalBooking(b.id))}>Complete</button>
+                  <button style={button.ghost} onClick={() => { if (confirm("Cancel this booking?")) act(() => api.cancelRentalBooking(b.id)); }}>Cancel</button>
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "14px 18px", fontSize: 15, fontWeight: 700, borderBottom: `1px solid ${colors.borderLight}` }}>History</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
-          <input style={{ ...inputStyle, width: 160 }} placeholder="Search by name" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} />
-          <select style={{ ...inputStyle, width: 150 }} value={historyStatusFilter} onChange={(e) => setHistoryStatusFilter(e.target.value)}>
+        <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "center", flexDirection: isMobile ? "column" : "row", gap: 10, flexWrap: "wrap", padding: "12px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
+          <input style={{ ...inputStyle, width: isMobile ? "100%" : 160 }} placeholder="Search by name" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} />
+          <select style={{ ...inputStyle, width: isMobile ? "100%" : 150 }} value={historyStatusFilter} onChange={(e) => setHistoryStatusFilter(e.target.value)}>
             <option value="all">All statuses</option>
             <option value="completed">Completed</option>
             <option value="declined">Declined</option>
             <option value="cancelled">Cancelled</option>
           </select>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: colors.textSecondary }}>
-            From <input style={{ ...inputStyle, width: 140 }} type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} />
+            From <input style={{ ...inputStyle, width: isMobile ? "100%" : 140 }} type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} />
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: colors.textSecondary }}>
-            To <input style={{ ...inputStyle, width: 140 }} type="date" value={historyTo} onChange={(e) => setHistoryTo(e.target.value)} />
+            To <input style={{ ...inputStyle, width: isMobile ? "100%" : 140 }} type="date" value={historyTo} onChange={(e) => setHistoryTo(e.target.value)} />
           </label>
           {(historySearch || historyStatusFilter !== "all" || historyFrom || historyTo) && (
             <button
@@ -157,31 +166,19 @@ export default function RentalBookings({ spaces, onChanged }) {
               Clear filters
             </button>
           )}
-          <div style={{ marginLeft: "auto", fontSize: 12, color: colors.textSecondary }}>{filteredHistory.length} of {history.length}</div>
+          <div style={{ marginLeft: isMobile ? 0 : "auto", fontSize: 12, color: colors.textSecondary }}>{filteredHistory.length} of {history.length}</div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
-          <div>Renter</div>
-          <div>Space</div>
-          <div>Date</div>
-          <div>Status</div>
-        </div>
-        {filteredHistory.map((b) => (
-          <div
-            key={b.id}
-            onClick={() => setViewingHistory(b)}
-            style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, cursor: "pointer" }}
-          >
-            <div>{b.renterName}</div>
-            <div>{b.space?.name}</div>
-            <div>{new Date(b.startAt).toLocaleDateString()}</div>
-            <div style={{ textTransform: "capitalize", color: colors.textSecondary }}>{b.status}</div>
-          </div>
-        ))}
-        {filteredHistory.length === 0 && (
-          <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>
-            {history.length === 0 ? "Nothing here yet." : "No history records match these filters."}
-          </div>
-        )}
+        <DataList
+          rows={filteredHistory}
+          onRowClick={(b) => setViewingHistory(b)}
+          emptyMessage={history.length === 0 ? "Nothing here yet." : "No history records match these filters."}
+          columns={[
+            { key: "renter", label: "Renter", grid: "1.3fr", primary: true, render: (b) => b.renterName },
+            { key: "space", label: "Space", grid: "1fr", render: (b) => b.space?.name },
+            { key: "date", label: "Date", grid: "1fr", render: (b) => new Date(b.startAt).toLocaleDateString() },
+            { key: "status", label: "Status", grid: "1fr", render: (b) => <span style={{ textTransform: "capitalize", color: colors.textSecondary }}>{b.status}</span> },
+          ]}
+        />
       </div>
 
       {reviewing && (
@@ -246,8 +243,7 @@ function ReviewModal({ booking, onCancel, onDone }) {
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-      <div style={{ width: 460, background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)" }}>
+    <Modal onCancel={onCancel} width={460}>
         <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{booking.renterName}</div>
         <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 14 }}>
           {booking.space?.name} · {new Date(booking.startAt).toLocaleString()} – {new Date(booking.endAt).toLocaleTimeString()}
@@ -303,8 +299,7 @@ function ReviewModal({ booking, onCancel, onDone }) {
             <button style={button.primary} onClick={confirm} disabled={busy}>Approve & confirm</button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -367,11 +362,11 @@ function PaymentModal({ booking, onCancel, onSaved }) {
     }
   }
 
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}>
-      <div style={{ width: 460, maxWidth: "100%", background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)", display: "flex", flexDirection: "column", gap: 14, maxHeight: "88vh", overflow: "auto" }}>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>Payment — {booking.renterName}</div>
+  const isMobile = useIsMobile();
 
+  return (
+    <Modal onCancel={onCancel} width={460} title={`Payment — ${booking.renterName}`}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ background: "#fafafa", borderRadius: 10, padding: 12, display: "flex", justifyContent: "space-between", fontSize: 13 }}>
           <div><div style={{ color: colors.textSecondary, fontSize: 11 }}>Total</div>{money(booking.quotedTotal || 0)}</div>
           <div><div style={{ color: colors.textSecondary, fontSize: 11 }}>Paid so far</div>{money(totalPaid)}</div>
@@ -401,7 +396,7 @@ function PaymentModal({ booking, onCancel, onSaved }) {
         </div>
 
         <form onSubmit={addEntry} style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
             <input style={inputStyle} type="number" step="0.01" min="0.01" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
             <select style={inputStyle} value={type} onChange={(e) => setType(e.target.value)}>
               <option value="payment">Payment</option>
@@ -409,7 +404,7 @@ function PaymentModal({ booking, onCancel, onSaved }) {
             </select>
           </div>
           {type === "payment" ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
               <select style={inputStyle} value={method} onChange={(e) => setMethod(e.target.value)}>
                 <option value="cash">Cash</option>
                 <option value="check">Check</option>
@@ -426,8 +421,8 @@ function PaymentModal({ booking, onCancel, onSaved }) {
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button style={button.ghost} onClick={onCancel}>Close</button>
         </div>
-      </div>
-    </div>
+        </div>
+    </Modal>
   );
 }
 
@@ -451,9 +446,8 @@ function SignModal({ booking, onCancel, onSaved }) {
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}>
-      <div style={{ width: 420, maxWidth: "100%", background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)", display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>Sign contract</div>
+    <Modal onCancel={onCancel} width={420} title="Sign contract">
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ fontSize: 12.5, color: colors.textSecondary }}>Hand your device to the renter to sign in the box below. Timestamped and recorded when saved.</div>
 
         {booking.contractSignatureImage && (
@@ -478,7 +472,7 @@ function SignModal({ booking, onCancel, onSaved }) {
           <button style={button.primary} onClick={save} disabled={busy || !name.trim() || !signatureImage}>{busy ? "Saving…" : "Save signature"}</button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -507,9 +501,8 @@ function UploadContractModal({ booking, onCancel, onSaved }) {
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}>
-      <div style={{ width: 420, maxWidth: "100%", background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)", display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>Upload signed contract</div>
+    <Modal onCancel={onCancel} width={420} title="Upload signed contract">
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ fontSize: 12.5, color: colors.textSecondary }}>For a renter who signed a physical paper contract instead — attach a photo or scan as the permanent record.</div>
 
         {booking.uploadedContractFile && (
@@ -532,7 +525,7 @@ function UploadContractModal({ booking, onCancel, onSaved }) {
           <button style={button.primary} onClick={save} disabled={busy || !contractFile}>{busy ? "Saving…" : "Save"}</button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -586,8 +579,8 @@ function HistoryDetailModal({ booking, onCancel, onChanged }) {
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(24,24,27,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}>
-      <div style={{ width: 480, maxWidth: "100%", background: "#fff", borderRadius: 14, padding: 22, boxShadow: "0 20px 60px rgba(0,0,0,.25)", display: "flex", flexDirection: "column", gap: 14, maxHeight: "88vh", overflow: "auto" }}>
+    <Modal onCancel={onCancel} width={480}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{booking.renterName}</div>
           <span style={pill("#f0f0f3", colors.textSecondary)}>{booking.status}</span>
@@ -689,7 +682,7 @@ function HistoryDetailModal({ booking, onCancel, onChanged }) {
           <button style={button.ghost} onClick={onCancel}>Close</button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -723,7 +716,7 @@ function BookingForm({ spaces, onCreated, onError, error }) {
 
   return (
     <form onSubmit={submit} style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}`, background: "#fafafa", display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1.4fr 1fr 1fr", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
         <Field label="Renter name"><input style={inputStyle} required value={form.renterName} onChange={(e) => set("renterName", e.target.value)} /></Field>
         <Field label="Email"><input style={inputStyle} type="email" required value={form.renterEmail} onChange={(e) => set("renterEmail", e.target.value)} /></Field>
         <Field label="Phone"><input style={inputStyle} value={formatPhone(form.renterPhone)} onChange={(e) => set("renterPhone", stripPhone(e.target.value))} /></Field>
@@ -734,7 +727,7 @@ function BookingForm({ spaces, onCreated, onError, error }) {
           </select>
         </Field>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr 1fr", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
         <Field label="Space">
           <select style={inputStyle} value={form.spaceId} onChange={(e) => set("spaceId", e.target.value)}>
             {spaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -744,11 +737,11 @@ function BookingForm({ spaces, onCreated, onError, error }) {
         <Field label="Expected guests"><input style={inputStyle} type="number" min="0" value={form.expectedGuests} onChange={(e) => set("expectedGuests", e.target.value)} /></Field>
         <Field label="Address"><input style={inputStyle} value={form.renterAddress} onChange={(e) => set("renterAddress", e.target.value)} /></Field>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
         <Field label="Start"><input style={inputStyle} type="datetime-local" required value={form.startAt} onChange={(e) => set("startAt", e.target.value)} /></Field>
         <Field label="End"><input style={inputStyle} type="datetime-local" required value={form.endAt} onChange={(e) => set("endAt", e.target.value)} /></Field>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
         {space?.offersBartender && (
           <Field label="Bartender?">
             <select style={inputStyle} value={form.wantsBartender ? "yes" : "no"} onChange={(e) => set("wantsBartender", e.target.value === "yes")}>

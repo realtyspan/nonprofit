@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money, mono } from "../lib/tokens";
 import { api } from "../lib/api";
 import ReceiptField from "../components/ReceiptField";
+import DataList from "../components/DataList";
 
 const CATEGORY_META = {
   ticket_purchase: { label: "Ticket purchase (A5)", bg: colors.successBg, color: colors.success },
@@ -42,7 +43,7 @@ export default function Ledger() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 }}>
         <SummaryCard label="Ticket purchase costs" value={sums.ticket_purchase} />
         <SummaryCard label="License fees paid" value={sums.license_fee} />
         <SummaryCard label="Indirect disbursements" value={sums.indirect} />
@@ -54,7 +55,7 @@ export default function Ledger() {
 
       {showForm && (
         <form onSubmit={submit} style={{ ...card, display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr 1fr 1fr 1.2fr auto", gap: 10, alignItems: "end" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, alignItems: "end" }}>
             <Field label="Date"><input style={inputStyle} type="date" required value={form.date} onChange={(e) => set("date", e.target.value)} /></Field>
             <Field label="Payee"><input style={inputStyle} required value={form.payee} onChange={(e) => set("payee", e.target.value)} /></Field>
             <Field label="Check #"><input style={inputStyle} required value={form.checkNum} onChange={(e) => set("checkNum", e.target.value)} /></Field>
@@ -78,36 +79,28 @@ export default function Ledger() {
       )}
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1.3fr 0.8fr", padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary, borderBottom: `1px solid ${colors.borderLight}` }}>
-          <div>Date</div>
-          <div>Payee</div>
-          <div>Check #</div>
-          <div>Amount</div>
-          <div>Category</div>
-          <div>Receipt</div>
-        </div>
-        {rows.map((r) => {
-          const meta = CATEGORY_META[r.category];
-          return (
-            <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1.3fr 0.8fr", padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13.5, alignItems: "center" }}>
-              <div style={{ fontFamily: mono }}>{new Date(r.date).toLocaleDateString(undefined, { timeZone: "UTC" })}</div>
-              <div>{r.payee}</div>
-              <div style={{ fontFamily: mono }}>{r.checkNum}</div>
-              <div style={{ fontFamily: mono }}>{money(r.amount)}</div>
-              <div><span style={pill(meta.bg, meta.color)}>{meta.label}</span></div>
-              <div>
-                {r.receiptFile ? (
+        <DataList
+          rows={rows}
+          emptyMessage="No transactions yet."
+          columns={[
+            { key: "date", label: "Date", grid: "1fr", render: (r) => <span style={{ fontFamily: mono }}>{new Date(r.date).toLocaleDateString(undefined, { timeZone: "UTC" })}</span> },
+            { key: "payee", label: "Payee", grid: "1.6fr", primary: true, render: (r) => r.payee },
+            { key: "check", label: "Check #", grid: "1fr", render: (r) => <span style={{ fontFamily: mono }}>{r.checkNum}</span> },
+            { key: "amount", label: "Amount", grid: "1fr", render: (r) => <span style={{ fontFamily: mono }}>{money(r.amount)}</span> },
+            { key: "category", label: "Category", grid: "1.3fr", render: (r) => <span style={pill(CATEGORY_META[r.category].bg, CATEGORY_META[r.category].color)}>{CATEGORY_META[r.category].label}</span> },
+            {
+              key: "receipt", label: "Receipt", grid: "0.8fr",
+              render: (r) =>
+                r.receiptFile ? (
                   <a href={r.receiptFile} download={r.receiptFileName || "receipt"} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: colors.accent, fontWeight: 600 }}>
                     {r.receiptFile.startsWith("data:image/") ? "🖼 View" : "📄 View"}
                   </a>
                 ) : (
                   <span style={{ color: colors.textTertiary, fontSize: 12.5 }}>—</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-        {rows.length === 0 && <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>No transactions yet.</div>}
+                ),
+            },
+          ]}
+        />
       </div>
     </div>
   );
