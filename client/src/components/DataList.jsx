@@ -15,6 +15,11 @@ import { useIsMobile } from "../lib/viewport";
 //   render: (row) => node,
 //   primary?: boolean — shown as the card's bold title on mobile, no label prefix,
 //   fullWidthOnMobile?: boolean — spans the card's full width instead of a label:value row (for action buttons),
+//   footerRow?: boolean — pulled out of the grid entirely (desktop AND mobile) and rendered as its
+//     own full-width strip under the row's other columns. Use this instead of fullWidthOnMobile when
+//     a column holds several action buttons — a narrow grid track (e.g. a tablet at 768–1024px, still
+//     "desktop" per useIsMobile's breakpoint) isn't wide enough for them and they wrap and stack up
+//     against the right edge instead of reading as a clean action bar.
 // }]
 export default function DataList({ columns, rows, keyField = "id", onRowClick, emptyMessage = "Nothing here yet." }) {
   const isMobile = useIsMobile();
@@ -23,23 +28,32 @@ export default function DataList({ columns, rows, keyField = "id", onRowClick, e
     return <div style={{ padding: 18, fontSize: 13, color: colors.textSecondary }}>{emptyMessage}</div>;
   }
 
+  const footerCol = columns.find((c) => c.footerRow);
+
   if (!isMobile) {
-    const gridTemplateColumns = columns.map((c) => c.grid || "1fr").join(" ");
+    const gridCols = columns.filter((c) => !c.footerRow);
+    const gridTemplateColumns = gridCols.map((c) => c.grid || "1fr").join(" ");
     return (
       <>
         <div style={{ display: "grid", gridTemplateColumns, padding: "10px 18px", fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>
-          {columns.map((c) => <div key={c.key}>{c.label}</div>)}
+          {gridCols.map((c) => <div key={c.key}>{c.label}</div>)}
         </div>
         {rows.map((row) => (
           <div
             key={row[keyField]}
             onClick={onRowClick ? () => onRowClick(row) : undefined}
             style={{
-              display: "grid", gridTemplateColumns, padding: "12px 18px", alignItems: "center",
-              borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, cursor: onRowClick ? "pointer" : "default",
+              padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13, cursor: onRowClick ? "pointer" : "default",
             }}
           >
-            {columns.map((c) => <div key={c.key}>{c.render(row)}</div>)}
+            <div style={{ display: "grid", gridTemplateColumns, alignItems: "center" }}>
+              {gridCols.map((c) => <div key={c.key}>{c.render(row)}</div>)}
+            </div>
+            {footerCol && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${colors.borderLight}` }}>
+                {footerCol.render(row)}
+              </div>
+            )}
           </div>
         ))}
       </>
@@ -47,7 +61,7 @@ export default function DataList({ columns, rows, keyField = "id", onRowClick, e
   }
 
   const primaryCol = columns.find((c) => c.primary);
-  const bodyCols = columns.filter((c) => !c.primary);
+  const bodyCols = columns.filter((c) => !c.primary && !c.footerRow);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12 }}>
@@ -71,6 +85,7 @@ export default function DataList({ columns, rows, keyField = "id", onRowClick, e
               </div>
             )
           )}
+          {footerCol && <div>{footerCol.render(row)}</div>}
         </div>
       ))}
     </div>

@@ -125,9 +125,9 @@ export default function RentalBookings({ spaces, onChanged }) {
               ),
             },
             {
-              key: "actions", label: "", grid: "1.6fr", fullWidthOnMobile: true,
+              key: "actions", label: "", footerRow: true,
               render: (b) => (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: isMobile ? "flex-start" : "flex-end" }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-start" }}>
                   <button style={button.ghost} onClick={() => setPaying(b)}>Payment</button>
                   <button style={button.ghost} onClick={() => setSigning(b)}>{b.contractSignatureImage ? "Signed" : "Sign"}</button>
                   <button style={button.ghost} onClick={() => setUploadingContract(b)}>{b.uploadedContractFile ? "Contract uploaded" : "Upload contract"}</button>
