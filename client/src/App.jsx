@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
 import { api } from "./lib/api";
-import { APP_URL } from "./lib/env";
+import { APP_URL, MARKETING_HOSTNAMES } from "./lib/env";
 import { colors } from "./lib/tokens";
 import { MODULES, filterModulesForUser, filterNavItemsForUser } from "./lib/modules";
 import TopBar from "./components/TopBar";
@@ -273,11 +273,6 @@ function matchPublicPath(pathname) {
   const m = pathname.match(/^\/(rentals|calendar)\/([a-z0-9-]+)\/?$/);
   return m ? { module: m[1], slug: m[2] } : null;
 }
-
-// The bare domain is marketing-only — it never needs a session, so it skips
-// AuthProvider/Shell entirely. Every other hostname (the app subdomain,
-// localhost, Railway's own *.up.railway.app) keeps today's behavior.
-const MARKETING_HOSTNAMES = ["elkslodges.org", "www.elkslodges.org"];
 
 // One hub page plus a dedicated page per module, at clean top-level paths
 // (/bell-jar, /rentals, /raffle, /calendar) — any other path on the
