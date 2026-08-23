@@ -561,9 +561,9 @@ router.get("/games/:gameId/reports/tickets-turned-in.pdf", requireReadAccess("ra
 });
 
 // Season-kickoff marketing email, generated from this raffle's own fields
-// and its Drawings — no recipient list or sending mechanism yet, this just
-// renders the HTML for preview/download so it can be pasted into whatever
-// the org actually sends bulk email with.
+// and its Drawings. No sending mechanism yet (see collectSeriesRecipients
+// below for the recipient list) — this renders the HTML for preview/
+// download so it can be pasted into whatever the org sends bulk email with.
 router.get("/games/:gameId/kickoff-email", requirePermission("raffle", "Admin"), async (req, res) => {
   const [org, drawings] = await Promise.all([
     prisma.organization.findUnique({ where: { id: req.user.orgId } }),
@@ -571,6 +571,64 @@ router.get("/games/:gameId/kickoff-email", requirePermission("raffle", "Admin"),
   ]);
   const html = raffleKickoffEmailHtml({ org, game: req.raffleGame, drawings });
   res.json({ html });
+});
+
+// Walks the same admin-chosen previousGameId chain used for the "past
+// buyers" ticket lookup, but collects EVERY sold/funds_received ticket with
+// an email across the whole chain (not capped at 2) — this is what the
+// kickoff email actually gets sent to. The chain walk starts at
+// req.raffleGame.previousGameId, not the raffle itself: this season's own
+// buyers already have a ticket and don't need an invitation back. Dedupes
+// by email since the same person buying in multiple years is the normal
+// case (see the seller-line change earlier in this project — the same
+// buyer showing up 3 years running is exactly why a per-buyer seller isn't
+// reliable). A ticket with no email on file can't be deduped meaningfully,
+// so it's just counted, not listed.
+async function collectSeriesRecipients(orgId, startGameId) {
+  const seriesGames = [];
+  const recipients = new Map();
+  let missingEmailCount = 0;
+
+  const startGame = await prisma.raffleGame.findFirst({ where: { id: startGameId, orgId } });
+  let cursorId = startGame?.previousGameId || null;
+  const visited = new Set();
+
+  for (let hops = 0; cursorId && hops < 50; hops++) {
+    if (visited.has(cursorId)) break;
+    visited.add(cursorId);
+    const game = await prisma.raffleGame.findFirst({ where: { id: cursorId, orgId } });
+    if (!game) break;
+    const year = new Date(game.raffleStartDate).getUTCFullYear();
+    seriesGames.push({ id: game.id, name: game.name, year });
+
+    const tickets = await prisma.raffleTicket.findMany({
+      where: { gameId: game.id, orgId, status: { in: ["sold", "funds_received"] } },
+    });
+    for (const t of tickets) {
+      const email = (t.email || "").trim().toLowerCase();
+      if (!email) {
+        missingEmailCount += 1;
+        continue;
+      }
+      if (!recipients.has(email)) {
+        recipients.set(email, {
+          name: t.buyer, email: t.email.trim(), phone: t.phone || "",
+          lastSellerName: t.assignedSellerName || "", lastYear: year, years: [year],
+        });
+      } else {
+        recipients.get(email).years.push(year);
+      }
+    }
+    cursorId = game.previousGameId;
+  }
+
+  const list = Array.from(recipients.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return { recipients: list, missingEmailCount, seriesGames };
+}
+
+router.get("/games/:gameId/kickoff-email/recipients", requirePermission("raffle", "Admin"), async (req, res) => {
+  const result = await collectSeriesRecipients(req.user.orgId, req.raffleGame.id);
+  res.json(result);
 });
 
 // --- Ticket state machine ---

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
+import { formatPhone } from "../lib/phone";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
 
@@ -210,13 +211,18 @@ function EventDetailsFields({ form, set }) {
 }
 
 // Generates the season-kickoff marketing email from this raffle's own
-// fields and Drawings — no recipient list or sending mechanism yet, this is
-// just the template preview/download so it can be pasted into whatever the
-// org sends bulk email with.
+// fields and Drawings, plus the recipient list to send it to (every emailed
+// buyer across this raffle's linked history — see collectSeriesRecipients
+// on the server). Sending itself still isn't built — this hands you the
+// template and the list to paste into whatever the org sends bulk email
+// with.
 function KickoffEmailCard({ game }) {
   const [html, setHtml] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [recipients, setRecipients] = useState(null);
+  const [recipientsBusy, setRecipientsBusy] = useState(false);
+  const [recipientsError, setRecipientsError] = useState("");
 
   async function preview() {
     setBusy(true);
@@ -243,12 +249,41 @@ function KickoffEmailCard({ game }) {
     URL.revokeObjectURL(url);
   }
 
+  async function buildRecipients() {
+    setRecipientsBusy(true);
+    setRecipientsError("");
+    try {
+      setRecipients(await api.getRaffleKickoffRecipients(game.id));
+    } catch (err) {
+      setRecipientsError(err.message);
+    } finally {
+      setRecipientsBusy(false);
+    }
+  }
+
+  function downloadRecipientsCsv() {
+    const escape = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["Name", "Email", "Phone", "Years", "Last seller"].join(",");
+    const rows = recipients.recipients.map((r) =>
+      [r.name, r.email, r.phone, r.years.join("; "), r.lastSellerName].map(escape).join(",")
+    );
+    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${game.name.replace(/\s+/g, "_")}_Recipients.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
       <div>
         <div style={{ fontSize: 15, fontWeight: 700 }}>Marketing email</div>
         <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>
-          A season-kickoff email built from this raffle's price, dates, event details, and drawings. Recipient list and sending aren't set up yet — this is the template to preview and download.
+          A season-kickoff email built from this raffle's price, dates, event details, and drawings, plus the list of past buyers to send it to. Sending itself isn't set up yet — preview/export here, then send through whatever you use for bulk email.
         </div>
       </div>
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
@@ -263,6 +298,46 @@ function KickoffEmailCard({ game }) {
           </div>
         </Modal>
       )}
+
+      <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Recipients</div>
+        {!game.previousGameId ? (
+          <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+            This raffle isn't linked to a prior one — edit it and set "Pull past buyers from" to build a recipient list from that history.
+          </div>
+        ) : (
+          <>
+            {recipientsError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{recipientsError}</div>}
+            <div><button style={button.ghost} disabled={recipientsBusy} onClick={buildRecipients}>{recipientsBusy ? "Building…" : "Build recipient list"}</button></div>
+            {recipients && (
+              <>
+                <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+                  <strong>{recipients.recipients.length}</strong> buyer{recipients.recipients.length === 1 ? "" : "s"} with an email on file across {recipients.seriesGames.length} linked raffle year{recipients.seriesGames.length === 1 ? "" : "s"}
+                  {recipients.missingEmailCount > 0 ? ` (${recipients.missingEmailCount} past ticket sale${recipients.missingEmailCount === 1 ? "" : "s"} had no email on record)` : ""}.
+                </div>
+                {recipients.recipients.length > 0 && (
+                  <>
+                    <div style={{ maxHeight: 280, overflowY: "auto", border: `1px solid ${colors.borderLight}`, borderRadius: 8 }}>
+                      <DataList
+                        rows={recipients.recipients}
+                        emptyMessage="No recipients."
+                        columns={[
+                          { key: "name", label: "Name", grid: "1.2fr", primary: true, render: (r) => r.name },
+                          { key: "email", label: "Email", grid: "1.4fr", render: (r) => r.email },
+                          { key: "phone", label: "Phone", grid: "1fr", render: (r) => formatPhone(r.phone) || "—" },
+                          { key: "years", label: "Years", grid: "0.9fr", render: (r) => r.years.join(", ") },
+                          { key: "seller", label: "Last seller", grid: "1fr", render: (r) => r.lastSellerName || "—" },
+                        ]}
+                      />
+                    </div>
+                    <div><button style={button.ghost} onClick={downloadRecipientsCsv}>Export CSV</button></div>
+                  </>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
