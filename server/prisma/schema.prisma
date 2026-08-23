@@ -567,6 +567,11 @@ model RaffleGame {
   closedAt        DateTime?
   estimatedExpenses Float   @default(0) // rough non-prize-expense planning number the chairman can set anytime, for an early compliance projection before real RaffleExpense rows exist — not part of the official GC-7R math once actuals are entered
   isHistorical    Boolean   @default(false) // true for a past-years CSV import kept only to power the "past buyers" lookup — hidden from the live game switcher and every operational raffle screen
+  admitsPerTicket Int       @default(1) // how many guests one ticket admits to the drawing event — printed/emailed as "good for N guests" (this raffle's physical ticket says "entitles 2 persons to attend")
+  minimumTicketsSold Int?   // compliance/business threshold below which the raffle may need to refund or extend sales, per the physical ticket's "per minimum sale of 300 tickets or refund" — reference/display only, no automatic enforcement
+  eventVenue         String? // where the drawing event itself is held, e.g. "Elks Lodge, 7711 Albany Post Road, Red Hook, NY 12571"
+  eventDoorsOpenTime String? // free-text time label for the drawing event, e.g. "1:00 PM" — a printed label, not a computed DateTime
+  eventDetails       String? // freeform notes for the rest of the event-day info (food, drinks, cash bar hours, drawing time, etc.)
   previousGameId  String?   // admin-chosen link to an earlier RaffleGame (operational or historical) to pull "past buyers" from — explicit, not name-matching, so it works regardless of how raffles are named. SetNull on delete so removing an old raffle/import just breaks the chain link rather than blocking the delete or cascading.
   previousGame    RaffleGame?  @relation("RaffleGameChain", fields: [previousGameId], references: [id], onDelete: SetNull)
   nextRaffleGames RaffleGame[] @relation("RaffleGameChain")

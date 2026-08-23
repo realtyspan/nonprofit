@@ -108,6 +108,30 @@ async function resolvePreviousGameId(orgId, previousGameId, selfId) {
   return game.id;
 }
 
+// Ticket terms + drawing-night details — all optional except admitsPerTicket
+// (defaults to 1 guest), so a raffle that doesn't care about any of this
+// isn't forced to fill it in.
+function resolveEventFields(body, totalTickets) {
+  const admitsPerTicket = body.admitsPerTicket == null || body.admitsPerTicket === "" ? 1 : Number(body.admitsPerTicket);
+  if (!Number.isInteger(admitsPerTicket) || admitsPerTicket < 1) {
+    throw Object.assign(new Error("Admits per ticket must be a whole number of 1 or more"), { status: 400 });
+  }
+  let minimumTicketsSold = null;
+  if (body.minimumTicketsSold != null && body.minimumTicketsSold !== "") {
+    minimumTicketsSold = Number(body.minimumTicketsSold);
+    if (!Number.isInteger(minimumTicketsSold) || minimumTicketsSold < 0 || minimumTicketsSold > totalTickets) {
+      throw Object.assign(new Error("Minimum tickets sold must be a whole number between 0 and the total ticket count"), { status: 400 });
+    }
+  }
+  return {
+    admitsPerTicket,
+    minimumTicketsSold,
+    eventVenue: body.eventVenue?.trim() || null,
+    eventDoorsOpenTime: body.eventDoorsOpenTime?.trim() || null,
+    eventDetails: body.eventDetails?.trim() || null,
+  };
+}
+
 router.post("/games", requirePermission("raffle", "Admin"), async (req, res) => {
   const { name, startNumber, endNumber, ticketPrice, startDate, endDate, previousGameId } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: "name is required" });
@@ -135,9 +159,10 @@ router.post("/games", requirePermission("raffle", "Admin"), async (req, res) => 
   if (!Number.isFinite(price) || price <= 0) {
     return res.status(400).json({ error: "ticketPrice must be a positive number" });
   }
-  let resolvedPreviousGameId;
+  let resolvedPreviousGameId, eventFields;
   try {
     resolvedPreviousGameId = await resolvePreviousGameId(req.user.orgId, previousGameId, null);
+    eventFields = resolveEventFields(req.body, end - start + 1);
   } catch (err) {
     return res.status(err.status || 400).json({ error: err.message });
   }
@@ -148,6 +173,7 @@ router.post("/games", requirePermission("raffle", "Admin"), async (req, res) => 
       totalTickets: end - start + 1, ticketPrice: price,
       raffleStartDate: parsedStart, raffleEndDate: parsedEnd,
       previousGameId: resolvedPreviousGameId,
+      ...eventFields,
     },
   });
 
@@ -233,9 +259,10 @@ router.patch("/games/:gameId", requirePermission("raffle", "Admin"), requireActi
   if (parsedEnd < parsedStart) return res.status(400).json({ error: "The closing date must be on or after the start date" });
   const price = Number(ticketPrice);
   if (!Number.isFinite(price) || price <= 0) return res.status(400).json({ error: "ticketPrice must be a positive number" });
-  let resolvedPreviousGameId;
+  let resolvedPreviousGameId, eventFields;
   try {
     resolvedPreviousGameId = await resolvePreviousGameId(req.user.orgId, previousGameId, game.id);
+    eventFields = resolveEventFields(req.body, end - start + 1);
   } catch (err) {
     return res.status(err.status || 400).json({ error: err.message });
   }
@@ -270,6 +297,7 @@ router.patch("/games/:gameId", requirePermission("raffle", "Admin"), requireActi
         name: name.trim(), startNumber: start, endNumber: end, totalTickets: end - start + 1,
         ticketPrice: price, raffleStartDate: parsedStart, raffleEndDate: parsedEnd,
         previousGameId: resolvedPreviousGameId,
+        ...eventFields,
       },
     }),
   ]);

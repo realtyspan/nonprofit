@@ -61,6 +61,12 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
               ? [...games, ...historicalImports].find((g) => g.id === selectedGame.previousGameId)?.name || "a linked raffle"
               : <em>none linked — edit this raffle to pull past buyers from a prior one</em>}
           </div>
+          <div style={{ fontSize: 12, color: colors.textSecondary }}>
+            Admits {selectedGame.admitsPerTicket || 1} per ticket
+            {selectedGame.minimumTicketsSold ? ` · Minimum ${selectedGame.minimumTicketsSold} tickets to proceed` : ""}
+            {selectedGame.eventVenue ? ` · ${selectedGame.eventVenue}` : ""}
+            {selectedGame.eventDoorsOpenTime ? ` · Doors open ${selectedGame.eventDoorsOpenTime}` : ""}
+          </div>
           {lifecycleError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{lifecycleError}</div>}
           <div>
             <button
@@ -163,6 +169,41 @@ function PreviousGameField({ options, value, onChange }) {
         ))}
       </select>
     </Field>
+  );
+}
+
+// Ticket terms + drawing-night details — kept as one block since they're all
+// "what's printed on the ticket / what the buyer needs to know," separate
+// from the ticket-range/price/date mechanics above.
+function EventDetailsFields({ form, set }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingTop: 4, borderTop: `1px solid ${colors.borderLight}` }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Event details</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+        <Field label="Admits per ticket">
+          <input style={inputStyle} type="number" min="1" value={form.admitsPerTicket} onChange={(e) => set("admitsPerTicket", e.target.value)} />
+        </Field>
+        <Field label="Minimum tickets sold (optional)">
+          <input style={inputStyle} type="number" min="0" placeholder="e.g. 300" value={form.minimumTicketsSold} onChange={(e) => set("minimumTicketsSold", e.target.value)} />
+        </Field>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+        <Field label="Venue (optional)">
+          <input style={inputStyle} placeholder="Elks Lodge, 7711 Albany Post Road, Red Hook, NY" value={form.eventVenue} onChange={(e) => set("eventVenue", e.target.value)} />
+        </Field>
+        <Field label="Doors open (optional)">
+          <input style={inputStyle} placeholder="1:00 PM" value={form.eventDoorsOpenTime} onChange={(e) => set("eventDoorsOpenTime", e.target.value)} />
+        </Field>
+      </div>
+      <Field label="Other event details (optional)">
+        <textarea
+          style={{ ...inputStyle, minHeight: 70, resize: "vertical", fontFamily: "inherit" }}
+          placeholder="BBQ dinner, beer/wine/soda free, cash bar 3–5pm, drawing at 4pm…"
+          value={form.eventDetails}
+          onChange={(e) => set("eventDetails", e.target.value)}
+        />
+      </Field>
+    </div>
   );
 }
 
@@ -347,11 +388,16 @@ function NewGameForm({ games, historicalImports, onCancel, onCreated }) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [previousGameId, setPreviousGameId] = useState("");
+  const [eventForm, setEventForm] = useState({ admitsPerTicket: 1, minimumTicketsSold: "", eventVenue: "", eventDoorsOpenTime: "", eventDetails: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const ticketCount = Number(endNumber) - Number(startNumber) + 1;
   const linkOptions = linkableGameOptions(games, historicalImports, null);
+
+  function setEventField(k, v) {
+    setEventForm((f) => ({ ...f, [k]: v }));
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -365,6 +411,11 @@ function NewGameForm({ games, historicalImports, onCancel, onCreated }) {
         name: name.trim(), startNumber: Number(startNumber), endNumber: Number(endNumber),
         ticketPrice: Number(ticketPrice), startDate, endDate,
         previousGameId: previousGameId || null,
+        admitsPerTicket: eventForm.admitsPerTicket,
+        minimumTicketsSold: eventForm.minimumTicketsSold,
+        eventVenue: eventForm.eventVenue,
+        eventDoorsOpenTime: eventForm.eventDoorsOpenTime,
+        eventDetails: eventForm.eventDetails,
       });
       onCreated();
     } catch (err) {
@@ -395,6 +446,8 @@ function NewGameForm({ games, historicalImports, onCancel, onCreated }) {
 
         <PreviousGameField options={linkOptions} value={previousGameId} onChange={setPreviousGameId} />
 
+        <EventDetailsFields form={eventForm} set={setEventField} />
+
         {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
@@ -415,6 +468,11 @@ function EditGameModal({ game, games, historicalImports, onCancel, onSaved }) {
     startDate: game.raffleStartDate.slice(0, 10),
     endDate: game.raffleEndDate.slice(0, 10),
     previousGameId: game.previousGameId || "",
+    admitsPerTicket: game.admitsPerTicket || 1,
+    minimumTicketsSold: game.minimumTicketsSold ?? "",
+    eventVenue: game.eventVenue || "",
+    eventDoorsOpenTime: game.eventDoorsOpenTime || "",
+    eventDetails: game.eventDetails || "",
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -440,6 +498,11 @@ function EditGameModal({ game, games, historicalImports, onCancel, onSaved }) {
         startDate: form.startDate,
         endDate: form.endDate,
         previousGameId: form.previousGameId || null,
+        admitsPerTicket: form.admitsPerTicket,
+        minimumTicketsSold: form.minimumTicketsSold,
+        eventVenue: form.eventVenue,
+        eventDoorsOpenTime: form.eventDoorsOpenTime,
+        eventDetails: form.eventDetails,
       });
       onSaved();
     } catch (err) {
@@ -476,6 +539,8 @@ function EditGameModal({ game, games, historicalImports, onCancel, onSaved }) {
         </div>
 
         <PreviousGameField options={linkOptions} value={form.previousGameId} onChange={(v) => set("previousGameId", v)} />
+
+        <EventDetailsFields form={form} set={set} />
 
         {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 
