@@ -6,9 +6,18 @@ const { generateOccurrences } = require("../lib/recurrence");
 const { lodgeDateTimeStringToUtc } = require("../lib/timezone");
 const { buildRentalContractPdf } = require("../lib/rentalContractPdf");
 const { publishRentalBooking, publishRentalBlock, removeCalendarEventFor } = require("../lib/calendarSync");
+const { addRentalLog } = require("../lib/rentalLog");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
+
+// Denormalized actorName on every RentalLog row needs the caller's current
+// display name — the JWT only carries userId/orgId, so load it fresh once
+// per request, same pattern as raffle.js's req.callerUser.
+router.use(async (req, res, next) => {
+  req.callerUser = await prisma.user.findUnique({ where: { id: req.user.userId }, select: { id: true, name: true } });
+  next();
+});
 
 // --- Spaces ---
 
@@ -71,8 +80,23 @@ router.post("/bookings", requirePermission("rentals", "Helper"), async (req, res
       notes: req.body.notes,
     },
   });
+  await addRentalLog(req.user.orgId, booking.id, {
+    type: "created", text: `Inquiry logged for ${booking.renterName}`, actorName: req.callerUser?.name,
+  });
   res.json(booking);
 });
+
+// Human-readable labels for the RentalLog "Edited: ..." diff summary below —
+// only fields a staff member can actually change on the edit form, compared
+// before vs. after the update actually lands (not the raw request body, so
+// a field sent unchanged never falsely shows up as edited).
+const EDIT_FIELD_LABELS = {
+  spaceId: "space", renterName: "renter name", renterEmail: "email", renterPhone: "phone", renterAddress: "address",
+  isMember: "member status", eventType: "event type", expectedGuests: "guest count",
+  startAt: "start time", endAt: "end time", wantsBartender: "bartender", wantsLinen: "linen",
+  roundTables: "round tables", longTables: "long tables", chairs: "chairs", kitchenUse: "kitchen use",
+  chafingDishes: "chafing dishes", notes: "notes", quotedTotal: "quoted total",
+};
 
 // Edits are only allowed before a booking is locked into a final state —
 // either by status (declined/cancelled/completed are history, not editable)
@@ -153,6 +177,19 @@ router.patch("/bookings/:id", requirePermission("rentals", "Helper"), async (req
     await publishRentalBooking(req.user.orgId, updated, currentSpace);
   }
 
+  const changedFields = Object.entries(EDIT_FIELD_LABELS)
+    .filter(([key]) => {
+      const before = booking[key] instanceof Date ? booking[key].getTime() : booking[key];
+      const after = updated[key] instanceof Date ? updated[key].getTime() : updated[key];
+      return before !== after;
+    })
+    .map(([, label]) => label);
+  if (changedFields.length > 0) {
+    await addRentalLog(req.user.orgId, booking.id, {
+      type: "edited", text: `Edited: ${changedFields.join(", ")}`, actorName: req.callerUser?.name,
+    });
+  }
+
   res.json(updated);
 });
 
@@ -169,6 +206,7 @@ router.post("/bookings/:id/mark-funds-deposited", requirePermission("rentals", "
   }
   if (booking.fundsDepositedAt) return res.status(400).json({ error: "Already marked as deposited" });
   const updated = await prisma.rentalBooking.update({ where: { id: booking.id }, data: { fundsDepositedAt: new Date() } });
+  await addRentalLog(req.user.orgId, booking.id, { type: "funds_deposited", text: "Funds marked deposited — booking locked", actorName: req.callerUser?.name });
   res.json(updated);
 });
 
@@ -177,6 +215,7 @@ router.post("/bookings/:id/unlock", requirePermission("rentals", "Admin"), async
   if (!booking) return res.status(404).json({ error: "Booking not found" });
   if (!booking.fundsDepositedAt) return res.status(400).json({ error: "This booking isn't locked" });
   const updated = await prisma.rentalBooking.update({ where: { id: booking.id }, data: { fundsDepositedAt: null } });
+  await addRentalLog(req.user.orgId, booking.id, { type: "unlocked", text: "Unlocked for correction", actorName: req.callerUser?.name });
   res.json(updated);
 });
 
@@ -211,6 +250,9 @@ router.post("/bookings/:id/confirm", requirePermission("rentals", "Admin"), asyn
     data: { status: "confirmed", quotedTotal, depositAmount },
   });
   await publishRentalBooking(req.user.orgId, updated, space);
+  await addRentalLog(req.user.orgId, booking.id, {
+    type: "confirmed", text: `Confirmed — total $${quotedTotal.toFixed(2)}, deposit $${(depositAmount || 0).toFixed(2)}`, actorName: req.callerUser?.name,
+  });
   res.json({ ...updated, quote });
 });
 
@@ -221,6 +263,9 @@ router.post("/bookings/:id/decline", requirePermission("rentals", "Admin"), asyn
   const updated = await prisma.rentalBooking.update({
     where: { id: booking.id },
     data: { status: "declined", declineReason: req.body.declineReason || null },
+  });
+  await addRentalLog(req.user.orgId, booking.id, {
+    type: "declined", text: `Declined${req.body.declineReason ? ` — ${req.body.declineReason}` : ""}`, actorName: req.callerUser?.name,
   });
   res.json(updated);
 });
@@ -233,6 +278,7 @@ router.post("/bookings/:id/cancel", requirePermission("rentals", "Admin"), async
   }
   const updated = await prisma.rentalBooking.update({ where: { id: booking.id }, data: { status: "cancelled" } });
   await removeCalendarEventFor("rental-booking", booking.id);
+  await addRentalLog(req.user.orgId, booking.id, { type: "cancelled", text: "Cancelled", actorName: req.callerUser?.name });
   res.json(updated);
 });
 
@@ -241,6 +287,7 @@ router.post("/bookings/:id/complete", requirePermission("rentals", "Admin"), asy
   if (!booking) return res.status(404).json({ error: "Booking not found" });
   if (booking.status !== "confirmed") return res.status(400).json({ error: "Only a confirmed booking can be marked completed" });
   const updated = await prisma.rentalBooking.update({ where: { id: booking.id }, data: { status: "completed" } });
+  await addRentalLog(req.user.orgId, booking.id, { type: "completed", text: "Marked completed", actorName: req.callerUser?.name });
   res.json(updated);
 });
 
@@ -258,6 +305,9 @@ router.post("/bookings/:id/restore", requirePermission("rentals", "Admin"), asyn
   }
   const restoredStatus = booking.status === "declined" ? "inquiry" : "confirmed";
   const updated = await prisma.rentalBooking.update({ where: { id: booking.id }, data: { status: restoredStatus, declineReason: null } });
+  await addRentalLog(req.user.orgId, booking.id, {
+    type: "restored", text: `Restored from ${booking.status} to ${restoredStatus}`, actorName: req.callerUser?.name,
+  });
   res.json(updated);
 });
 
@@ -297,6 +347,9 @@ router.post("/bookings/:id/sign", requirePermission("rentals", "Admin"), async (
     where: { id: booking.id },
     data: { contractSignedName: signedName, contractSignatureImage: signatureImage, contractSignedIp: req.ip, contractSignedAt: new Date() },
   });
+  await addRentalLog(req.user.orgId, booking.id, {
+    type: "signed", text: `Contract signed in-app by ${signedName}`, actorName: req.callerUser?.name,
+  });
   res.json(updated);
 });
 
@@ -313,6 +366,9 @@ router.post("/bookings/:id/contract-upload", requirePermission("rentals", "Admin
   const updated = await prisma.rentalBooking.update({
     where: { id: booking.id },
     data: { uploadedContractFile: receiptFile, uploadedContractFileName: receiptFileName || null, uploadedContractAt: new Date() },
+  });
+  await addRentalLog(req.user.orgId, booking.id, {
+    type: "contract_uploaded", text: `Signed contract uploaded${receiptFileName ? ` (${receiptFileName})` : ""}`, actorName: req.callerUser?.name,
   });
   res.json(updated);
 });
@@ -345,14 +401,18 @@ router.post("/bookings/:id/payments", requirePermission("rentals", "Admin"), asy
     return res.status(400).json({ error: "A reason is required for an adjustment" });
   }
 
-  const caller = await prisma.user.findUnique({ where: { id: req.user.userId }, select: { name: true } });
   const payment = await prisma.rentalPayment.create({
     data: {
       orgId: req.user.orgId, bookingId: booking.id, amount: amt, type,
       method: type === "payment" ? method : null,
       receiptNum: receiptNum || null, note: note || null,
-      recordedByName: caller?.name || "",
+      recordedByName: req.callerUser?.name || "",
     },
+  });
+  await addRentalLog(req.user.orgId, booking.id, {
+    type: "payment_added",
+    text: type === "payment" ? `Payment recorded: $${amt.toFixed(2)} (${method})` : `Adjustment recorded: $${amt.toFixed(2)} — ${note}`,
+    actorName: req.callerUser?.name,
   });
   res.json(payment);
 });
@@ -361,7 +421,23 @@ router.delete("/bookings/:id/payments/:paymentId", requirePermission("rentals", 
   const payment = await prisma.rentalPayment.findFirst({ where: { id: req.params.paymentId, bookingId: req.params.id, orgId: req.user.orgId } });
   if (!payment) return res.status(404).json({ error: "Payment not found" });
   await prisma.rentalPayment.delete({ where: { id: payment.id } });
+  await addRentalLog(req.user.orgId, req.params.id, {
+    type: "payment_deleted",
+    text: `${payment.type === "payment" ? "Payment" : "Adjustment"} of $${payment.amount.toFixed(2)} removed (originally recorded by ${payment.recordedByName || "someone"})`,
+    actorName: req.callerUser?.name,
+  });
   res.json({ ok: true });
+});
+
+router.get("/bookings/:id/logs", requireReadAccess("rentals"), async (req, res) => {
+  const booking = await prisma.rentalBooking.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  const logs = await prisma.rentalLog.findMany({
+    where: { bookingId: booking.id, orgId: req.user.orgId },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+  });
+  res.json(logs);
 });
 
 router.get("/bookings/:id/contract.pdf", requireReadAccess("rentals"), async (req, res) => {

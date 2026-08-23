@@ -28,6 +28,7 @@ model Organization {
   rentalSpaces           RentalSpace[]
   rentalBookings         RentalBooking[]
   rentalPayments         RentalPayment[]
+  rentalLogs             RentalLog[]
   rentalBlocks           RentalBlock[]
   rentalBlockRecurrences RentalBlockRecurrence[]
   calendarEvents         CalendarEvent[]
@@ -359,9 +360,31 @@ model RentalBooking {
   createdAt          DateTime @default(now())
 
   payments RentalPayment[]
+  logs     RentalLog[]
 
   @@index([orgId])
   @@index([spaceId])
+}
+
+// Activity trail for a booking — same purpose and shape as RaffleLog for the
+// Raffle module, which Rentals never got. One row per state-changing action
+// (edited, confirmed, declined, cancelled, completed, restored, signed,
+// contract uploaded, payment added/removed, funds deposited, unlocked),
+// recording who (the logged-in staff member, not the renter) and when.
+// Never mutated after creation — the trail itself is the point.
+model RentalLog {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bookingId String
+  booking   RentalBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  type      String   // created | edited | confirmed | declined | cancelled | completed | restored | signed | contract_uploaded | payment_added | payment_deleted | funds_deposited | unlocked
+  text      String
+  actorName String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([bookingId, createdAt])
 }
 
 // Replaces the old depositPaid/balancePaid booleans — one row per payment

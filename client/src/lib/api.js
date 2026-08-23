@@ -136,6 +136,7 @@ export const api = {
   restoreRentalBooking: (id) => request(`/rentals/bookings/${id}/restore`, { method: "POST" }),
   markRentalBookingFundsDeposited: (id) => request(`/rentals/bookings/${id}/mark-funds-deposited`, { method: "POST" }),
   unlockRentalBooking: (id) => request(`/rentals/bookings/${id}/unlock`, { method: "POST" }),
+  listRentalBookingLogs: (id) => request(`/rentals/bookings/${id}/logs`),
   deleteRentalBooking: (id) => request(`/rentals/bookings/${id}`, { method: "DELETE" }),
   signRentalBooking: (id, signedName, signatureImage) => request(`/rentals/bookings/${id}/sign`, { method: "POST", body: { signedName, signatureImage } }),
   uploadRentalContract: (id, payload) => request(`/rentals/bookings/${id}/contract-upload`, { method: "POST", body: payload }),

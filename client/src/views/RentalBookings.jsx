@@ -11,6 +11,38 @@ import { formatPhone, stripPhone } from "../lib/phone";
 
 const HISTORY_STATUSES = ["completed", "declined", "cancelled"];
 
+const LOG_TYPE_LABEL = {
+  created: "Created",
+  edited: "Edited",
+  confirmed: "Confirmed",
+  declined: "Declined",
+  cancelled: "Cancelled",
+  completed: "Completed",
+  restored: "Restored",
+  signed: "Signed",
+  contract_uploaded: "Contract uploaded",
+  payment_added: "Payment",
+  payment_deleted: "Payment removed",
+  funds_deposited: "Funds deposited",
+  unlocked: "Unlocked",
+};
+
+const LOG_TYPE_COLOR = {
+  created: ["#f0f0f3", colors.textSecondary],
+  edited: [colors.indigoBg, colors.indigo],
+  confirmed: [colors.successBg, colors.success],
+  declined: ["#fee2e2", colors.danger],
+  cancelled: ["#fee2e2", colors.danger],
+  completed: [colors.successBg, colors.success],
+  restored: [colors.warningBg, colors.warning],
+  signed: [colors.successBg, colors.success],
+  contract_uploaded: [colors.successBg, colors.success],
+  payment_added: [colors.successBg, colors.success],
+  payment_deleted: ["#fee2e2", colors.danger],
+  funds_deposited: [colors.warningBg, colors.warning],
+  unlocked: ["#fee2e2", colors.danger],
+};
+
 export default function RentalBookings({ spaces, onChanged, permissions }) {
   const isMobile = useIsMobile();
   const isRentalsAdmin = permissions?.moduleGrants?.rentals === "Admin";
@@ -24,6 +56,7 @@ export default function RentalBookings({ spaces, onChanged, permissions }) {
   const [editingBooking, setEditingBooking] = useState(null);
   const [markingDeposited, setMarkingDeposited] = useState(null);
   const [unlocking, setUnlocking] = useState(null);
+  const [viewingLogs, setViewingLogs] = useState(null);
   const [viewingHistory, setViewingHistory] = useState(null);
   const [historySearch, setHistorySearch] = useState("");
   const [historyStatusFilter, setHistoryStatusFilter] = useState("all");
@@ -141,6 +174,7 @@ export default function RentalBookings({ spaces, onChanged, permissions }) {
               render: (b) => (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-start" }}>
                   {!b.fundsDepositedAt && <button style={button.ghost} onClick={() => setEditingBooking(b)}>Edit</button>}
+                  <button style={button.ghost} onClick={() => setViewingLogs(b)}>Activity</button>
                   <button style={button.ghost} onClick={() => setPaying(b)}>Payment</button>
                   <button style={button.ghost} onClick={() => setSigning(b)}>{b.contractSignatureImage ? "Signed" : "Sign"}</button>
                   <button style={button.ghost} onClick={() => setUploadingContract(b)}>{b.uploadedContractFile ? "Contract uploaded" : "Upload contract"}</button>
@@ -237,6 +271,9 @@ export default function RentalBookings({ spaces, onChanged, permissions }) {
           onCancel={() => setUnlocking(null)}
           onDone={() => { setUnlocking(null); refresh(); onChanged(); }}
         />
+      )}
+      {viewingLogs && (
+        <ActivityLogModal booking={viewingLogs} onCancel={() => setViewingLogs(null)} />
       )}
       {viewingHistory && (
         <HistoryDetailModal booking={viewingHistory} onCancel={() => setViewingHistory(null)} onChanged={() => { setViewingHistory(null); refresh(); onChanged(); }} />
@@ -794,6 +831,49 @@ function UnlockBookingModal({ booking, onCancel, onDone }) {
   );
 }
 
+// Shared between ActivityLogModal (its own popup, opened from a confirmed
+// booking) and HistoryDetailModal (embedded inline — a modal-in-a-modal
+// would be awkward there) — same list, two places it's useful to see it.
+function ActivityLogList({ bookingId }) {
+  const [logs, setLogs] = useState(null);
+
+  useEffect(() => {
+    api.listRentalBookingLogs(bookingId).then(setLogs).catch(() => setLogs([]));
+  }, [bookingId]);
+
+  if (logs === null) return <div style={{ fontSize: 12.5, color: colors.textSecondary }}>Loading…</div>;
+  if (logs.length === 0) return <div style={{ fontSize: 12.5, color: colors.textSecondary }}>No activity recorded yet.</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {logs.map((l) => {
+        const [bg, text] = LOG_TYPE_COLOR[l.type] || ["#f0f0f3", colors.textSecondary];
+        return (
+          <div key={l.id} style={{ display: "flex", flexDirection: "column", gap: 3, paddingBottom: 8, borderBottom: `1px solid ${colors.borderLight}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={pill(bg, text)}>{LOG_TYPE_LABEL[l.type] || l.type}</span>
+              <span style={{ fontSize: 11.5, color: colors.textTertiary }}>{new Date(l.createdAt).toLocaleString()}</span>
+              {l.actorName && <span style={{ fontSize: 11.5, color: colors.textTertiary }}>· {l.actorName}</span>}
+            </div>
+            <div style={{ fontSize: 13 }}>{l.text}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ActivityLogModal({ booking, onCancel }) {
+  return (
+    <Modal onCancel={onCancel} width={480} title={`Activity — ${booking.renterName}`}>
+      <ActivityLogList bookingId={booking.id} />
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+        <button style={button.ghost} onClick={onCancel}>Close</button>
+      </div>
+    </Modal>
+  );
+}
+
 const RESTORE_LABEL = { cancelled: "confirmed", declined: "an inquiry", completed: "confirmed" };
 
 // View-only look at a completed/declined/cancelled booking's full record —
@@ -906,6 +986,11 @@ function HistoryDetailModal({ booking, onCancel, onChanged }) {
         {booking.notes && (
           <div style={{ fontSize: 12.5, color: colors.textSecondary }}><strong>Notes:</strong> {booking.notes}</div>
         )}
+
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: colors.textSecondary, marginBottom: 6 }}>Activity</div>
+          <ActivityLogList bookingId={booking.id} />
+        </div>
 
         {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 

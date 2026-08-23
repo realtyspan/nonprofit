@@ -5,6 +5,7 @@ const { lodgeDateTimeStringToUtc } = require("../lib/timezone");
 const { computeRentalQuote } = require("../lib/rentalLogic");
 const { rentalInquiryConfirmationHtml, rentalInquiryAlertHtml } = require("../lib/rentalEmails");
 const { sendEmail } = require("../lib/notifications");
+const { addRentalLog } = require("../lib/rentalLog");
 
 const router = express.Router();
 
@@ -122,6 +123,8 @@ router.post(
       },
     });
     res.json({ ok: true, id: booking.id });
+
+    await addRentalLog(org.id, booking.id, { type: "created", text: `Inquiry submitted online by ${booking.renterName}` });
 
     // Fire-and-forget: the booking is already created and the renter already
     // has their on-screen confirmation, so an email hiccup here shouldn't
