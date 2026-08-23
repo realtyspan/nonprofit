@@ -225,10 +225,30 @@ function KickoffEmailCard({ game }) {
   const [recipientsError, setRecipientsError] = useState("");
   const [showSendConfirm, setShowSendConfirm] = useState(false);
   const [sendResult, setSendResult] = useState(null);
+  const [testEmail, setTestEmail] = useState("");
+  const [testBusy, setTestBusy] = useState(false);
+  const [testError, setTestError] = useState("");
+  const [testSentTo, setTestSentTo] = useState("");
 
   useEffect(() => {
     setHtml(null); setRecipients(null); setSendResult(null); setError(""); setRecipientsError("");
+    setTestEmail(""); setTestError(""); setTestSentTo("");
   }, [game.id]);
+
+  async function sendTest(e) {
+    e.preventDefault();
+    setTestBusy(true);
+    setTestError("");
+    setTestSentTo("");
+    try {
+      await api.sendRaffleKickoffTestEmail(game.id, testEmail.trim());
+      setTestSentTo(testEmail.trim());
+    } catch (err) {
+      setTestError(err.message);
+    } finally {
+      setTestBusy(false);
+    }
+  }
 
   async function preview() {
     setBusy(true);
@@ -305,6 +325,23 @@ function KickoffEmailCard({ game }) {
           </div>
         </Modal>
       )}
+
+      <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Send yourself a test</div>
+        <div style={{ fontSize: 12, color: colors.textSecondary }}>
+          Sends one real copy to an address you choose, marked [TEST] in the subject line. It doesn't count against or affect the real recipient list below.
+        </div>
+        <form onSubmit={sendTest} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input
+            type="email" required placeholder="you@example.com" value={testEmail}
+            onChange={(e) => setTestEmail(e.target.value)}
+            style={{ ...inputStyle, flex: "1 1 220px" }}
+          />
+          <button type="submit" style={button.ghost} disabled={testBusy}>{testBusy ? "Sending…" : "Send test"}</button>
+        </form>
+        {testError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{testError}</div>}
+        {testSentTo && <div style={{ color: colors.success, fontSize: 12.5 }}>Test email sent to {testSentTo}.</div>}
+      </div>
 
       <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ fontSize: 13, fontWeight: 700 }}>Recipients</div>

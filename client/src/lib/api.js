@@ -172,6 +172,7 @@ export const api = {
   getRaffleKickoffEmail: (gameId) => request(`/raffle/games/${gameId}/kickoff-email`),
   getRaffleKickoffRecipients: (gameId) => request(`/raffle/games/${gameId}/kickoff-email/recipients`),
   sendRaffleKickoffEmail: (gameId) => request(`/raffle/games/${gameId}/kickoff-email/send`, { method: "POST" }),
+  sendRaffleKickoffTestEmail: (gameId, email) => request(`/raffle/games/${gameId}/kickoff-email/send-test`, { method: "POST", body: { email } }),
 
   getRaffleUnsubscribeInfo: (token) => request(`/public/raffle/unsubscribe-info?token=${encodeURIComponent(token)}`),
   confirmRaffleUnsubscribe: (token) => request("/public/raffle/unsubscribe", { method: "POST", body: { token } }),

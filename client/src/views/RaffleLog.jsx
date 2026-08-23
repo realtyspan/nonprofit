@@ -21,6 +21,7 @@ const TYPE_LABEL = {
   estimated_expenses_updated: "Estimated expenses updated",
   renewal_call_logged: "Renewal call",
   kickoff_email_sent: "Kickoff email sent",
+  kickoff_email_test_sent: "Kickoff email test sent",
 };
 
 const TYPE_COLOR = {
@@ -42,6 +43,7 @@ const TYPE_COLOR = {
   estimated_expenses_updated: [colors.warningBg, colors.warning],
   renewal_call_logged: [colors.warningBg, colors.warning],
   kickoff_email_sent: [colors.indigoBg, colors.indigo],
+  kickoff_email_test_sent: ["#f0f0f3", colors.textSecondary],
 };
 
 export default function RaffleLog({ gameId }) {

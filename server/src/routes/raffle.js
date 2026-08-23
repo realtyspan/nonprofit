@@ -637,6 +637,40 @@ router.get("/games/:gameId/kickoff-email/recipients", requirePermission("raffle"
   res.json(result);
 });
 
+// Sends one real copy to an address the admin chooses — for reviewing the
+// actual email in a real inbox before committing to the full campaign.
+// Deliberately bypasses the recipient list and suppression table entirely
+// (this isn't a real buyer, so there's nothing to look up or skip) and
+// never touches kickoff_email_sent's sent/total counts — a test send must
+// not be mistakable for progress against the real campaign.
+router.post("/games/:gameId/kickoff-email/send-test", requirePermission("raffle", "Admin"), async (req, res) => {
+  const email = (req.body.email || "").trim();
+  if (!email) return res.status(400).json({ error: "An email address is required" });
+
+  const [org, drawings] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: req.user.orgId } }),
+    prisma.raffleDrawing.findMany({ where: { gameId: req.raffleGame.id, orgId: req.user.orgId } }),
+  ]);
+  const replyTo = await resolveReplyTo(req.user.orgId, org);
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+  const firstName = (req.callerUser?.name || "").trim().split(/\s+/)[0] || "there";
+  const unsubscribeUrl = `${appUrl}/raffle-unsubscribe?token=${buildUnsubscribeToken(req.user.orgId, email)}`;
+  const html = raffleKickoffEmailHtml({ org, game: req.raffleGame, drawings, recipientFirstName: firstName, unsubscribeUrl });
+
+  try {
+    await sendEmail({ to: email, toName: firstName, subject: `[TEST] ${req.raffleGame.name} is back — save your spot`, html, fromName: org.name, replyTo });
+  } catch (err) {
+    return res.status(502).json({ error: `Send failed: ${err.message}` });
+  }
+
+  await addRaffleLog(req.user.orgId, req.raffleGame.id, {
+    type: "kickoff_email_test_sent",
+    text: `Test kickoff email sent to ${email}`,
+  });
+
+  res.json({ ok: true });
+});
+
 // Actually sends the kickoff email via Brevo — the one real send path in
 // this feature, kept separate from preview/recipients on purpose (both of
 // those are read-only). Recipients are recomputed here, never trusted from
