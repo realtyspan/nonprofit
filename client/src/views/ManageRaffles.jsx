@@ -80,6 +80,8 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
         </div>
       )}
 
+      {selectedGame && <KickoffEmailCard game={selectedGame} />}
+
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>All raffles</div>
@@ -203,6 +205,64 @@ function EventDetailsFields({ form, set }) {
           onChange={(e) => set("eventDetails", e.target.value)}
         />
       </Field>
+    </div>
+  );
+}
+
+// Generates the season-kickoff marketing email from this raffle's own
+// fields and Drawings — no recipient list or sending mechanism yet, this is
+// just the template preview/download so it can be pasted into whatever the
+// org sends bulk email with.
+function KickoffEmailCard({ game }) {
+  const [html, setHtml] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function preview() {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api.getRaffleKickoffEmail(game.id);
+      setHtml(res.html);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function download() {
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${game.name.replace(/\s+/g, "_")}_Kickoff_Email.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Marketing email</div>
+        <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>
+          A season-kickoff email built from this raffle's price, dates, event details, and drawings. Recipient list and sending aren't set up yet — this is the template to preview and download.
+        </div>
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+      <div><button style={button.ghost} disabled={busy} onClick={preview}>{busy ? "Building…" : "Preview kickoff email"}</button></div>
+
+      {html && (
+        <Modal onCancel={() => setHtml(null)} width={660} title={`${game.name} — kickoff email`}>
+          <iframe title="Kickoff email preview" srcDoc={html} style={{ width: "100%", height: "65vh", border: `1px solid ${colors.borderLight}`, borderRadius: 8 }} />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
+            <button style={button.ghost} onClick={() => setHtml(null)}>Close</button>
+            <button style={button.primary} onClick={download}>Download HTML</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

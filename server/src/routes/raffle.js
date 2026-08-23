@@ -7,6 +7,7 @@ const { saleConfirmationHtml, electronicTicketHtml, paymentReminderHtml } = requ
 const { sendEmail } = require("../lib/notifications");
 const { buildSellerActivityReportPdf, buildTicketsTurnedInReportPdf } = require("../lib/raffleReportsPdf");
 const { parseHistoricalCsv } = require("../lib/raffleHistoricalImport");
+const { raffleKickoffEmailHtml } = require("../lib/raffleKickoffEmail");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -557,6 +558,19 @@ router.get("/games/:gameId/reports/tickets-turned-in.pdf", requireReadAccess("ra
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="${req.raffleGame.name.replace(/\s+/g, "_")}_Tickets_Turned_In_Report.pdf"`);
   res.send(Buffer.from(pdfBytes));
+});
+
+// Season-kickoff marketing email, generated from this raffle's own fields
+// and its Drawings — no recipient list or sending mechanism yet, this just
+// renders the HTML for preview/download so it can be pasted into whatever
+// the org actually sends bulk email with.
+router.get("/games/:gameId/kickoff-email", requirePermission("raffle", "Admin"), async (req, res) => {
+  const [org, drawings] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: req.user.orgId } }),
+    prisma.raffleDrawing.findMany({ where: { gameId: req.raffleGame.id, orgId: req.user.orgId } }),
+  ]);
+  const html = raffleKickoffEmailHtml({ org, game: req.raffleGame, drawings });
+  res.json({ html });
 });
 
 // --- Ticket state machine ---

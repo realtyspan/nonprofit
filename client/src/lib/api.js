@@ -169,6 +169,8 @@ export const api = {
   closeRaffleGame: (gameId) => request(`/raffle/games/${gameId}/close`, { method: "POST" }),
   reopenRaffleGame: (gameId) => request(`/raffle/games/${gameId}/reopen`, { method: "POST" }),
 
+  getRaffleKickoffEmail: (gameId) => request(`/raffle/games/${gameId}/kickoff-email`),
+
   listHistoricalRaffleImports: () => request("/raffle/historical-imports"),
   importHistoricalRaffleData: (payload) => request("/raffle/historical-imports", { method: "POST", body: payload }),
   updateHistoricalRaffleImport: (gameId, payload) => request(`/raffle/historical-imports/${gameId}`, { method: "PATCH", body: payload }),
