@@ -24,6 +24,21 @@ function maskRaffleTicket(ticket, userId, tier) {
   };
 }
 
+// Normalizes a raffle name to the part that identifies the raffle *series*
+// (e.g. "2026 400 Club" and "2024 400 Club (imported)" both -> "400 club"),
+// stripping the leading year and a historical-import tag. Used to scope the
+// cross-game "past buyers" lookup to the same raffle instead of any raffle
+// in the org — without this, two differently-named raffles running
+// concurrently (a real scenario for this lodge) could cross-contaminate
+// results just because they happen to share a ticket number.
+function raffleSeriesKey(name) {
+  return String(name || "")
+    .replace(/^\s*\d{4}\s+/, "")
+    .replace(/\s*\(imported\)\s*$/i, "")
+    .trim()
+    .toLowerCase();
+}
+
 function computeRaffleStats(tickets) {
   const available = tickets.filter((t) => t.status === "available").length;
   const reserved = tickets.filter((t) => t.status === "reserved").length;
@@ -116,6 +131,6 @@ function computeRaffleFinancials(games) {
 }
 
 module.exports = {
-  maskRaffleTicket, computeRaffleStats, eligibleTicketPool, fmtUsDate,
+  maskRaffleTicket, computeRaffleStats, eligibleTicketPool, fmtUsDate, raffleSeriesKey,
   computeRaffleFinancials, CATEGORY_2_MAX, CATEGORY_1A_MIN, ADDITIONAL_FEE_RATE,
 };

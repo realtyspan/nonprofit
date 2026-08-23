@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
-const { maskRaffleTicket, computeRaffleStats, eligibleTicketPool, fmtUsDate, computeRaffleFinancials } = require("../lib/raffleLogic");
+const { maskRaffleTicket, computeRaffleStats, eligibleTicketPool, fmtUsDate, raffleSeriesKey, computeRaffleFinancials } = require("../lib/raffleLogic");
 const { saleConfirmationHtml, electronicTicketHtml, paymentReminderHtml } = require("../lib/raffleEmails");
 const { sendEmail } = require("../lib/notifications");
 const { buildSellerActivityReportPdf, buildTicketsTurnedInReportPdf } = require("../lib/raffleReportsPdf");
@@ -377,8 +377,15 @@ router.get("/games/:gameId/tickets", requireReadAccess("raffle"), async (req, re
 // Helper (same tier as recording a sale) rather than requireReadAccess, and
 // deliberately not run through maskRaffleTicket — a seller needs the actual
 // contact info to call/re-sell to a past buyer.
+// Scoped to the same raffle series (see raffleSeriesKey) — otherwise two
+// differently-named raffles running concurrently with overlapping ticket
+// numbers could show each other's buyers by coincidence. The series filter
+// has to happen in JS since it's a derived value, not a column — take: 2 is
+// applied after filtering, not in the query, so a same-numbered ticket from
+// an unrelated raffle can't crowd out a real same-series match.
 router.get("/games/:gameId/tickets/:number/history", requirePermission("raffle", "Helper"), async (req, res) => {
   const number = Number(req.params.number);
+  const seriesKey = raffleSeriesKey(req.raffleGame.name);
   const rows = await prisma.raffleTicket.findMany({
     where: {
       orgId: req.user.orgId,
@@ -388,9 +395,9 @@ router.get("/games/:gameId/tickets/:number/history", requirePermission("raffle",
     },
     include: { game: { select: { id: true, name: true, raffleStartDate: true } } },
     orderBy: { game: { raffleStartDate: "desc" } },
-    take: 2,
   });
-  res.json(rows.map((t) => ({
+  const matches = rows.filter((t) => raffleSeriesKey(t.game.name) === seriesKey).slice(0, 2);
+  res.json(matches.map((t) => ({
     buyer: t.buyer, phone: t.phone, email: t.email, address: t.address,
     gameId: t.game.id, gameName: t.game.name, raffleStartDate: t.game.raffleStartDate,
   })));
