@@ -128,10 +128,16 @@ router.post("/bookings/:id/confirm", requirePermission("rentals", "Admin"), asyn
 
   const quote = computeRentalQuote(space, booking);
   const depositAmount = req.body.depositAmount != null ? Number(req.body.depositAmount) : space.depositAmount;
+  // The computed quote is only ever a starting point — staff can override it
+  // in the Review modal for a discount, a comp, or anything the pricing
+  // model doesn't account for. Falls back to the computed total if omitted
+  // or not a real number, so existing callers (and a blank field) still work.
+  const overrideTotal = Number(req.body.quotedTotal);
+  const quotedTotal = req.body.quotedTotal != null && !Number.isNaN(overrideTotal) ? overrideTotal : quote.total;
 
   const updated = await prisma.rentalBooking.update({
     where: { id: booking.id },
-    data: { status: "confirmed", quotedTotal: quote.total, depositAmount },
+    data: { status: "confirmed", quotedTotal, depositAmount },
   });
   await publishRentalBooking(req.user.orgId, updated, space);
   res.json({ ...updated, quote });

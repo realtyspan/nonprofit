@@ -213,6 +213,15 @@ function ReviewModal({ booking, onCancel, onDone }) {
   const [error, setError] = useState("");
   const quote = computeRentalQuote(booking.space, { ...booking, wantsBartender, wantsLinen });
 
+  // The rate/space setup only ever produces a starting number — real bookings
+  // need a manual price sometimes (a discount, a comp, a negotiated add-on
+  // the pricing model doesn't know about). `totalOverride` stays null (and
+  // the field tracks the live computed quote, so toggling bartender/linen
+  // above updates it) until the admin actually types in it, at which point
+  // it becomes the source of truth instead of silently fighting their edit.
+  const [totalOverride, setTotalOverride] = useState(null);
+  const effectiveTotal = totalOverride != null ? totalOverride : quote?.total ?? 0;
+
   async function confirm() {
     setError("");
     setBusy(true);
@@ -220,7 +229,7 @@ function ReviewModal({ booking, onCancel, onDone }) {
       if (wantsBartender !== booking.wantsBartender || wantsLinen !== booking.wantsLinen) {
         await api.updateRentalBooking(booking.id, { wantsBartender, wantsLinen });
       }
-      await api.confirmRentalBooking(booking.id, { depositAmount: Number(deposit) });
+      await api.confirmRentalBooking(booking.id, { depositAmount: Number(deposit), quotedTotal: Number(effectiveTotal) });
       onDone();
     } catch (err) {
       setError(err.message);
@@ -273,10 +282,26 @@ function ReviewModal({ booking, onCancel, onDone }) {
             {wantsBartender && <Row label="Bartender" value={money(quote.bartenderCost)} />}
             {wantsLinen && <Row label="Linen" value={money(quote.linenCost)} />}
             {quote.equipmentCost > 0 && <Row label="Equipment / kitchen" value={money(quote.equipmentCost)} />}
-            <div style={{ borderTop: `1px solid ${colors.border}`, marginTop: 4, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+            <div style={{ borderTop: `1px solid ${colors.border}`, marginTop: 4, paddingTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontWeight: 700 }}>
               <span>Total</span>
-              <span>{money(quote.total)}</span>
+              <input
+                style={{ ...inputStyle, width: 120, textAlign: "right", fontWeight: 700 }}
+                type="number" step="0.01" min="0"
+                value={effectiveTotal}
+                onChange={(e) => setTotalOverride(e.target.value)}
+              />
             </div>
+            {totalOverride != null && Number(totalOverride) !== quote.total && (
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11.5, color: colors.accent, fontWeight: 600 }}
+                  onClick={() => setTotalOverride(null)}
+                >
+                  Reset to calculated total ({money(quote.total)})
+                </button>
+              </div>
+            )}
           </div>
         )}
 
