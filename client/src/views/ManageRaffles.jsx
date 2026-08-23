@@ -211,11 +211,11 @@ function EventDetailsFields({ form, set }) {
 }
 
 // Generates the season-kickoff marketing email from this raffle's own
-// fields and Drawings, plus the recipient list to send it to (every emailed
-// buyer across this raffle's linked history — see collectSeriesRecipients
-// on the server). Sending itself still isn't built — this hands you the
-// template and the list to paste into whatever the org sends bulk email
-// with.
+// fields and Drawings, builds the recipient list to send it to (every
+// emailed buyer across this raffle's linked history — see
+// collectSeriesRecipients on the server), and can send it for real through
+// the org's connected Brevo account. Sending is the one irreversible action
+// here, so it's gated behind an explicit confirmation, not a single click.
 function KickoffEmailCard({ game }) {
   const [html, setHtml] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -223,6 +223,12 @@ function KickoffEmailCard({ game }) {
   const [recipients, setRecipients] = useState(null);
   const [recipientsBusy, setRecipientsBusy] = useState(false);
   const [recipientsError, setRecipientsError] = useState("");
+  const [showSendConfirm, setShowSendConfirm] = useState(false);
+  const [sendResult, setSendResult] = useState(null);
+
+  useEffect(() => {
+    setHtml(null); setRecipients(null); setSendResult(null); setError(""); setRecipientsError("");
+  }, [game.id]);
 
   async function preview() {
     setBusy(true);
@@ -252,6 +258,7 @@ function KickoffEmailCard({ game }) {
   async function buildRecipients() {
     setRecipientsBusy(true);
     setRecipientsError("");
+    setSendResult(null);
     try {
       setRecipients(await api.getRaffleKickoffRecipients(game.id));
     } catch (err) {
@@ -283,7 +290,7 @@ function KickoffEmailCard({ game }) {
       <div>
         <div style={{ fontSize: 15, fontWeight: 700 }}>Marketing email</div>
         <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>
-          A season-kickoff email built from this raffle's price, dates, event details, and drawings, plus the list of past buyers to send it to. Sending itself isn't set up yet — preview/export here, then send through whatever you use for bulk email.
+          A season-kickoff email built from this raffle's price, dates, event details, and drawings, sent to past buyers from its linked raffle history through your connected Brevo account.
         </div>
       </div>
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
@@ -330,7 +337,18 @@ function KickoffEmailCard({ game }) {
                         ]}
                       />
                     </div>
-                    <div><button style={button.ghost} onClick={downloadRecipientsCsv}>Export CSV</button></div>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <button style={button.ghost} onClick={downloadRecipientsCsv}>Export CSV</button>
+                      <button style={{ ...button.primary, background: colors.danger }} onClick={() => setShowSendConfirm(true)}>
+                        Send to {recipients.recipients.length}
+                      </button>
+                    </div>
+                    {sendResult && (
+                      <div style={{ fontSize: 12.5, color: colors.success }}>
+                        Sent to {sendResult.sent} of {sendResult.total} recipients.
+                        {sendResult.sent < sendResult.total ? ` ${sendResult.total - sendResult.sent} failed to send — check the server log for details.` : ""}
+                      </div>
+                    )}
                   </>
                 )}
               </>
@@ -338,7 +356,51 @@ function KickoffEmailCard({ game }) {
           </>
         )}
       </div>
+
+      {showSendConfirm && recipients && (
+        <SendKickoffEmailModal
+          game={game}
+          recipientCount={recipients.recipients.length}
+          onCancel={() => setShowSendConfirm(false)}
+          onSent={(result) => { setShowSendConfirm(false); setSendResult(result); }}
+        />
+      )}
     </div>
+  );
+}
+
+function SendKickoffEmailModal({ game, recipientCount, onCancel, onSent }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function confirmSend() {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api.sendRaffleKickoffEmail(game.id);
+      onSent(result);
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onCancel={onCancel} width={460} title={`Send kickoff email to ${recipientCount} recipient${recipientCount === 1 ? "" : "s"}?`}>
+      <div style={{ background: colors.warningBg, border: "1px solid #F0E4A6", borderRadius: 8, padding: 12, fontSize: 13, color: "#5A4900", lineHeight: 1.5, marginBottom: 16 }}>
+        <strong>This can't be undone.</strong> Once you confirm, the emails start sending immediately — there is no way to stop, pause, or recall them after this point.
+      </div>
+      <div style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 16 }}>
+        This sends the "{game.name}" kickoff email to {recipientCount} buyer{recipientCount === 1 ? "" : "s"} from its linked raffle history, each personalized with their own name.
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        <button style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+        <button style={{ ...button.primary, background: colors.danger }} onClick={confirmSend} disabled={busy}>
+          {busy ? "Sending…" : `Send to ${recipientCount}`}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

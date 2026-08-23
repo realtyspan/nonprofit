@@ -171,6 +171,7 @@ export const api = {
 
   getRaffleKickoffEmail: (gameId) => request(`/raffle/games/${gameId}/kickoff-email`),
   getRaffleKickoffRecipients: (gameId) => request(`/raffle/games/${gameId}/kickoff-email/recipients`),
+  sendRaffleKickoffEmail: (gameId) => request(`/raffle/games/${gameId}/kickoff-email/send`, { method: "POST" }),
 
   listHistoricalRaffleImports: () => request("/raffle/historical-imports"),
   importHistoricalRaffleData: (payload) => request("/raffle/historical-imports", { method: "POST", body: payload }),

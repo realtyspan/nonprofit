@@ -631,6 +631,46 @@ router.get("/games/:gameId/kickoff-email/recipients", requirePermission("raffle"
   res.json(result);
 });
 
+// Actually sends the kickoff email via Brevo — the one real send path in
+// this feature, kept separate from preview/recipients on purpose (both of
+// those are read-only). Recipients are recomputed here, never trusted from
+// the client, since this is the one place a stale or tampered list would
+// mean real email lands in the wrong place. Continue-on-error per
+// recipient, same as the existing payment-reminder blast, so one bad
+// address doesn't stop the rest of the send. Personalizes each email with
+// the buyer's actual first name instead of the literal preview placeholder.
+router.post("/games/:gameId/kickoff-email/send", requirePermission("raffle", "Admin"), async (req, res) => {
+  const [org, drawings, { recipients }] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: req.user.orgId } }),
+    prisma.raffleDrawing.findMany({ where: { gameId: req.raffleGame.id, orgId: req.user.orgId } }),
+    collectSeriesRecipients(req.user.orgId, req.raffleGame.id),
+  ]);
+  if (recipients.length === 0) {
+    return res.status(400).json({ error: "No recipients to send to — build the recipient list first" });
+  }
+  const replyTo = await resolveReplyTo(req.user.orgId, org);
+  const subject = `${req.raffleGame.name} is back — save your spot`;
+
+  let sent = 0;
+  for (const recipient of recipients) {
+    const firstName = recipient.name.trim().split(/\s+/)[0];
+    const html = raffleKickoffEmailHtml({ org, game: req.raffleGame, drawings, recipientFirstName: firstName });
+    try {
+      await sendEmail({ to: recipient.email, toName: recipient.name, subject, html, fromName: org.name, replyTo });
+      sent++;
+    } catch (err) {
+      console.error(`Kickoff email send failed for ${recipient.email}:`, err.message);
+    }
+  }
+
+  await addRaffleLog(req.user.orgId, req.raffleGame.id, {
+    type: "kickoff_email_sent",
+    text: `Kickoff email sent to ${sent} of ${recipients.length} recipient${recipients.length === 1 ? "" : "s"}`,
+  });
+
+  res.json({ sent, total: recipients.length });
+});
+
 // --- Ticket state machine ---
 
 router.post("/games/:gameId/tickets/:number/record", requirePermission("raffle", "Helper"), requireActiveGame, async (req, res) => {

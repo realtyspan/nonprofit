@@ -3,19 +3,16 @@
 // variables, flexbox, or web fonts — those don't survive real email clients),
 // but themed as a ticket stub to match the approved design mockup.
 //
-// Recipient personalization ([First Name], who their seller was) isn't
-// filled in here — there's no recipient-list/mail-merge mechanism yet, so
-// those stay as literal bracketed placeholders for whoever sends this by
-// hand or feeds it into a mail-merge tool later. Everything else (season,
-// price, dates, admits-per-ticket, event logistics, prizes) is pulled
-// straight from the RaffleGame and its RaffleDrawing rows.
+// Recipient personalization: pass recipientFirstName when sending to a real
+// buyer (the /kickoff-email/send route does); the standalone preview leaves
+// it unset and gets a literal, italicized [First Name] placeholder instead.
 const { fmtUsDate } = require("./raffleLogic");
 
 function money(n) {
   return `$${Number(n || 0).toLocaleString("en-US")}`;
 }
 
-function raffleKickoffEmailHtml({ org, game, drawings }) {
+function raffleKickoffEmailHtml({ org, game, drawings, recipientFirstName }) {
   const sortedDrawings = [...drawings].sort((a, b) => b.prizeAmount - a.prizeAmount || new Date(a.drawingDate) - new Date(b.drawingDate));
   const prizeRows = sortedDrawings
     .map(
@@ -77,7 +74,7 @@ function raffleKickoffEmailHtml({ org, game, drawings }) {
         </td></tr>
 
         <tr><td style="padding:26px 32px 4px 32px;">
-          <div style="font-size:18px;font-weight:700;color:#3B1236;margin-bottom:12px;">Hi <em>[First Name]</em>,</div>
+          <div style="font-size:18px;font-weight:700;color:#3B1236;margin-bottom:12px;">Hi ${recipientFirstName ? recipientFirstName : "<em>[First Name]</em>"},</div>
           <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;">Another ${game.name} season is almost here, and we didn't want you to hear about it last. You've backed the raffle before — that's exactly the kind of support that keeps this lodge doing what it does — so we're holding a spot for you before tickets go out to everyone else.</p>
         </td></tr>
 
