@@ -13,8 +13,13 @@ const TYPE_LABEL = {
   reminder_sent: "Reminder sent",
   email_sent: "Email sent",
   game_started: "Raffle started",
+  game_edited: "Raffle edited",
   game_closed: "Raffle closed",
   game_reopened: "Raffle reopened",
+  expense_added: "Expense added",
+  expense_deleted: "Expense removed",
+  estimated_expenses_updated: "Estimated expenses updated",
+  renewal_call_logged: "Renewal call",
 };
 
 const TYPE_COLOR = {
@@ -28,8 +33,13 @@ const TYPE_COLOR = {
   reminder_sent: [colors.warningBg, colors.warning],
   email_sent: [colors.indigoBg, colors.indigo],
   game_started: [colors.successBg, colors.success],
+  game_edited: [colors.indigoBg, colors.indigo],
   game_closed: ["#fee2e2", colors.danger],
   game_reopened: [colors.successBg, colors.success],
+  expense_added: [colors.successBg, colors.success],
+  expense_deleted: ["#fee2e2", colors.danger],
+  estimated_expenses_updated: [colors.warningBg, colors.warning],
+  renewal_call_logged: [colors.warningBg, colors.warning],
 };
 
 export default function RaffleLog({ gameId }) {

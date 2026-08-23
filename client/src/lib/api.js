@@ -183,6 +183,8 @@ export const api = {
 
   listRaffleLog: (gameId) => request(`/raffle/games/${gameId}/log`),
   getRaffleStats: (gameId) => request(`/raffle/games/${gameId}/stats`),
+  downloadRaffleSellerActivityPdf: (gameId, gameName) => download(`/raffle/games/${gameId}/reports/seller-activity.pdf`, `${(gameName || "Raffle").replace(/\s+/g, "_")}_Seller_Activity_Report.pdf`),
+  downloadRaffleTicketsTurnedInPdf: (gameId, gameName) => download(`/raffle/games/${gameId}/reports/tickets-turned-in.pdf`, `${(gameName || "Raffle").replace(/\s+/g, "_")}_Tickets_Turned_In_Report.pdf`),
 
   listRaffleDrawings: (gameId) => request(`/raffle/games/${gameId}/drawings`),
   createRaffleDrawing: (gameId, payload) => request(`/raffle/games/${gameId}/drawings`, { method: "POST", body: payload }),

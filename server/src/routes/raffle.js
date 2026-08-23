@@ -5,6 +5,7 @@ const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = r
 const { maskRaffleTicket, computeRaffleStats, eligibleTicketPool, fmtUsDate, computeRaffleFinancials } = require("../lib/raffleLogic");
 const { saleConfirmationHtml, electronicTicketHtml, paymentReminderHtml } = require("../lib/raffleEmails");
 const { sendEmail } = require("../lib/notifications");
+const { buildSellerActivityReportPdf, buildTicketsTurnedInReportPdf } = require("../lib/raffleReportsPdf");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -325,6 +326,60 @@ router.get("/games/:gameId/stats", requireReadAccess("raffle"), async (req, res)
   res.json(computeRaffleStats(tickets));
 });
 
+// --- Reports (PDF) ---
+
+// One row per seller with any sold/funds_received ticket — "assigned" counts
+// every ticket ever assigned to them regardless of current status, so it can
+// exceed "sold" for a seller still holding unsold inventory.
+router.get("/games/:gameId/reports/seller-activity.pdf", requireReadAccess("raffle"), async (req, res) => {
+  const [soldTickets, assignedTickets, org] = await Promise.all([
+    prisma.raffleTicket.findMany({
+      where: { gameId: req.raffleGame.id, orgId: req.user.orgId, status: { in: ["sold", "funds_received"] }, assignedSellerName: { not: "" } },
+    }),
+    prisma.raffleTicket.findMany({
+      where: { gameId: req.raffleGame.id, orgId: req.user.orgId, assignedSellerName: { not: "" } },
+      select: { assignedSellerName: true },
+    }),
+    prisma.organization.findUnique({ where: { id: req.user.orgId } }),
+  ]);
+
+  const assignedCounts = new Map();
+  for (const t of assignedTickets) assignedCounts.set(t.assignedSellerName, (assignedCounts.get(t.assignedSellerName) || 0) + 1);
+
+  const bySeller = new Map();
+  for (const t of soldTickets) {
+    const key = t.assignedSellerName;
+    if (!bySeller.has(key)) bySeller.set(key, { name: key, assigned: assignedCounts.get(key) || 0, sold: 0, fundsIn: 0, collected: 0 });
+    const s = bySeller.get(key);
+    s.sold += 1;
+    if (t.status === "funds_received") s.fundsIn += 1;
+    s.collected += Number(t.tenderAmount) || 0;
+  }
+  const sellers = Array.from(bySeller.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+  const pdfBytes = await buildSellerActivityReportPdf({ org, game: req.raffleGame, sellers });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${req.raffleGame.name.replace(/\s+/g, "_")}_Seller_Activity_Report.pdf"`);
+  res.send(Buffer.from(pdfBytes));
+});
+
+// Every sold/funds_received ticket, ordered by ticket number — includes
+// tickets with no assigned seller (shown as "—").
+router.get("/games/:gameId/reports/tickets-turned-in.pdf", requireReadAccess("raffle"), async (req, res) => {
+  const [tickets, org] = await Promise.all([
+    prisma.raffleTicket.findMany({
+      where: { gameId: req.raffleGame.id, orgId: req.user.orgId, status: { in: ["sold", "funds_received"] } },
+      orderBy: { number: "asc" },
+    }),
+    prisma.organization.findUnique({ where: { id: req.user.orgId } }),
+  ]);
+
+  const pdfBytes = await buildTicketsTurnedInReportPdf({ org, game: req.raffleGame, tickets });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${req.raffleGame.name.replace(/\s+/g, "_")}_Tickets_Turned_In_Report.pdf"`);
+  res.send(Buffer.from(pdfBytes));
+});
+
 // --- Ticket state machine ---
 
 router.post("/games/:gameId/tickets/:number/record", requirePermission("raffle", "Helper"), requireActiveGame, async (req, res) => {
@@ -561,6 +616,7 @@ router.post("/games/:gameId/drawings", requirePermission("raffle", "Admin"), req
       notes: notes || "",
     },
   });
+  await addRaffleLog(req.user.orgId, req.raffleGame.id, { type: "drawing", text: `Drawing "${name}" created — ${fmtUsDate(new Date(drawingDate))}` });
   res.json(drawing);
 });
 
@@ -583,6 +639,7 @@ router.patch("/games/:gameId/drawings/:id", requirePermission("raffle", "Admin")
       notes: notes ?? drawing.notes,
     },
   });
+  await addRaffleLog(req.user.orgId, req.raffleGame.id, { type: "drawing", text: `Drawing "${updated.name}" edited` });
   res.json(updated);
 });
 
@@ -593,6 +650,7 @@ router.delete("/games/:gameId/drawings/:id", requirePermission("raffle", "Admin"
     return res.status(400).json({ error: "Cannot delete a drawing that already has a winner — clear it first" });
   }
   await prisma.raffleDrawing.delete({ where: { id: drawing.id } });
+  await addRaffleLog(req.user.orgId, req.raffleGame.id, { type: "drawing", text: `Drawing "${drawing.name}" deleted` });
   res.json({ ok: true });
 });
 
@@ -698,6 +756,9 @@ router.post("/games/:gameId/expenses", requirePermission("raffle", "Admin"), asy
       ...(date ? { date: new Date(date) } : {}),
     },
   });
+  await addRaffleLog(req.user.orgId, req.raffleGame.id, {
+    type: "expense_added", text: `Expense recorded: $${amt.toFixed(2)} to ${payee.trim()} (${category.replace(/_/g, " ")})`,
+  });
   res.json(expense);
 });
 
@@ -705,6 +766,9 @@ router.delete("/games/:gameId/expenses/:id", requirePermission("raffle", "Admin"
   const expense = await prisma.raffleExpense.findFirst({ where: { id: req.params.id, gameId: req.raffleGame.id, orgId: req.user.orgId } });
   if (!expense) return res.status(404).json({ error: "Expense not found" });
   await prisma.raffleExpense.delete({ where: { id: expense.id } });
+  await addRaffleLog(req.user.orgId, req.raffleGame.id, {
+    type: "expense_deleted", text: `Expense removed: $${expense.amount.toFixed(2)} to ${expense.payee}`,
+  });
   res.json({ ok: true });
 });
 
@@ -715,6 +779,7 @@ router.patch("/games/:gameId/estimated-expenses", requirePermission("raffle", "A
   const amt = Number(req.body.estimatedExpenses);
   if (!Number.isFinite(amt) || amt < 0) return res.status(400).json({ error: "estimatedExpenses must be a non-negative number" });
   const updated = await prisma.raffleGame.update({ where: { id: req.raffleGame.id }, data: { estimatedExpenses: amt } });
+  await addRaffleLog(req.user.orgId, req.raffleGame.id, { type: "estimated_expenses_updated", text: `Estimated expenses set to $${amt.toFixed(2)}` });
   res.json(updated);
 });
 
@@ -738,6 +803,9 @@ router.post("/games/:gameId/renewal-calls", requirePermission("raffle", "Helper"
       orgId: req.user.orgId, gameId: req.raffleGame.id, ticketNumber: Number(ticketNumber),
       calledByUserId: req.user.userId, calledByName: req.callerUser?.name || "", note: note || "",
     },
+  });
+  await addRaffleLog(req.user.orgId, req.raffleGame.id, {
+    type: "renewal_call_logged", text: `Renewal call logged for ticket #${ticketNumber}${note ? ` — ${note}` : ""}`, ticketNumber: Number(ticketNumber),
   });
   res.json(call);
 });
