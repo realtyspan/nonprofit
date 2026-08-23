@@ -16,6 +16,7 @@ const publicRentalRoutes = require("./routes/publicRentals");
 const calendarRoutes = require("./routes/calendar");
 const publicCalendarRoutes = require("./routes/publicCalendar");
 const raffleRoutes = require("./routes/raffle");
+const publicRaffleRoutes = require("./routes/publicRaffle");
 const elksToolsRoutes = require("./routes/elksTools");
 
 // Express 4 doesn't catch rejected promises from async route handlers, and Node
@@ -44,6 +45,7 @@ app.use("/api/public/rentals", publicRentalRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/public/calendar", publicCalendarRoutes);
 app.use("/api/raffle", raffleRoutes);
+app.use("/api/public/raffle", publicRaffleRoutes);
 app.use("/api/elks-tools", elksToolsRoutes);
 
 // In production the client is built to ../../client/dist and served from here —

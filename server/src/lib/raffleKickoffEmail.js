@@ -12,7 +12,7 @@ function money(n) {
   return `$${Number(n || 0).toLocaleString("en-US")}`;
 }
 
-function raffleKickoffEmailHtml({ org, game, drawings, recipientFirstName }) {
+function raffleKickoffEmailHtml({ org, game, drawings, recipientFirstName, unsubscribeUrl }) {
   const sortedDrawings = [...drawings].sort((a, b) => b.prizeAmount - a.prizeAmount || new Date(a.drawingDate) - new Date(b.drawingDate));
   const prizeRows = sortedDrawings
     .map(
@@ -113,7 +113,7 @@ function raffleKickoffEmailHtml({ org, game, drawings, recipientFirstName }) {
           ${org.address ? `<div style="font-size:11.5px;color:#B79BB2;margin-top:6px;">${org.address}</div>` : ""}
           <div style="font-size:10.5px;color:#8C6E88;margin-top:14px;line-height:1.6;">
             You're receiving this because you've purchased a ${game.name} ticket in a past season.<br>
-            <a href="#" style="color:#C9A6C4;">Unsubscribe from raffle emails</a>
+            ${unsubscribeUrl ? `<a href="${unsubscribeUrl}" style="color:#C9A6C4;">Unsubscribe from raffle emails</a>` : `<span>Unsubscribe from raffle emails</span>`}
           </div>
         </td></tr>
 

@@ -45,6 +45,7 @@ model Organization {
   raffleCheckIns         RaffleCheckIn[]
   raffleExpenses         RaffleExpense[]
   raffleSignerDesignations RaffleSignerDesignation[]
+  raffleEmailSuppressions  RaffleEmailSuppression[]
   frsReportRuns            FrsReportRun[]
 }
 
@@ -588,6 +589,22 @@ model RaffleGame {
   @@index([orgId])
   @@index([orgId, status])
   @@index([previousGameId])
+}
+
+// Opted out of raffle marketing email (the season-kickoff blast) for this
+// org specifically — not platform-wide, since a buyer opting out of one
+// lodge's raffle emails has no bearing on another org's. Sale
+// confirmations/e-tickets/payment reminders are transactional, not
+// marketing, so they're unaffected by this list.
+model RaffleEmailSuppression {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  email     String   // normalized: trimmed + lowercased
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, email])
+  @@index([orgId])
 }
 
 model RaffleTicket {

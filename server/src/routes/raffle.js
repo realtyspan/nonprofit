@@ -8,6 +8,7 @@ const { sendEmail } = require("../lib/notifications");
 const { buildSellerActivityReportPdf, buildTicketsTurnedInReportPdf } = require("../lib/raffleReportsPdf");
 const { parseHistoricalCsv } = require("../lib/raffleHistoricalImport");
 const { raffleKickoffEmailHtml } = require("../lib/raffleKickoffEmail");
+const { buildUnsubscribeToken, normalizeEmail } = require("../lib/raffleUnsubscribe");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -622,7 +623,12 @@ async function collectSeriesRecipients(orgId, startGameId) {
     cursorId = game.previousGameId;
   }
 
-  const list = Array.from(recipients.values()).sort((a, b) => a.name.localeCompare(b.name));
+  const suppressed = await prisma.raffleEmailSuppression.findMany({ where: { orgId }, select: { email: true } });
+  const suppressedSet = new Set(suppressed.map((s) => s.email));
+
+  const list = Array.from(recipients.values())
+    .map((r) => ({ ...r, suppressed: suppressedSet.has(normalizeEmail(r.email)) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
   return { recipients: list, missingEmailCount, seriesGames };
 }
 
@@ -640,21 +646,25 @@ router.get("/games/:gameId/kickoff-email/recipients", requirePermission("raffle"
 // address doesn't stop the rest of the send. Personalizes each email with
 // the buyer's actual first name instead of the literal preview placeholder.
 router.post("/games/:gameId/kickoff-email/send", requirePermission("raffle", "Admin"), async (req, res) => {
-  const [org, drawings, { recipients }] = await Promise.all([
+  const [org, drawings, { recipients: allRecipients }] = await Promise.all([
     prisma.organization.findUnique({ where: { id: req.user.orgId } }),
     prisma.raffleDrawing.findMany({ where: { gameId: req.raffleGame.id, orgId: req.user.orgId } }),
     collectSeriesRecipients(req.user.orgId, req.raffleGame.id),
   ]);
+  const recipients = allRecipients.filter((r) => !r.suppressed);
+  const suppressedCount = allRecipients.length - recipients.length;
   if (recipients.length === 0) {
     return res.status(400).json({ error: "No recipients to send to — build the recipient list first" });
   }
   const replyTo = await resolveReplyTo(req.user.orgId, org);
   const subject = `${req.raffleGame.name} is back — save your spot`;
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
 
   let sent = 0;
   for (const recipient of recipients) {
     const firstName = recipient.name.trim().split(/\s+/)[0];
-    const html = raffleKickoffEmailHtml({ org, game: req.raffleGame, drawings, recipientFirstName: firstName });
+    const unsubscribeUrl = `${appUrl}/raffle-unsubscribe?token=${buildUnsubscribeToken(req.user.orgId, recipient.email)}`;
+    const html = raffleKickoffEmailHtml({ org, game: req.raffleGame, drawings, recipientFirstName: firstName, unsubscribeUrl });
     try {
       await sendEmail({ to: recipient.email, toName: recipient.name, subject, html, fromName: org.name, replyTo });
       sent++;
@@ -665,10 +675,10 @@ router.post("/games/:gameId/kickoff-email/send", requirePermission("raffle", "Ad
 
   await addRaffleLog(req.user.orgId, req.raffleGame.id, {
     type: "kickoff_email_sent",
-    text: `Kickoff email sent to ${sent} of ${recipients.length} recipient${recipients.length === 1 ? "" : "s"}`,
+    text: `Kickoff email sent to ${sent} of ${recipients.length} recipient${recipients.length === 1 ? "" : "s"}${suppressedCount ? ` (${suppressedCount} unsubscribed and skipped)` : ""}`,
   });
 
-  res.json({ sent, total: recipients.length });
+  res.json({ sent, total: recipients.length, suppressed: suppressedCount });
 });
 
 // --- Ticket state machine ---

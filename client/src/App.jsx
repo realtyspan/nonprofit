@@ -26,6 +26,7 @@ import RentalBlocks from "./views/RentalBlocks";
 import PublicRental from "./views/PublicRental";
 import CalendarView from "./views/CalendarView";
 import PublicCalendar from "./views/PublicCalendar";
+import PublicRaffleUnsubscribe from "./views/PublicRaffleUnsubscribe";
 import ManageRaffles from "./views/ManageRaffles";
 import RaffleGrid from "./views/RaffleGrid";
 import RaffleSellers from "./views/RaffleSellers";
@@ -307,6 +308,7 @@ export default function App() {
   // Needs to render for a logged-out visitor arriving from an email link, so
   // it's handled before AuthProvider/Shell rather than as a route inside it.
   if (window.location.pathname === "/reset-password") return <ResetPassword />;
+  if (window.location.pathname === "/raffle-unsubscribe") return <PublicRaffleUnsubscribe />;
 
   return (
     <AuthProvider>

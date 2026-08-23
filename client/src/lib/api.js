@@ -173,6 +173,9 @@ export const api = {
   getRaffleKickoffRecipients: (gameId) => request(`/raffle/games/${gameId}/kickoff-email/recipients`),
   sendRaffleKickoffEmail: (gameId) => request(`/raffle/games/${gameId}/kickoff-email/send`, { method: "POST" }),
 
+  getRaffleUnsubscribeInfo: (token) => request(`/public/raffle/unsubscribe-info?token=${encodeURIComponent(token)}`),
+  confirmRaffleUnsubscribe: (token) => request("/public/raffle/unsubscribe", { method: "POST", body: { token } }),
+
   listHistoricalRaffleImports: () => request("/raffle/historical-imports"),
   importHistoricalRaffleData: (payload) => request("/raffle/historical-imports", { method: "POST", body: payload }),
   updateHistoricalRaffleImport: (gameId, payload) => request(`/raffle/historical-imports/${gameId}`, { method: "PATCH", body: payload }),

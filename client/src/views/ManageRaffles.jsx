@@ -316,43 +316,51 @@ function KickoffEmailCard({ game }) {
           <>
             {recipientsError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{recipientsError}</div>}
             <div><button style={button.ghost} disabled={recipientsBusy} onClick={buildRecipients}>{recipientsBusy ? "Building…" : "Build recipient list"}</button></div>
-            {recipients && (
-              <>
-                <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
-                  <strong>{recipients.recipients.length}</strong> buyer{recipients.recipients.length === 1 ? "" : "s"} with an email on file across {recipients.seriesGames.length} linked raffle year{recipients.seriesGames.length === 1 ? "" : "s"}
-                  {recipients.missingEmailCount > 0 ? ` (${recipients.missingEmailCount} past ticket sale${recipients.missingEmailCount === 1 ? "" : "s"} had no email on record)` : ""}.
-                </div>
-                {recipients.recipients.length > 0 && (
-                  <>
-                    <div style={{ maxHeight: 280, overflowY: "auto", border: `1px solid ${colors.borderLight}`, borderRadius: 8 }}>
-                      <DataList
-                        rows={recipients.recipients}
-                        emptyMessage="No recipients."
-                        columns={[
-                          { key: "name", label: "Name", grid: "1.2fr", primary: true, render: (r) => r.name },
-                          { key: "email", label: "Email", grid: "1.4fr", render: (r) => r.email },
-                          { key: "phone", label: "Phone", grid: "1fr", render: (r) => formatPhone(r.phone) || "—" },
-                          { key: "years", label: "Years", grid: "0.9fr", render: (r) => r.years.join(", ") },
-                          { key: "seller", label: "Last seller", grid: "1fr", render: (r) => r.lastSellerName || "—" },
-                        ]}
-                      />
-                    </div>
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <button style={button.ghost} onClick={downloadRecipientsCsv}>Export CSV</button>
-                      <button style={{ ...button.primary, background: colors.danger }} onClick={() => setShowSendConfirm(true)}>
-                        Send to {recipients.recipients.length}
-                      </button>
-                    </div>
-                    {sendResult && (
-                      <div style={{ fontSize: 12.5, color: colors.success }}>
-                        Sent to {sendResult.sent} of {sendResult.total} recipients.
-                        {sendResult.sent < sendResult.total ? ` ${sendResult.total - sendResult.sent} failed to send — check the server log for details.` : ""}
+            {recipients && (() => {
+              const sendable = recipients.recipients.filter((r) => !r.suppressed);
+              const suppressedCount = recipients.recipients.length - sendable.length;
+              return (
+                <>
+                  <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+                    <strong>{recipients.recipients.length}</strong> buyer{recipients.recipients.length === 1 ? "" : "s"} with an email on file across {recipients.seriesGames.length} linked raffle year{recipients.seriesGames.length === 1 ? "" : "s"}
+                    {recipients.missingEmailCount > 0 ? ` (${recipients.missingEmailCount} past ticket sale${recipients.missingEmailCount === 1 ? "" : "s"} had no email on record)` : ""}.
+                    {suppressedCount > 0 ? ` ${suppressedCount} of those unsubscribed and won't be emailed.` : ""}
+                  </div>
+                  {recipients.recipients.length > 0 && (
+                    <>
+                      <div style={{ maxHeight: 280, overflowY: "auto", border: `1px solid ${colors.borderLight}`, borderRadius: 8 }}>
+                        <DataList
+                          rows={recipients.recipients}
+                          emptyMessage="No recipients."
+                          rowStyle={(r) => (r.suppressed ? { opacity: 0.55 } : undefined)}
+                          columns={[
+                            { key: "name", label: "Name", grid: "1.2fr", primary: true, render: (r) => r.name },
+                            { key: "email", label: "Email", grid: "1.4fr", render: (r) => r.email },
+                            { key: "phone", label: "Phone", grid: "1fr", render: (r) => formatPhone(r.phone) || "—" },
+                            { key: "years", label: "Years", grid: "0.8fr", render: (r) => r.years.join(", ") },
+                            { key: "seller", label: "Last seller", grid: "0.9fr", render: (r) => r.lastSellerName || "—" },
+                            { key: "status", label: "", grid: "0.9fr", render: (r) => (r.suppressed ? <span style={pill("#f0f0f3", colors.textSecondary)}>Unsubscribed</span> : null) },
+                          ]}
+                        />
                       </div>
-                    )}
-                  </>
-                )}
-              </>
-            )}
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <button style={button.ghost} onClick={downloadRecipientsCsv}>Export CSV</button>
+                        <button style={{ ...button.primary, background: colors.danger }} disabled={sendable.length === 0} onClick={() => setShowSendConfirm(true)}>
+                          Send to {sendable.length}
+                        </button>
+                      </div>
+                      {sendResult && (
+                        <div style={{ fontSize: 12.5, color: colors.success }}>
+                          Sent to {sendResult.sent} of {sendResult.total} recipients.
+                          {sendResult.sent < sendResult.total ? ` ${sendResult.total - sendResult.sent} failed to send — check the server log for details.` : ""}
+                          {sendResult.suppressed > 0 ? ` ${sendResult.suppressed} skipped — unsubscribed.` : ""}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
       </div>
@@ -360,7 +368,7 @@ function KickoffEmailCard({ game }) {
       {showSendConfirm && recipients && (
         <SendKickoffEmailModal
           game={game}
-          recipientCount={recipients.recipients.length}
+          recipientCount={recipients.recipients.filter((r) => !r.suppressed).length}
           onCancel={() => setShowSendConfirm(false)}
           onSent={(result) => { setShowSendConfirm(false); setSendResult(result); }}
         />
