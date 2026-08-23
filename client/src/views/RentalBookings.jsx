@@ -11,8 +11,9 @@ import { formatPhone, stripPhone } from "../lib/phone";
 
 const HISTORY_STATUSES = ["completed", "declined", "cancelled"];
 
-export default function RentalBookings({ spaces, onChanged }) {
+export default function RentalBookings({ spaces, onChanged, permissions }) {
   const isMobile = useIsMobile();
+  const isRentalsAdmin = permissions?.moduleGrants?.rentals === "Admin";
   const [bookings, setBookings] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [formError, setFormError] = useState("");
@@ -20,6 +21,9 @@ export default function RentalBookings({ spaces, onChanged }) {
   const [paying, setPaying] = useState(null);
   const [signing, setSigning] = useState(null);
   const [uploadingContract, setUploadingContract] = useState(null);
+  const [editingBooking, setEditingBooking] = useState(null);
+  const [markingDeposited, setMarkingDeposited] = useState(null);
+  const [unlocking, setUnlocking] = useState(null);
   const [viewingHistory, setViewingHistory] = useState(null);
   const [historySearch, setHistorySearch] = useState("");
   const [historyStatusFilter, setHistoryStatusFilter] = useState("all");
@@ -107,7 +111,15 @@ export default function RentalBookings({ spaces, onChanged }) {
           rows={confirmed}
           emptyMessage="No confirmed bookings."
           columns={[
-            { key: "renter", label: "Renter", grid: "1.3fr", primary: true, render: (b) => b.renterName },
+            {
+              key: "renter", label: "Renter", grid: "1.3fr", primary: true,
+              render: (b) => (
+                <>
+                  {b.renterName}
+                  {b.fundsDepositedAt && <span style={{ ...pill("#f0f0f3", colors.textSecondary), marginLeft: 8 }}>🔒 Deposited</span>}
+                </>
+              ),
+            },
             { key: "space", label: "Space", grid: "1fr", render: (b) => b.space?.name },
             { key: "start", label: "Start", grid: "1fr", render: (b) => new Date(b.startAt).toLocaleDateString() },
             { key: "total", label: "Total", grid: "0.9fr", render: (b) => money(b.quotedTotal) },
@@ -128,12 +140,18 @@ export default function RentalBookings({ spaces, onChanged }) {
               key: "actions", label: "", footerRow: true,
               render: (b) => (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-start" }}>
+                  {!b.fundsDepositedAt && <button style={button.ghost} onClick={() => setEditingBooking(b)}>Edit</button>}
                   <button style={button.ghost} onClick={() => setPaying(b)}>Payment</button>
                   <button style={button.ghost} onClick={() => setSigning(b)}>{b.contractSignatureImage ? "Signed" : "Sign"}</button>
                   <button style={button.ghost} onClick={() => setUploadingContract(b)}>{b.uploadedContractFile ? "Contract uploaded" : "Upload contract"}</button>
                   <button style={button.ghost} onClick={() => api.downloadRentalContractPdf(b.id, b.renterName)}>Contract</button>
                   <button style={button.ghost} onClick={() => act(() => api.completeRentalBooking(b.id))}>Complete</button>
                   <button style={button.ghost} onClick={() => { if (confirm("Cancel this booking?")) act(() => api.cancelRentalBooking(b.id)); }}>Cancel</button>
+                  {isRentalsAdmin && (b.fundsDepositedAt ? (
+                    <button style={button.ghost} onClick={() => setUnlocking(b)}>Unlock</button>
+                  ) : (
+                    <button style={button.ghost} onClick={() => setMarkingDeposited(b)}>Mark funds deposited</button>
+                  ))}
                 </div>
               ),
             },
@@ -196,6 +214,29 @@ export default function RentalBookings({ spaces, onChanged }) {
       )}
       {uploadingContract && (
         <UploadContractModal booking={uploadingContract} onCancel={() => setUploadingContract(null)} onSaved={() => { setUploadingContract(null); refresh(); }} />
+      )}
+      {editingBooking && (
+        <EditBookingModal
+          booking={editingBooking}
+          spaces={spaces}
+          isRentalsAdmin={isRentalsAdmin}
+          onCancel={() => setEditingBooking(null)}
+          onSaved={() => { setEditingBooking(null); refresh(); onChanged(); }}
+        />
+      )}
+      {markingDeposited && (
+        <MarkFundsDepositedModal
+          booking={markingDeposited}
+          onCancel={() => setMarkingDeposited(null)}
+          onDone={() => { setMarkingDeposited(null); refresh(); onChanged(); }}
+        />
+      )}
+      {unlocking && (
+        <UnlockBookingModal
+          booking={unlocking}
+          onCancel={() => setUnlocking(null)}
+          onDone={() => { setUnlocking(null); refresh(); onChanged(); }}
+        />
       )}
       {viewingHistory && (
         <HistoryDetailModal booking={viewingHistory} onCancel={() => setViewingHistory(null)} onChanged={() => { setViewingHistory(null); refresh(); onChanged(); }} />
@@ -549,6 +590,205 @@ function UploadContractModal({ booking, onCancel, onSaved }) {
           <button style={button.ghost} onClick={onCancel}>Cancel</button>
           <button style={button.primary} onClick={save} disabled={busy || !contractFile}>{busy ? "Saving…" : "Save"}</button>
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+// Same browser-local-offset conversion RentalBlocks.jsx and CalendarView.jsx
+// already use for their own datetime-local fields — kept consistent with
+// those rather than introducing a separate lodge-timezone-aware conversion
+// just for this one form.
+function toLocalInput(date) {
+  const d = new Date(date);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
+function EditBookingModal({ booking, spaces, isRentalsAdmin, onCancel, onSaved }) {
+  const [form, setForm] = useState({
+    spaceId: booking.spaceId,
+    renterName: booking.renterName,
+    renterEmail: booking.renterEmail,
+    renterPhone: booking.renterPhone || "",
+    renterAddress: booking.renterAddress || "",
+    isMember: booking.isMember,
+    eventType: booking.eventType || "",
+    expectedGuests: booking.expectedGuests ?? "",
+    startAt: toLocalInput(booking.startAt),
+    endAt: toLocalInput(booking.endAt),
+    wantsBartender: booking.wantsBartender,
+    wantsLinen: booking.wantsLinen,
+    roundTables: booking.roundTables ?? 0,
+    longTables: booking.longTables ?? 0,
+    chairs: booking.chairs ?? 0,
+    kitchenUse: booking.kitchenUse || "",
+    chafingDishes: booking.chafingDishes ?? 0,
+    notes: booking.notes || "",
+  });
+  const [quotedTotal, setQuotedTotal] = useState(booking.quotedTotal ?? 0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  function set(k, v) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function save(e) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      const payload = { ...form };
+      if (isRentalsAdmin) payload.quotedTotal = Number(quotedTotal);
+      await api.updateRentalBooking(booking.id, payload);
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const space = spaces.find((s) => s.id === form.spaceId);
+
+  return (
+    <Modal onCancel={onCancel} width={560} title={`Edit — ${booking.renterName}`}>
+      <form onSubmit={save} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
+          <Field label="Renter name"><input style={inputStyle} required value={form.renterName} onChange={(e) => set("renterName", e.target.value)} /></Field>
+          <Field label="Email"><input style={inputStyle} type="email" required value={form.renterEmail} onChange={(e) => set("renterEmail", e.target.value)} /></Field>
+          <Field label="Phone"><input style={inputStyle} value={formatPhone(form.renterPhone)} onChange={(e) => set("renterPhone", stripPhone(e.target.value))} /></Field>
+          <Field label="Club member?">
+            <select style={inputStyle} value={form.isMember ? "yes" : "no"} onChange={(e) => set("isMember", e.target.value === "yes")}>
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </Field>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
+          <Field label="Space">
+            <select style={inputStyle} value={form.spaceId} onChange={(e) => set("spaceId", e.target.value)}>
+              {spaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Event type"><input style={inputStyle} value={form.eventType} onChange={(e) => set("eventType", e.target.value)} /></Field>
+          <Field label="Expected guests"><input style={inputStyle} type="number" min="0" value={form.expectedGuests} onChange={(e) => set("expectedGuests", e.target.value)} /></Field>
+          <Field label="Address"><input style={inputStyle} value={form.renterAddress} onChange={(e) => set("renterAddress", e.target.value)} /></Field>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
+          <Field label="Start"><input style={inputStyle} type="datetime-local" required value={form.startAt} onChange={(e) => set("startAt", e.target.value)} /></Field>
+          <Field label="End"><input style={inputStyle} type="datetime-local" required value={form.endAt} onChange={(e) => set("endAt", e.target.value)} /></Field>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+          {space?.offersBartender && (
+            <Field label="Bartender?">
+              <select style={inputStyle} value={form.wantsBartender ? "yes" : "no"} onChange={(e) => set("wantsBartender", e.target.value === "yes")}>
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </Field>
+          )}
+          {space?.offersLinen && (
+            <Field label="Linen?">
+              <select style={inputStyle} value={form.wantsLinen ? "yes" : "no"} onChange={(e) => set("wantsLinen", e.target.value === "yes")}>
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </Field>
+          )}
+          <Field label="Round tables"><input style={inputStyle} type="number" min="0" value={form.roundTables} onChange={(e) => set("roundTables", e.target.value)} /></Field>
+          <Field label="8' tables"><input style={inputStyle} type="number" min="0" value={form.longTables} onChange={(e) => set("longTables", e.target.value)} /></Field>
+          <Field label="Chairs"><input style={inputStyle} type="number" min="0" value={form.chairs} onChange={(e) => set("chairs", e.target.value)} /></Field>
+          <Field label="Kitchen">
+            <select style={inputStyle} value={form.kitchenUse} onChange={(e) => set("kitchenUse", e.target.value)}>
+              <option value="">None</option>
+              <option value="no_oven">No oven</option>
+              <option value="with_oven">With oven</option>
+            </select>
+          </Field>
+          <Field label="Chafing dishes"><input style={inputStyle} type="number" min="0" value={form.chafingDishes} onChange={(e) => set("chafingDishes", e.target.value)} /></Field>
+        </div>
+        <Field label="Notes"><input style={inputStyle} value={form.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
+
+        <Field label={isRentalsAdmin ? "Quoted total" : "Quoted total (Rentals Admin only to change)"}>
+          <input
+            style={inputStyle} type="number" step="0.01" min="0"
+            value={quotedTotal} disabled={!isRentalsAdmin}
+            onChange={(e) => setQuotedTotal(e.target.value)}
+          />
+        </Field>
+
+        {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+          <button type="submit" style={button.primary} disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// A one-way (but Admin-reversible via Unlock) confirmation, same spirit as
+// GC-7Q's file/unlock — once the money's actually been turned in, the
+// booking's own details shouldn't keep moving out from under that number.
+function MarkFundsDepositedModal({ booking, onCancel, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function confirm() {
+    setError("");
+    setBusy(true);
+    try {
+      await api.markRentalBookingFundsDeposited(booking.id);
+      onDone();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onCancel={onCancel} width={420} title="Mark funds deposited?">
+      <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 16 }}>
+        Confirms the deposit and any payments collected for <strong>{booking.renterName}</strong>'s booking have been turned in. This locks the booking's details (renter info, dates, space, pricing) against further edits — Payment, Sign, Upload contract, Complete, and Cancel all still work as normal. A Rentals Admin can Unlock it later if something needs correcting.
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        <button style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+        <button style={button.primary} onClick={confirm} disabled={busy}>{busy ? "Locking…" : "Yes, lock it"}</button>
+      </div>
+    </Modal>
+  );
+}
+
+function UnlockBookingModal({ booking, onCancel, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function confirm() {
+    setError("");
+    setBusy(true);
+    try {
+      await api.unlockRentalBooking(booking.id);
+      onDone();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onCancel={onCancel} width={420} title="Unlock for correction?">
+      <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 16 }}>
+        Reopens <strong>{booking.renterName}</strong>'s booking for editing. Only do this if the deposited funds figure genuinely needs correcting — not to reopen something that's already been reconciled elsewhere.
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        <button style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+        <button style={button.primary} onClick={confirm} disabled={busy}>{busy ? "Unlocking…" : "Yes, unlock"}</button>
       </div>
     </Modal>
   );

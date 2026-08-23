@@ -74,22 +74,60 @@ router.post("/bookings", requirePermission("rentals", "Helper"), async (req, res
   res.json(booking);
 });
 
-// Edits are only allowed before a booking is locked into a final state.
+// Edits are only allowed before a booking is locked into a final state —
+// either by status (declined/cancelled/completed are history, not editable)
+// or by fundsDepositedAt, which locks a confirmed booking's own details once
+// its money has actually been turned in (see /mark-funds-deposited below).
 router.patch("/bookings/:id", requirePermission("rentals", "Helper"), async (req, res) => {
   const booking = await prisma.rentalBooking.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!booking) return res.status(404).json({ error: "Booking not found" });
   if (!["inquiry", "confirmed"].includes(booking.status)) {
     return res.status(400).json({ error: "This booking is no longer editable" });
   }
+  if (booking.fundsDepositedAt) {
+    return res.status(400).json({ error: "Funds have been deposited — unlock this booking for correction before editing" });
+  }
 
   const {
-    renterName, renterEmail, renterPhone, renterAddress, isMember, eventType, expectedGuests,
+    spaceId, renterName, renterEmail, renterPhone, renterAddress, isMember, eventType, expectedGuests,
     startAt, endAt, wantsBartender, wantsLinen, roundTables, longTables, chairs, kitchenUse, chafingDishes, notes,
+    quotedTotal,
   } = req.body;
+
+  // The quoted total is real money already committed to on a confirmed
+  // booking — same Admin bar as setting it in the first place at /confirm,
+  // not the Helper level the rest of this route allows.
+  if (quotedTotal !== undefined && req.moduleGrants.rentals !== "Admin") {
+    return res.status(403).json({ error: "Only a Rentals Admin can adjust the quoted total" });
+  }
+
+  let newSpace = null;
+  if (spaceId && spaceId !== booking.spaceId) {
+    newSpace = await prisma.rentalSpace.findFirst({ where: { id: spaceId, orgId: req.user.orgId } });
+    if (!newSpace) return res.status(404).json({ error: "Space not found" });
+  }
+
+  // A confirmed booking already occupies a slot on the calendar — moving it
+  // to a new space or time needs the same conflict check /confirm runs, so
+  // an edit can't silently create a double-booking. Not needed for a plain
+  // inquiry since that never held a slot to begin with.
+  if (booking.status === "confirmed" && (spaceId || startAt || endAt)) {
+    const effectiveSpaceId = spaceId || booking.spaceId;
+    const effectiveStart = startAt ? lodgeDateTimeStringToUtc(startAt) : booking.startAt;
+    const effectiveEnd = endAt ? lodgeDateTimeStringToUtc(endAt) : booking.endAt;
+    const [otherBookings, blocks] = await Promise.all([
+      prisma.rentalBooking.findMany({ where: { spaceId: effectiveSpaceId, status: { in: ["confirmed", "completed"] } } }),
+      prisma.rentalBlock.findMany({ where: { spaceId: effectiveSpaceId } }),
+    ]);
+    if (hasConflict(effectiveStart, effectiveEnd, otherBookings, blocks, booking.id)) {
+      return res.status(409).json({ error: "This space is already booked or blocked for an overlapping time" });
+    }
+  }
 
   const updated = await prisma.rentalBooking.update({
     where: { id: booking.id },
     data: {
+      spaceId: spaceId || undefined,
       renterName, renterEmail, renterPhone, renterAddress,
       isMember: isMember !== undefined ? !!isMember : undefined,
       eventType,
@@ -104,8 +142,41 @@ router.patch("/bookings/:id", requirePermission("rentals", "Helper"), async (req
       kitchenUse,
       chafingDishes: chafingDishes !== undefined ? Number(chafingDishes) || 0 : undefined,
       notes,
+      quotedTotal: quotedTotal !== undefined ? Number(quotedTotal) : undefined,
     },
   });
+
+  // Keep the shared calendar in sync with whatever just changed — same
+  // idempotent upsert /confirm uses, safe to re-run on every edit.
+  if (booking.status === "confirmed") {
+    const currentSpace = newSpace || await prisma.rentalSpace.findUnique({ where: { id: updated.spaceId } });
+    await publishRentalBooking(req.user.orgId, updated, currentSpace);
+  }
+
+  res.json(updated);
+});
+
+// Marks the booking's collected funds as physically turned in/deposited —
+// locks its own details (renter info, dates, space, pricing) against further
+// edits from here on, same "lock once the money's real" pattern as a filed
+// GC-7Q report. Payments, signing, and lifecycle actions are never gated on
+// this. Reversible via /unlock below for a genuine correction.
+router.post("/bookings/:id/mark-funds-deposited", requirePermission("rentals", "Admin"), async (req, res) => {
+  const booking = await prisma.rentalBooking.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (!["confirmed", "completed"].includes(booking.status)) {
+    return res.status(400).json({ error: "Only a confirmed or completed booking can be marked as deposited" });
+  }
+  if (booking.fundsDepositedAt) return res.status(400).json({ error: "Already marked as deposited" });
+  const updated = await prisma.rentalBooking.update({ where: { id: booking.id }, data: { fundsDepositedAt: new Date() } });
+  res.json(updated);
+});
+
+router.post("/bookings/:id/unlock", requirePermission("rentals", "Admin"), async (req, res) => {
+  const booking = await prisma.rentalBooking.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (!booking.fundsDepositedAt) return res.status(400).json({ error: "This booking isn't locked" });
+  const updated = await prisma.rentalBooking.update({ where: { id: booking.id }, data: { fundsDepositedAt: null } });
   res.json(updated);
 });
 

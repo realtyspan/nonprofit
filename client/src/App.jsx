@@ -242,7 +242,7 @@ function Shell() {
             {activeModuleKey === "bell-jar" && view === "deals" && <Deals deals={deals} onChanged={refreshDeals} permissions={permissions} />}
             {activeModuleKey === "bell-jar" && view === "ledger" && <Ledger />}
             {activeModuleKey === "bell-jar" && view === "reports" && <Reports permissions={permissions} />}
-            {activeModuleKey === "rentals" && view === "bookings" && <RentalBookings spaces={rentalSpaces} onChanged={refreshRentals} />}
+            {activeModuleKey === "rentals" && view === "bookings" && <RentalBookings spaces={rentalSpaces} onChanged={refreshRentals} permissions={permissions} />}
             {activeModuleKey === "rentals" && view === "spaces" && <RentalSpaces spaces={rentalSpaces} onChanged={refreshRentals} />}
             {activeModuleKey === "rentals" && view === "blocks" && <RentalBlocks spaces={rentalSpaces} />}
             {activeModuleKey === "calendar" && view === "month" && <CalendarView rentalSpaces={rentalSpaces} permissions={permissions} currentUserId={session?.user?.id} />}
