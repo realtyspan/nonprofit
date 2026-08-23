@@ -15,8 +15,14 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
   const [deletingGame, setDeletingGame] = useState(null);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [lifecycleError, setLifecycleError] = useState("");
+  const [historicalImports, setHistoricalImports] = useState([]);
 
   const selectedGame = games.find((g) => g.id === gameId) || null;
+
+  function refreshHistoricalImports() {
+    api.listHistoricalRaffleImports().then(setHistoricalImports).catch(() => {});
+  }
+  useEffect(refreshHistoricalImports, []);
 
   async function toggleLifecycle() {
     setLifecycleBusy(true);
@@ -48,6 +54,12 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
             {selectedGame.status === "active"
               ? "Closing stops new sales, drawings, and check-ins for this raffle. Its tickets and history stay fully visible for reporting. Other raffles are unaffected."
               : "Reopening allows new sales, drawings, and check-ins for this raffle again."}
+          </div>
+          <div style={{ fontSize: 12, color: colors.textSecondary }}>
+            Buyer history source:{" "}
+            {selectedGame.previousGameId
+              ? [...games, ...historicalImports].find((g) => g.id === selectedGame.previousGameId)?.name || "a linked raffle"
+              : <em>none linked — edit this raffle to pull past buyers from a prior one</em>}
           </div>
           {lifecycleError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{lifecycleError}</div>}
           <div>
@@ -100,6 +112,8 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
         </div>
       ) : (
         <NewGameForm
+          games={games}
+          historicalImports={historicalImports}
           onCancel={() => setShowNewGameForm(false)}
           onCreated={() => { setShowNewGameForm(false); onGamesChanged(); }}
         />
@@ -108,6 +122,8 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
       {editingGame && (
         <EditGameModal
           game={editingGame}
+          games={games}
+          historicalImports={historicalImports}
           onCancel={() => setEditingGame(null)}
           onSaved={() => { setEditingGame(null); onGamesChanged(); }}
         />
@@ -121,27 +137,45 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
         />
       )}
 
-      <HistoricalImports />
+      <HistoricalImports games={games} imports={historicalImports} onImportsChanged={refreshHistoricalImports} />
     </div>
+  );
+}
+
+// Every other raffle (operational or historical import) an admin could point
+// a raffle's "pull past buyers from" link at, newest first. Passed down as
+// data rather than re-fetched per form, since the parent already holds both
+// lists.
+function linkableGameOptions(games, historicalImports, excludeId) {
+  return [...games, ...historicalImports]
+    .filter((g) => g.id !== excludeId)
+    .sort((a, b) => new Date(b.raffleStartDate) - new Date(a.raffleStartDate));
+}
+
+function PreviousGameField({ options, value, onChange }) {
+  if (options.length === 0) return null;
+  return (
+    <Field label="Pull past buyers from (optional)">
+      <select style={inputStyle} value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— None —</option>
+        {options.map((g) => (
+          <option key={g.id} value={g.id}>{g.name}</option>
+        ))}
+      </select>
+    </Field>
   );
 }
 
 // Past-years sales data (ticket #, buyer, phone) uploaded once so the "past
 // buyers" lookup on the ticket card has real history to show, instead of
 // staying empty until the org has run a few raffles inside this app.
-function HistoricalImports() {
-  const [imports, setImports] = useState([]);
+function HistoricalImports({ games, imports, onImportsChanged }) {
   const [showForm, setShowForm] = useState(false);
-
-  function refresh() {
-    api.listHistoricalRaffleImports().then(setImports).catch(() => {});
-  }
-  useEffect(refresh, []);
 
   async function remove(item) {
     if (!window.confirm(`Remove the imported ${item.name} data? This only deletes the archived record used for "past buyers" lookups — it has no effect on any live raffle.`)) return;
     await api.deleteHistoricalRaffleImport(item.id);
-    refresh();
+    onImportsChanged();
   }
 
   return (
@@ -171,22 +205,27 @@ function HistoricalImports() {
         <div><button style={button.ghost} onClick={() => setShowForm(true)}>+ Import past-years data</button></div>
       ) : (
         <HistoricalImportForm
+          games={games}
+          historicalImports={imports}
           onCancel={() => setShowForm(false)}
-          onImported={() => { setShowForm(false); refresh(); }}
+          onImported={() => { setShowForm(false); onImportsChanged(); }}
         />
       )}
     </div>
   );
 }
 
-function HistoricalImportForm({ onCancel, onImported }) {
+function HistoricalImportForm({ games, historicalImports, onCancel, onImported }) {
   const [year, setYear] = useState(new Date().getFullYear() - 1);
   const [name, setName] = useState("");
   const [fileName, setFileName] = useState("");
   const [csv, setCsv] = useState("");
+  const [previousGameId, setPreviousGameId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  const linkOptions = linkableGameOptions(games, historicalImports, null);
 
   function handleFile(e) {
     const file = e.target.files?.[0];
@@ -206,7 +245,7 @@ function HistoricalImportForm({ onCancel, onImported }) {
     setError("");
     setNotice("");
     try {
-      const res = await api.importHistoricalRaffleData({ year: Number(year), name: name.trim(), csv });
+      const res = await api.importHistoricalRaffleData({ year: Number(year), name: name.trim(), csv, previousGameId: previousGameId || null });
       setNotice(`Imported ${res.imported} ticket${res.imported === 1 ? "" : "s"}${res.skipped ? ` (${res.skipped} row${res.skipped === 1 ? "" : "s"} skipped — missing a ticket number or buyer name)` : ""}.`);
       setTimeout(onImported, 1200);
     } catch (err) {
@@ -232,6 +271,7 @@ function HistoricalImportForm({ onCancel, onImported }) {
         </label>
         {fileName && <span style={{ fontSize: 12.5, color: colors.textSecondary }}>{fileName}</span>}
       </div>
+      <PreviousGameField options={linkOptions} value={previousGameId} onChange={setPreviousGameId} />
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
       {notice && <div style={{ color: colors.success, fontSize: 12.5 }}>{notice}</div>}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
@@ -242,17 +282,19 @@ function HistoricalImportForm({ onCancel, onImported }) {
   );
 }
 
-function NewGameForm({ onCancel, onCreated }) {
+function NewGameForm({ games, historicalImports, onCancel, onCreated }) {
   const [name, setName] = useState("");
   const [startNumber, setStartNumber] = useState(1);
   const [endNumber, setEndNumber] = useState(400);
   const [ticketPrice, setTicketPrice] = useState(100);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [previousGameId, setPreviousGameId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const ticketCount = Number(endNumber) - Number(startNumber) + 1;
+  const linkOptions = linkableGameOptions(games, historicalImports, null);
 
   async function submit(e) {
     e.preventDefault();
@@ -265,6 +307,7 @@ function NewGameForm({ onCancel, onCreated }) {
       await api.createRaffleGame({
         name: name.trim(), startNumber: Number(startNumber), endNumber: Number(endNumber),
         ticketPrice: Number(ticketPrice), startDate, endDate,
+        previousGameId: previousGameId || null,
       });
       onCreated();
     } catch (err) {
@@ -293,6 +336,8 @@ function NewGameForm({ onCancel, onCreated }) {
           <Field label="Closing date / final drawing"><input style={inputStyle} type="date" required value={endDate} onChange={(e) => setEndDate(e.target.value)} /></Field>
         </div>
 
+        <PreviousGameField options={linkOptions} value={previousGameId} onChange={setPreviousGameId} />
+
         {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
@@ -304,7 +349,7 @@ function NewGameForm({ onCancel, onCreated }) {
   );
 }
 
-function EditGameModal({ game, onCancel, onSaved }) {
+function EditGameModal({ game, games, historicalImports, onCancel, onSaved }) {
   const [form, setForm] = useState({
     name: game.name,
     startNumber: game.startNumber,
@@ -312,6 +357,7 @@ function EditGameModal({ game, onCancel, onSaved }) {
     ticketPrice: game.ticketPrice,
     startDate: game.raffleStartDate.slice(0, 10),
     endDate: game.raffleEndDate.slice(0, 10),
+    previousGameId: game.previousGameId || "",
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -322,6 +368,7 @@ function EditGameModal({ game, onCancel, onSaved }) {
 
   const ticketCount = Number(form.endNumber) - Number(form.startNumber) + 1;
   const rangeShrinking = Number(form.startNumber) > game.startNumber || Number(form.endNumber) < game.endNumber;
+  const linkOptions = linkableGameOptions(games, historicalImports, game.id);
 
   async function submit(e) {
     e.preventDefault();
@@ -335,6 +382,7 @@ function EditGameModal({ game, onCancel, onSaved }) {
         ticketPrice: Number(form.ticketPrice),
         startDate: form.startDate,
         endDate: form.endDate,
+        previousGameId: form.previousGameId || null,
       });
       onSaved();
     } catch (err) {
@@ -369,6 +417,8 @@ function EditGameModal({ game, onCancel, onSaved }) {
           <Field label="Raffle start date"><input style={inputStyle} type="date" required value={form.startDate} onChange={(e) => set("startDate", e.target.value)} /></Field>
           <Field label="Closing date / final drawing"><input style={inputStyle} type="date" required value={form.endDate} onChange={(e) => set("endDate", e.target.value)} /></Field>
         </div>
+
+        <PreviousGameField options={linkOptions} value={form.previousGameId} onChange={(v) => set("previousGameId", v)} />
 
         {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 

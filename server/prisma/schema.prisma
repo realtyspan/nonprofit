@@ -567,6 +567,9 @@ model RaffleGame {
   closedAt        DateTime?
   estimatedExpenses Float   @default(0) // rough non-prize-expense planning number the chairman can set anytime, for an early compliance projection before real RaffleExpense rows exist — not part of the official GC-7R math once actuals are entered
   isHistorical    Boolean   @default(false) // true for a past-years CSV import kept only to power the "past buyers" lookup — hidden from the live game switcher and every operational raffle screen
+  previousGameId  String?   // admin-chosen link to an earlier RaffleGame (operational or historical) to pull "past buyers" from — explicit, not name-matching, so it works regardless of how raffles are named. SetNull on delete so removing an old raffle/import just breaks the chain link rather than blocking the delete or cascading.
+  previousGame    RaffleGame?  @relation("RaffleGameChain", fields: [previousGameId], references: [id], onDelete: SetNull)
+  nextRaffleGames RaffleGame[] @relation("RaffleGameChain")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -579,6 +582,7 @@ model RaffleGame {
 
   @@index([orgId])
   @@index([orgId, status])
+  @@index([previousGameId])
 }
 
 model RaffleTicket {

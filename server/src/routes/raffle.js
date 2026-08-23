@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
-const { maskRaffleTicket, computeRaffleStats, eligibleTicketPool, fmtUsDate, raffleSeriesKey, computeRaffleFinancials } = require("../lib/raffleLogic");
+const { maskRaffleTicket, computeRaffleStats, eligibleTicketPool, fmtUsDate, computeRaffleFinancials } = require("../lib/raffleLogic");
 const { saleConfirmationHtml, electronicTicketHtml, paymentReminderHtml } = require("../lib/raffleEmails");
 const { sendEmail } = require("../lib/notifications");
 const { buildSellerActivityReportPdf, buildTicketsTurnedInReportPdf } = require("../lib/raffleReportsPdf");
@@ -94,8 +94,22 @@ router.get("/games", requireReadAccess("raffle"), async (req, res) => {
   res.json(games);
 });
 
+// Validates an admin-chosen "pull past buyers from" link: must be another
+// game in the same org and can't point at itself. Returns null for "no
+// link" (a brand-new org with no prior raffle, or one that deliberately
+// doesn't want buyer history carried over).
+async function resolvePreviousGameId(orgId, previousGameId, selfId) {
+  if (!previousGameId) return null;
+  if (previousGameId === selfId) {
+    throw Object.assign(new Error("A raffle can't link to itself"), { status: 400 });
+  }
+  const game = await prisma.raffleGame.findFirst({ where: { id: previousGameId, orgId } });
+  if (!game) throw Object.assign(new Error("That linked raffle wasn't found"), { status: 400 });
+  return game.id;
+}
+
 router.post("/games", requirePermission("raffle", "Admin"), async (req, res) => {
-  const { name, startNumber, endNumber, ticketPrice, startDate, endDate } = req.body;
+  const { name, startNumber, endNumber, ticketPrice, startDate, endDate, previousGameId } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: "name is required" });
 
   const start = Number(startNumber);
@@ -121,12 +135,19 @@ router.post("/games", requirePermission("raffle", "Admin"), async (req, res) => 
   if (!Number.isFinite(price) || price <= 0) {
     return res.status(400).json({ error: "ticketPrice must be a positive number" });
   }
+  let resolvedPreviousGameId;
+  try {
+    resolvedPreviousGameId = await resolvePreviousGameId(req.user.orgId, previousGameId, null);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
 
   const game = await prisma.raffleGame.create({
     data: {
       orgId: req.user.orgId, name: name.trim(), startNumber: start, endNumber: end,
       totalTickets: end - start + 1, ticketPrice: price,
       raffleStartDate: parsedStart, raffleEndDate: parsedEnd,
+      previousGameId: resolvedPreviousGameId,
     },
   });
 
@@ -192,7 +213,7 @@ router.get("/financials/:year", requireReadAccess("raffle"), async (req, res) =>
 // for just the added numbers; nothing about existing tickets is touched.
 router.patch("/games/:gameId", requirePermission("raffle", "Admin"), requireActiveGame, async (req, res) => {
   const game = req.raffleGame;
-  const { name, startNumber, endNumber, ticketPrice, startDate, endDate } = req.body;
+  const { name, startNumber, endNumber, ticketPrice, startDate, endDate, previousGameId } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: "name is required" });
 
   const start = Number(startNumber);
@@ -212,6 +233,12 @@ router.patch("/games/:gameId", requirePermission("raffle", "Admin"), requireActi
   if (parsedEnd < parsedStart) return res.status(400).json({ error: "The closing date must be on or after the start date" });
   const price = Number(ticketPrice);
   if (!Number.isFinite(price) || price <= 0) return res.status(400).json({ error: "ticketPrice must be a positive number" });
+  let resolvedPreviousGameId;
+  try {
+    resolvedPreviousGameId = await resolvePreviousGameId(req.user.orgId, previousGameId, game.id);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
 
   const shrinkFromStart = start > game.startNumber ? { number: { gte: game.startNumber, lt: start } } : null;
   const shrinkFromEnd = end < game.endNumber ? { number: { gt: end, lte: game.endNumber } } : null;
@@ -242,6 +269,7 @@ router.patch("/games/:gameId", requirePermission("raffle", "Admin"), requireActi
       data: {
         name: name.trim(), startNumber: start, endNumber: end, totalTickets: end - start + 1,
         ticketPrice: price, raffleStartDate: parsedStart, raffleEndDate: parsedEnd,
+        previousGameId: resolvedPreviousGameId,
       },
     }),
   ]);
@@ -301,7 +329,7 @@ router.get("/historical-imports", requireReadAccess("raffle"), async (req, res) 
 });
 
 router.post("/historical-imports", requirePermission("raffle", "Admin"), async (req, res) => {
-  const { year, name, csv } = req.body;
+  const { year, name, csv, previousGameId } = req.body;
   const yearNum = Number(year);
   if (!Number.isInteger(yearNum) || yearNum < 1900 || yearNum > 2200) {
     return res.status(400).json({ error: "A valid raffle year is required" });
@@ -316,6 +344,12 @@ router.post("/historical-imports", requirePermission("raffle", "Admin"), async (
   }
   if (rows.length === 0) {
     return res.status(400).json({ error: "No usable rows found — each row needs at least a ticket number and buyer name" });
+  }
+  let resolvedPreviousGameId;
+  try {
+    resolvedPreviousGameId = await resolvePreviousGameId(req.user.orgId, previousGameId, null);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
   }
 
   const numbers = rows.map((r) => r.number);
@@ -332,6 +366,7 @@ router.post("/historical-imports", requirePermission("raffle", "Admin"), async (
       status: "closed",
       closedAt: new Date(Date.UTC(yearNum, 11, 31)),
       isHistorical: true,
+      previousGameId: resolvedPreviousGameId,
     },
   });
   await prisma.raffleTicket.createMany({
@@ -377,30 +412,32 @@ router.get("/games/:gameId/tickets", requireReadAccess("raffle"), async (req, re
 // Helper (same tier as recording a sale) rather than requireReadAccess, and
 // deliberately not run through maskRaffleTicket — a seller needs the actual
 // contact info to call/re-sell to a past buyer.
-// Scoped to the same raffle series (see raffleSeriesKey) — otherwise two
-// differently-named raffles running concurrently with overlapping ticket
-// numbers could show each other's buyers by coincidence. The series filter
-// has to happen in JS since it's a derived value, not a column — take: 2 is
-// applied after filtering, not in the query, so a same-numbered ticket from
-// an unrelated raffle can't crowd out a real same-series match.
+// Walks the admin-chosen previousGameId chain (set at raffle creation or
+// edit time — see resolvePreviousGameId) rather than guessing from the name.
+// This is deliberate, not automatic: a raffle with no link set shows no past
+// buyers, which is correct for an org's first-ever raffle or one that just
+// doesn't want history carried over. Stops after 2 matches or 10 hops
+// (a safety bound — an org would need 10 linked years before this ever
+// matters).
 router.get("/games/:gameId/tickets/:number/history", requirePermission("raffle", "Helper"), async (req, res) => {
   const number = Number(req.params.number);
-  const seriesKey = raffleSeriesKey(req.raffleGame.name);
-  const rows = await prisma.raffleTicket.findMany({
-    where: {
-      orgId: req.user.orgId,
-      number,
-      gameId: { not: req.raffleGame.id },
-      status: { in: ["sold", "funds_received"] },
-    },
-    include: { game: { select: { id: true, name: true, raffleStartDate: true } } },
-    orderBy: { game: { raffleStartDate: "desc" } },
-  });
-  const matches = rows.filter((t) => raffleSeriesKey(t.game.name) === seriesKey).slice(0, 2);
-  res.json(matches.map((t) => ({
-    buyer: t.buyer, phone: t.phone, email: t.email, address: t.address,
-    gameId: t.game.id, gameName: t.game.name, raffleStartDate: t.game.raffleStartDate,
-  })));
+  const matches = [];
+  let cursorId = req.raffleGame.previousGameId;
+  for (let hops = 0; cursorId && matches.length < 2 && hops < 10; hops++) {
+    const game = await prisma.raffleGame.findFirst({ where: { id: cursorId, orgId: req.user.orgId } });
+    if (!game) break;
+    const ticket = await prisma.raffleTicket.findFirst({
+      where: { gameId: game.id, orgId: req.user.orgId, number, status: { in: ["sold", "funds_received"] } },
+    });
+    if (ticket) {
+      matches.push({
+        buyer: ticket.buyer, phone: ticket.phone, email: ticket.email, address: ticket.address,
+        gameId: game.id, gameName: game.name, raffleStartDate: game.raffleStartDate,
+      });
+    }
+    cursorId = game.previousGameId;
+  }
+  res.json(matches);
 });
 
 router.get("/games/:gameId/log", requireReadAccess("raffle"), async (req, res) => {
