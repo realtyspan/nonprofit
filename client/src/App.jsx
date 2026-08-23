@@ -70,6 +70,7 @@ function Shell() {
   const [rentalInquiryCount, setRentalInquiryCount] = useState(0);
   const [raffleGames, setRaffleGames] = useState([]);
   const [selectedRaffleGameId, setSelectedRaffleGameId] = useState(null);
+  const selectedRaffleGame = raffleGames.find((g) => g.id === selectedRaffleGameId) || null;
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -220,6 +221,9 @@ function Shell() {
           {activeModuleKey === "raffle" && (
             <div style={{ padding: isMobile ? "10px 16px" : "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#fafafa", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Raffle</span>
+              {selectedRaffleGame && (
+                <span style={{ fontSize: 17, fontWeight: 700, color: colors.textPrimary }}>{selectedRaffleGame.name}</span>
+              )}
               {raffleGames.length > 0 ? (
                 <select
                   value={selectedRaffleGameId || ""}
