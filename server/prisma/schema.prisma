@@ -566,6 +566,7 @@ model RaffleGame {
   status          String    @default("active") // active | closed
   closedAt        DateTime?
   estimatedExpenses Float   @default(0) // rough non-prize-expense planning number the chairman can set anytime, for an early compliance projection before real RaffleExpense rows exist — not part of the official GC-7R math once actuals are entered
+  isHistorical    Boolean   @default(false) // true for a past-years CSV import kept only to power the "past buyers" lookup — hidden from the live game switcher and every operational raffle screen
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

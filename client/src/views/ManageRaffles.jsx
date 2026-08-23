@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
@@ -120,6 +120,124 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
           onDeleted={() => { setDeletingGame(null); onGamesChanged(); }}
         />
       )}
+
+      <HistoricalImports />
+    </div>
+  );
+}
+
+// Past-years sales data (ticket #, buyer, phone) uploaded once so the "past
+// buyers" lookup on the ticket card has real history to show, instead of
+// staying empty until the org has run a few raffles inside this app.
+function HistoricalImports() {
+  const [imports, setImports] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+
+  function refresh() {
+    api.listHistoricalRaffleImports().then(setImports).catch(() => {});
+  }
+  useEffect(refresh, []);
+
+  async function remove(item) {
+    if (!window.confirm(`Remove the imported ${item.name} data? This only deletes the archived record used for "past buyers" lookups — it has no effect on any live raffle.`)) return;
+    await api.deleteHistoricalRaffleImport(item.id);
+    refresh();
+  }
+
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Historical data</div>
+        <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>
+          Import past years' ticket sales so a buyer's purchase history shows up on the ticket card. This is archival only — it never appears as a raffle you can sell against.
+        </div>
+      </div>
+
+      {imports.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {imports.map((item) => (
+            <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", border: `1px solid ${colors.borderLight}`, borderRadius: 7, fontSize: 13 }}>
+              <div>
+                <strong>{item.name}</strong>
+                <span style={{ color: colors.textSecondary, marginLeft: 8, fontSize: 12 }}>{item.ticketCount} ticket{item.ticketCount === 1 ? "" : "s"}</span>
+              </div>
+              <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} onClick={() => remove(item)}>Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!showForm ? (
+        <div><button style={button.ghost} onClick={() => setShowForm(true)}>+ Import past-years data</button></div>
+      ) : (
+        <HistoricalImportForm
+          onCancel={() => setShowForm(false)}
+          onImported={() => { setShowForm(false); refresh(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function HistoricalImportForm({ onCancel, onImported }) {
+  const [year, setYear] = useState(new Date().getFullYear() - 1);
+  const [name, setName] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [csv, setCsv] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError("");
+    setNotice("");
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onerror = () => setError("Couldn't read that file");
+    reader.onload = () => setCsv(String(reader.result || ""));
+    reader.readAsText(file);
+  }
+
+  async function submit() {
+    if (!csv.trim()) return setError("Choose a CSV file first");
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const res = await api.importHistoricalRaffleData({ year: Number(year), name: name.trim(), csv });
+      setNotice(`Imported ${res.imported} ticket${res.imported === 1 ? "" : "s"}${res.skipped ? ` (${res.skipped} row${res.skipped === 1 ? "" : "s"} skipped — missing a ticket number or buyer name)` : ""}.`);
+      setTimeout(onImported, 1200);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 480, paddingTop: 4, borderTop: `1px solid ${colors.borderLight}` }}>
+      <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+        The CSV needs a <strong>Ticket Number</strong> and <strong>Buyer</strong> column. Phone, Email, Address, Seller, and Amount are optional.
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+        <Field label="Raffle year"><input style={inputStyle} type="number" value={year} onChange={(e) => setYear(e.target.value)} /></Field>
+        <Field label="Label (optional)"><input style={inputStyle} placeholder={`${year} 400 Club (imported)`} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <label style={{ cursor: "pointer" }}>
+          <input type="file" accept=".csv" onChange={handleFile} style={{ display: "none" }} />
+          <span style={{ ...button.ghost, display: "inline-block" }}>{fileName ? "Replace file" : "Choose .csv file"}</span>
+        </label>
+        {fileName && <span style={{ fontSize: 12.5, color: colors.textSecondary }}>{fileName}</span>}
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+      {notice && <div style={{ color: colors.success, fontSize: 12.5 }}>{notice}</div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+        <button type="button" style={button.primary} disabled={busy || !csv} onClick={submit}>{busy ? "Importing…" : "Import"}</button>
+      </div>
     </div>
   );
 }

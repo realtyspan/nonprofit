@@ -6,6 +6,7 @@ const { maskRaffleTicket, computeRaffleStats, eligibleTicketPool, fmtUsDate, com
 const { saleConfirmationHtml, electronicTicketHtml, paymentReminderHtml } = require("../lib/raffleEmails");
 const { sendEmail } = require("../lib/notifications");
 const { buildSellerActivityReportPdf, buildTicketsTurnedInReportPdf } = require("../lib/raffleReportsPdf");
+const { parseHistoricalCsv } = require("../lib/raffleHistoricalImport");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -84,8 +85,12 @@ async function resolveCreditSeller(req, assignToSellerId, ticket) {
 
 // --- Game management ---
 
+// Historical imports are deliberately excluded here — they're not a real,
+// selectable raffle (no sales, drawings, or check-ins happen against them),
+// just archived past-years ticket data kept so the cross-game "past buyers"
+// lookup has something to find. See /historical-imports below.
 router.get("/games", requireReadAccess("raffle"), async (req, res) => {
-  const games = await prisma.raffleGame.findMany({ where: { orgId: req.user.orgId }, orderBy: { createdAt: "desc" } });
+  const games = await prisma.raffleGame.findMany({ where: { orgId: req.user.orgId, isHistorical: false }, orderBy: { createdAt: "desc" } });
   res.json(games);
 });
 
@@ -273,6 +278,85 @@ router.post("/games/:gameId/reopen", requirePermission("raffle", "Admin"), async
 // immutability rule as editing: a closed raffle's history is the record,
 // not something to erase.
 router.delete("/games/:gameId", requirePermission("raffle", "Admin"), requireActiveGame, async (req, res) => {
+  await prisma.raffleGame.delete({ where: { id: req.raffleGame.id } });
+  res.json({ ok: true });
+});
+
+// --- Historical imports ---
+// Past-years ticket data, uploaded once so the cross-game "past buyers"
+// lookup (see /games/:gameId/tickets/:number/history below) has real data to
+// find instead of coming up empty until the org has run a few raffles inside
+// this app. Each import becomes its own isHistorical RaffleGame + its tickets
+// — reusing the existing game/ticket schema and the history lookup as-is —
+// but is excluded from GET /games so it never shows up as a selectable,
+// operational raffle.
+
+router.get("/historical-imports", requireReadAccess("raffle"), async (req, res) => {
+  const games = await prisma.raffleGame.findMany({
+    where: { orgId: req.user.orgId, isHistorical: true },
+    orderBy: { raffleStartDate: "desc" },
+    include: { _count: { select: { tickets: true } } },
+  });
+  res.json(games.map((g) => ({ id: g.id, name: g.name, raffleStartDate: g.raffleStartDate, ticketCount: g._count.tickets })));
+});
+
+router.post("/historical-imports", requirePermission("raffle", "Admin"), async (req, res) => {
+  const { year, name, csv } = req.body;
+  const yearNum = Number(year);
+  if (!Number.isInteger(yearNum) || yearNum < 1900 || yearNum > 2200) {
+    return res.status(400).json({ error: "A valid raffle year is required" });
+  }
+  if (!csv || !csv.trim()) return res.status(400).json({ error: "Paste or choose a CSV file first" });
+
+  let rows, skipped;
+  try {
+    ({ rows, skipped } = parseHistoricalCsv(csv));
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (rows.length === 0) {
+    return res.status(400).json({ error: "No usable rows found — each row needs at least a ticket number and buyer name" });
+  }
+
+  const numbers = rows.map((r) => r.number);
+  const game = await prisma.raffleGame.create({
+    data: {
+      orgId: req.user.orgId,
+      name: (name && name.trim()) || `${yearNum} 400 Club (imported)`,
+      startNumber: Math.min(...numbers),
+      endNumber: Math.max(...numbers),
+      totalTickets: rows.length,
+      ticketPrice: 0,
+      raffleStartDate: new Date(Date.UTC(yearNum, 0, 1)),
+      raffleEndDate: new Date(Date.UTC(yearNum, 11, 31)),
+      status: "closed",
+      closedAt: new Date(Date.UTC(yearNum, 11, 31)),
+      isHistorical: true,
+    },
+  });
+  await prisma.raffleTicket.createMany({
+    data: rows.map((r) => ({
+      orgId: req.user.orgId,
+      gameId: game.id,
+      number: r.number,
+      status: "funds_received",
+      buyer: r.buyer,
+      phone: r.phone,
+      email: r.email,
+      address: r.address,
+      assignedSellerName: r.sellerName,
+      soldByName: "Historical import",
+      tenderType: r.amount != null ? "cash" : null,
+      tenderAmount: r.amount,
+      soldAt: new Date(Date.UTC(yearNum, 5, 1)),
+    })),
+  });
+
+  res.json({ ok: true, gameId: game.id, imported: rows.length, skipped });
+});
+
+router.delete("/historical-imports/:gameId", requirePermission("raffle", "Admin"), async (req, res) => {
+  if (!req.raffleGame.isHistorical) return res.status(400).json({ error: "That raffle isn't a historical import" });
   await prisma.raffleGame.delete({ where: { id: req.raffleGame.id } });
   res.json({ ok: true });
 });

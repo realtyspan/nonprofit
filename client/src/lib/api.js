@@ -169,6 +169,10 @@ export const api = {
   closeRaffleGame: (gameId) => request(`/raffle/games/${gameId}/close`, { method: "POST" }),
   reopenRaffleGame: (gameId) => request(`/raffle/games/${gameId}/reopen`, { method: "POST" }),
 
+  listHistoricalRaffleImports: () => request("/raffle/historical-imports"),
+  importHistoricalRaffleData: (payload) => request("/raffle/historical-imports", { method: "POST", body: payload }),
+  deleteHistoricalRaffleImport: (gameId) => request(`/raffle/historical-imports/${gameId}`, { method: "DELETE" }),
+
   listRaffleTickets: (gameId) => request(`/raffle/games/${gameId}/tickets`),
   getRaffleTicketHistory: (gameId, number) => request(`/raffle/games/${gameId}/tickets/${number}/history`),
   recordRaffleTicket: (gameId, number, payload) => request(`/raffle/games/${gameId}/tickets/${number}/record`, { method: "POST", body: payload }),

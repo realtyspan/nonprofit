@@ -190,7 +190,7 @@ function RaffleTicketModal({ gameId, ticket, permissions, onClose, onChanged }) 
   const [previousBuyers, setPreviousBuyers] = useState([]);
 
   useEffect(() => {
-    if (ticket.status !== "available" || !canHelp) return;
+    if (!canHelp) return;
     api.getRaffleTicketHistory(gameId, ticket.number).then(setPreviousBuyers).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -329,6 +329,19 @@ function RaffleTicketModal({ gameId, ticket, permissions, onClose, onChanged }) 
               {ticket.email && <div><strong>Email:</strong> {ticket.email}</div>}
               {ticket.tenderAmount != null && <div><strong>Paid:</strong> {money(ticket.tenderAmount)} ({ticket.tenderType}{ticket.checkNumber ? ` #${ticket.checkNumber}` : ""})</div>}
             </div>
+
+            {previousBuyers.length > 0 && (
+              <div style={{ border: `1px solid ${colors.borderLight}`, borderRadius: 8, padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b", textTransform: "uppercase" }}>Past buyers</div>
+                {previousBuyers.map((prev, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 12.5 }}>
+                    <span style={{ color: colors.textSecondary, fontSize: 11, minWidth: 34 }}>{new Date(prev.raffleStartDate).getUTCFullYear()}</span>
+                    <span style={{ fontWeight: 600 }}>{prev.buyer}</span>
+                    {prev.phone && <span style={{ color: colors.textSecondary }}>{formatPhone(prev.phone)}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {ticket.status === "reserved" && canHelp && (
               <TenderFields tenderType={tenderType} setTenderType={setTenderType} tenderAmount={tenderAmount} setTenderAmount={setTenderAmount} checkNumber={checkNumber} setCheckNumber={setCheckNumber} />
