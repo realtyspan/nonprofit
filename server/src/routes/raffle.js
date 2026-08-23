@@ -325,7 +325,7 @@ router.get("/historical-imports", requireReadAccess("raffle"), async (req, res) 
     orderBy: { raffleStartDate: "desc" },
     include: { _count: { select: { tickets: true } } },
   });
-  res.json(games.map((g) => ({ id: g.id, name: g.name, raffleStartDate: g.raffleStartDate, ticketCount: g._count.tickets })));
+  res.json(games.map((g) => ({ id: g.id, name: g.name, raffleStartDate: g.raffleStartDate, ticketCount: g._count.tickets, previousGameId: g.previousGameId })));
 });
 
 router.post("/historical-imports", requirePermission("raffle", "Admin"), async (req, res) => {
@@ -394,6 +394,29 @@ router.delete("/historical-imports/:gameId", requirePermission("raffle", "Admin"
   if (!req.raffleGame.isHistorical) return res.status(400).json({ error: "That raffle isn't a historical import" });
   await prisma.raffleGame.delete({ where: { id: req.raffleGame.id } });
   res.json({ ok: true });
+});
+
+// Lets an import's link be set/changed after the fact — a new import's
+// "pull past buyers from" dropdown can only offer imports that already
+// existed at the time it was created, so an older year imported later (or a
+// chain being caught up after the fact) needs this to connect to it.
+router.patch("/historical-imports/:gameId", requirePermission("raffle", "Admin"), async (req, res) => {
+  if (!req.raffleGame.isHistorical) return res.status(400).json({ error: "That raffle isn't a historical import" });
+  const { name, previousGameId } = req.body;
+  let resolvedPreviousGameId;
+  try {
+    resolvedPreviousGameId = await resolvePreviousGameId(req.user.orgId, previousGameId, req.raffleGame.id);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+  const updated = await prisma.raffleGame.update({
+    where: { id: req.raffleGame.id },
+    data: {
+      ...(name && name.trim() ? { name: name.trim() } : {}),
+      previousGameId: resolvedPreviousGameId,
+    },
+  });
+  res.json({ id: updated.id, name: updated.name, previousGameId: updated.previousGameId });
 });
 
 // --- Tickets / log / stats (read) ---

@@ -171,6 +171,7 @@ export const api = {
 
   listHistoricalRaffleImports: () => request("/raffle/historical-imports"),
   importHistoricalRaffleData: (payload) => request("/raffle/historical-imports", { method: "POST", body: payload }),
+  updateHistoricalRaffleImport: (gameId, payload) => request(`/raffle/historical-imports/${gameId}`, { method: "PATCH", body: payload }),
   deleteHistoricalRaffleImport: (gameId) => request(`/raffle/historical-imports/${gameId}`, { method: "DELETE" }),
 
   listRaffleTickets: (gameId) => request(`/raffle/games/${gameId}/tickets`),

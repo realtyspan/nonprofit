@@ -171,6 +171,7 @@ function PreviousGameField({ options, value, onChange }) {
 // staying empty until the org has run a few raffles inside this app.
 function HistoricalImports({ games, imports, onImportsChanged }) {
   const [showForm, setShowForm] = useState(false);
+  const [editingImport, setEditingImport] = useState(null);
 
   async function remove(item) {
     if (!window.confirm(`Remove the imported ${item.name} data? This only deletes the archived record used for "past buyers" lookups — it has no effect on any live raffle.`)) return;
@@ -189,15 +190,24 @@ function HistoricalImports({ games, imports, onImportsChanged }) {
 
       {imports.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {imports.map((item) => (
-            <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", border: `1px solid ${colors.borderLight}`, borderRadius: 7, fontSize: 13 }}>
-              <div>
-                <strong>{item.name}</strong>
-                <span style={{ color: colors.textSecondary, marginLeft: 8, fontSize: 12 }}>{item.ticketCount} ticket{item.ticketCount === 1 ? "" : "s"}</span>
+          {imports.map((item) => {
+            const linkedTo = item.previousGameId ? [...games, ...imports].find((g) => g.id === item.previousGameId) : null;
+            return (
+              <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", border: `1px solid ${colors.borderLight}`, borderRadius: 7, fontSize: 13 }}>
+                <div>
+                  <strong>{item.name}</strong>
+                  <span style={{ color: colors.textSecondary, marginLeft: 8, fontSize: 12 }}>{item.ticketCount} ticket{item.ticketCount === 1 ? "" : "s"}</span>
+                  <div style={{ color: colors.textSecondary, fontSize: 11.5, marginTop: 2 }}>
+                    Buyer history source: {linkedTo ? linkedTo.name : <em>none linked</em>}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} onClick={() => setEditingImport(item)}>Edit</button>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} onClick={() => remove(item)}>Remove</button>
+                </div>
               </div>
-              <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} onClick={() => remove(item)}>Remove</button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -211,7 +221,54 @@ function HistoricalImports({ games, imports, onImportsChanged }) {
           onImported={() => { setShowForm(false); onImportsChanged(); }}
         />
       )}
+
+      {editingImport && (
+        <EditHistoricalImportModal
+          item={editingImport}
+          games={games}
+          historicalImports={imports}
+          onCancel={() => setEditingImport(null)}
+          onSaved={() => { setEditingImport(null); onImportsChanged(); }}
+        />
+      )}
     </div>
+  );
+}
+
+function EditHistoricalImportModal({ item, games, historicalImports, onCancel, onSaved }) {
+  const [name, setName] = useState(item.name);
+  const [previousGameId, setPreviousGameId] = useState(item.previousGameId || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const linkOptions = linkableGameOptions(games, historicalImports, item.id);
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api.updateHistoricalRaffleImport(item.id, { name: name.trim(), previousGameId: previousGameId || null });
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onCancel={onCancel} width={440} title={`Edit "${item.name}"`}>
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <Field label="Label"><input style={inputStyle} required value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <PreviousGameField options={linkOptions} value={previousGameId} onChange={setPreviousGameId} />
+        {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+          <button type="submit" style={button.primary} disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
