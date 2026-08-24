@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { useAuth } from "../../lib/AuthContext";
 import logo from "../../assets/logo.png";
 import OrganizationsList from "./OrganizationsList";
+import PlatformAdmins from "./PlatformAdmins";
 
 // Top-level app, not a module inside any org's Shell — this is cross-tenant
 // and single-person, structurally unlike everything else in the client,
@@ -12,6 +13,7 @@ import OrganizationsList from "./OrganizationsList";
 export default function PlatformAdminApp() {
   const { session, logout } = useAuth();
   const [permissions, setPermissions] = useState(undefined); // undefined = loading
+  const [tab, setTab] = useState("organizations");
 
   useEffect(() => {
     if (!session) {
@@ -23,7 +25,7 @@ export default function PlatformAdminApp() {
 
   if (!session || permissions === undefined) return null;
 
-  if (!permissions?.isPlatformAdmin) {
+  if (!permissions?.platformRole) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: colors.bg }}>
         <div style={{ ...card, width: 380, padding: 28, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -47,8 +49,26 @@ export default function PlatformAdminApp() {
           <button onClick={logout} style={{ background: "transparent", border: "none", color: colors.textSecondary, fontSize: 12, cursor: "pointer" }}>Log out</button>
         </div>
       </div>
-      <div style={{ padding: "28px 32px 60px", maxWidth: 1100, margin: "0 auto" }}>
-        <OrganizationsList />
+      <div style={{ padding: "28px 32px 60px", maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", gap: 4, background: "#fff", borderRadius: 10, padding: 3, width: "fit-content", border: `1px solid ${colors.border}` }}>
+          {[{ key: "organizations", label: "Organizations" }, { key: "admins", label: "Admins" }].map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              style={{
+                padding: "6px 16px", borderRadius: 8, border: "none",
+                background: tab === t.key ? colors.bg : "transparent",
+                fontSize: 13, fontWeight: 600, color: tab === t.key ? colors.textPrimary : colors.textSecondary,
+                cursor: "pointer",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "organizations" && <OrganizationsList />}
+        {tab === "admins" && <PlatformAdmins myRole={permissions.platformRole} />}
       </div>
     </div>
   );

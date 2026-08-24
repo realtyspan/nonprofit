@@ -235,6 +235,11 @@ export const api = {
   updatePlatformOrgBilling: (id, payload) => request(`/platform-admin/organizations/${id}/billing`, { method: "PATCH", body: payload }),
   addPlatformSupportNote: (id, payload) => request(`/platform-admin/organizations/${id}/support-notes`, { method: "POST", body: payload }),
   resolvePlatformSupportNote: (id, noteId, status) => request(`/platform-admin/organizations/${id}/support-notes/${noteId}`, { method: "PATCH", body: { status } }),
+
+  listPlatformAdmins: () => request("/platform-admin/admins"),
+  createPlatformAdmin: (payload) => request("/platform-admin/admins", { method: "POST", body: payload }),
+  updatePlatformAdminRole: (userId, platformRole) => request(`/platform-admin/admins/${userId}`, { method: "PATCH", body: { platformRole } }),
+  revokePlatformAdmin: (userId) => request(`/platform-admin/admins/${userId}`, { method: "DELETE" }),
 };
 
 export { downloadTextFile };

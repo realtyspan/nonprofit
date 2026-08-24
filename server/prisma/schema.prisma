@@ -62,7 +62,7 @@ model User {
   title        String?  // e.g. "Treasurer" — used on the GC-7Q affirmation block
   phone        String?
   homeAddress  String?  // "Home Address, City and Zip Code" per the GC-7Q affirmation block
-  isPlatformAdmin Boolean @default(false) // break-glass flag for the person who runs Charity Pulse itself — org-independent (unlike OrgMembership/ModuleGrant), never grantable through any UI, set only via a direct one-off script
+  platformRole    String? // null | Owner | Support — org-independent (unlike OrgMembership/ModuleGrant). Owner can manage other platform admins; Support cannot. Only ever set through the platform-admin "Admins" screen (Owner-only) or, for the very first Owner, a one-off script.
   createdAt    DateTime @default(now())
 
   signOffs SignOff[]

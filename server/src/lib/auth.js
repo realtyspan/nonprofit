@@ -32,11 +32,11 @@ async function loadPermissions(req, res, next) {
   const [membership, grants, user] = await Promise.all([
     prisma.orgMembership.findUnique({ where: { userId: req.user.userId } }),
     prisma.moduleGrant.findMany({ where: { userId: req.user.userId } }),
-    prisma.user.findUnique({ where: { id: req.user.userId }, select: { isPlatformAdmin: true } }),
+    prisma.user.findUnique({ where: { id: req.user.userId }, select: { platformRole: true } }),
   ]);
   req.orgTier = membership?.tier || null;
   req.moduleGrants = Object.fromEntries(grants.map((g) => [g.module, g.tier]));
-  req.isPlatformAdmin = !!user?.isPlatformAdmin;
+  req.platformRole = user?.platformRole || null;
   next();
 }
 
@@ -45,11 +45,17 @@ function requireOwner(req, res, next) {
   next();
 }
 
-// The one platform-wide role, independent of any org — see isPlatformAdmin's
-// schema comment. Only ever set by a direct one-off script, never through
-// any UI or API route.
+// The platform-wide roles, independent of any org — see platformRole's schema
+// comment. Owner and Support both pass requirePlatformAdmin (both run the
+// dashboard); only Owner passes requirePlatformOwner (managing who else has
+// platform access is Owner-only).
 function requirePlatformAdmin(req, res, next) {
-  if (!req.isPlatformAdmin) return res.status(403).json({ error: "Platform admin only" });
+  if (!req.platformRole) return res.status(403).json({ error: "Platform admin only" });
+  next();
+}
+
+function requirePlatformOwner(req, res, next) {
+  if (req.platformRole !== "Owner") return res.status(403).json({ error: "Platform Owner only" });
   next();
 }
 
@@ -87,6 +93,7 @@ module.exports = {
   loadPermissions,
   requireOwner,
   requirePlatformAdmin,
+  requirePlatformOwner,
   requirePermission,
   requireReadAccess,
   JWT_SECRET,

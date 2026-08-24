@@ -195,7 +195,7 @@ function Shell() {
         onOpenProfile={() => setView("profile")}
         onOpenTeam={canSeeTeam ? () => setView("team") : null}
         onOpenMenu={() => setDrawerOpen(true)}
-        isPlatformAdmin={permissions?.isPlatformAdmin}
+        isPlatformAdmin={!!permissions?.platformRole}
       />
       <MobileNavDrawer
         open={drawerOpen}

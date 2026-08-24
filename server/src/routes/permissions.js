@@ -17,7 +17,7 @@ router.get("/me", async (req, res) => {
     orgTier: req.orgTier,
     moduleGrants: req.moduleGrants,
     gc7qSignerSlots: signerRows.map((r) => r.slot),
-    isPlatformAdmin: req.isPlatformAdmin,
+    platformRole: req.platformRole,
   });
 });
 
