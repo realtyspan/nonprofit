@@ -5,7 +5,7 @@ import { useAuth } from "../lib/AuthContext";
 import { useIsMobile } from "../lib/viewport";
 import logo from "../assets/logo.png";
 
-export default function TopBar({ modules, activeModuleKey, onSwitchModule, moduleBadges, onOpenProfile, onOpenTeam, onOpenMenu }) {
+export default function TopBar({ modules, activeModuleKey, onSwitchModule, moduleBadges, onOpenProfile, onOpenTeam, onOpenMenu, isPlatformAdmin }) {
   const { session, logout } = useAuth();
   const user = session?.user;
   const isMobile = useIsMobile();
@@ -61,6 +61,14 @@ export default function TopBar({ modules, activeModuleKey, onSwitchModule, modul
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {!isMobile && isPlatformAdmin && (
+          <a
+            href="/platform-admin"
+            style={{ color: colors.textSecondary, fontSize: 12, fontWeight: 600, textDecoration: "none" }}
+          >
+            Platform Admin
+          </a>
+        )}
         {!isMobile && onOpenTeam && (
           <button
             onClick={onOpenTeam}

@@ -27,6 +27,7 @@ import PublicRental from "./views/PublicRental";
 import CalendarView from "./views/CalendarView";
 import PublicCalendar from "./views/PublicCalendar";
 import PublicRaffleUnsubscribe from "./views/PublicRaffleUnsubscribe";
+import PlatformAdminApp from "./views/platform-admin/PlatformAdminApp";
 import ManageRaffles from "./views/ManageRaffles";
 import RaffleGrid from "./views/RaffleGrid";
 import RaffleSellers from "./views/RaffleSellers";
@@ -194,6 +195,7 @@ function Shell() {
         onOpenProfile={() => setView("profile")}
         onOpenTeam={canSeeTeam ? () => setView("team") : null}
         onOpenMenu={() => setDrawerOpen(true)}
+        isPlatformAdmin={permissions?.isPlatformAdmin}
       />
       <MobileNavDrawer
         open={drawerOpen}
@@ -310,9 +312,13 @@ export default function App() {
   if (window.location.pathname === "/reset-password") return <ResetPassword />;
   if (window.location.pathname === "/raffle-unsubscribe") return <PublicRaffleUnsubscribe />;
 
+  // Requires being logged in (unlike the routes above), so it renders inside
+  // AuthProvider as an alternative to Shell rather than before it — it's
+  // cross-tenant and single-person, structurally unlike every module Shell
+  // renders, which is always scoped to the logged-in user's one org.
   return (
     <AuthProvider>
-      <Shell />
+      {window.location.pathname === "/platform-admin" ? <PlatformAdminApp /> : <Shell />}
     </AuthProvider>
   );
 }

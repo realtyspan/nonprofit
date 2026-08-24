@@ -29,17 +29,27 @@ function requireAuth(req, res, next) {
 // per-module grants (e.g. { "bell-jar": "Admin", "rentals": "Helper" }) fresh
 // from the DB on every request. Always run this right after requireAuth.
 async function loadPermissions(req, res, next) {
-  const [membership, grants] = await Promise.all([
+  const [membership, grants, user] = await Promise.all([
     prisma.orgMembership.findUnique({ where: { userId: req.user.userId } }),
     prisma.moduleGrant.findMany({ where: { userId: req.user.userId } }),
+    prisma.user.findUnique({ where: { id: req.user.userId }, select: { isPlatformAdmin: true } }),
   ]);
   req.orgTier = membership?.tier || null;
   req.moduleGrants = Object.fromEntries(grants.map((g) => [g.module, g.tier]));
+  req.isPlatformAdmin = !!user?.isPlatformAdmin;
   next();
 }
 
 function requireOwner(req, res, next) {
   if (req.orgTier !== "Owner") return res.status(403).json({ error: "Owner only" });
+  next();
+}
+
+// The one platform-wide role, independent of any org — see isPlatformAdmin's
+// schema comment. Only ever set by a direct one-off script, never through
+// any UI or API route.
+function requirePlatformAdmin(req, res, next) {
+  if (!req.isPlatformAdmin) return res.status(403).json({ error: "Platform admin only" });
   next();
 }
 
@@ -76,6 +86,7 @@ module.exports = {
   requireAuth,
   loadPermissions,
   requireOwner,
+  requirePlatformAdmin,
   requirePermission,
   requireReadAccess,
   JWT_SECRET,

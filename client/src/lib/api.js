@@ -228,6 +228,13 @@ export const api = {
   downloadFrsReportSource: (id, filename) => download(`/elks-tools/frs-report/runs/${id}/source-file`, filename),
   downloadFrsReportCsv: (id, filename) => download(`/elks-tools/frs-report/runs/${id}/csv`, filename),
   deleteFrsReportRun: (id) => request(`/elks-tools/frs-report/runs/${id}`, { method: "DELETE" }),
+
+  getPlatformSummary: () => request("/platform-admin/summary"),
+  listPlatformOrganizations: () => request("/platform-admin/organizations"),
+  getPlatformOrganization: (id) => request(`/platform-admin/organizations/${id}`),
+  updatePlatformOrgBilling: (id, payload) => request(`/platform-admin/organizations/${id}/billing`, { method: "PATCH", body: payload }),
+  addPlatformSupportNote: (id, payload) => request(`/platform-admin/organizations/${id}/support-notes`, { method: "POST", body: payload }),
+  resolvePlatformSupportNote: (id, noteId, status) => request(`/platform-admin/organizations/${id}/support-notes/${noteId}`, { method: "PATCH", body: { status } }),
 };
 
 export { downloadTextFile };

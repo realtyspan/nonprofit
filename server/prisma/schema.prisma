@@ -47,6 +47,8 @@ model Organization {
   raffleSignerDesignations RaffleSignerDesignation[]
   raffleEmailSuppressions  RaffleEmailSuppression[]
   frsReportRuns            FrsReportRun[]
+  billing                  OrgBilling?
+  platformSupportNotes     PlatformSupportNote[]
 }
 
 model User {
@@ -60,6 +62,7 @@ model User {
   title        String?  // e.g. "Treasurer" — used on the GC-7Q affirmation block
   phone        String?
   homeAddress  String?  // "Home Address, City and Zip Code" per the GC-7Q affirmation block
+  isPlatformAdmin Boolean @default(false) // break-glass flag for the person who runs Charity Pulse itself — org-independent (unlike OrgMembership/ModuleGrant), never grantable through any UI, set only via a direct one-off script
   createdAt    DateTime @default(now())
 
   signOffs SignOff[]
@@ -758,5 +761,40 @@ model FrsReportRun {
   generatedAt      DateTime @default(now())
 
   @@unique([orgId, year, month])
+  @@index([orgId])
+}
+
+// --- Platform admin (cross-org, isPlatformAdmin-only) ---
+// Deliberately separate from Organization itself: GET /api/org/ returns the
+// raw org row straight to that org's own users (org.js), so billing figures
+// and internal support notes must never live on a field that route could
+// ever accidentally expose.
+
+model OrgBilling {
+  id              String    @id @default(cuid())
+  orgId           String    @unique
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  status          String    @default("trial") // trial | active | past_due | canceled
+  planName        String?   // free text for now: "Standard Annual", "Founding Member", etc.
+  billingAmount   Float?
+  billingCycle    String?   // monthly | annual | one_time
+  renewalDate     DateTime?
+  lastPaymentDate DateTime?
+  notes           String?   // "paid via check 3/1", etc.
+  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime  @default(now())
+}
+
+model PlatformSupportNote {
+  id            String    @id @default(cuid())
+  orgId         String
+  org           Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  subject       String
+  body          String
+  status        String    @default("open") // open | resolved
+  createdByName String    @default("")
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+
   @@index([orgId])
 }
