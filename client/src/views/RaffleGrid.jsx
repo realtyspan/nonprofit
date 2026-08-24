@@ -90,6 +90,19 @@ export default function RaffleGrid({ gameId, permissions, currentUserId }) {
           <option value="sold">Sold</option>
           <option value="funds_received">Funds received</option>
         </select>
+        {stats && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {["available", "reserved", "sold", "funds_received"].map((key) => {
+              const s = STATUS_STYLE[key];
+              const count = key === "funds_received" ? stats.fundsReceived : stats[key];
+              return (
+                <span key={key} style={{ ...pill(s.bg, s.text), border: `1px solid ${s.border}` }}>
+                  {s.label} {count}
+                </span>
+              );
+            })}
+          </div>
+        )}
         {canHelp && !isAdmin && (
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
             <input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />
