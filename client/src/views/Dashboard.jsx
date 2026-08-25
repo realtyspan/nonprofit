@@ -7,7 +7,7 @@ function currentQuarter() {
   return { year: now.getFullYear(), quarter: Math.floor(now.getMonth() / 3) + 1 };
 }
 
-export default function Dashboard({ deals }) {
+export default function Dashboard({ deals, onOpenReports }) {
   const { year, quarter } = currentQuarter();
   const [report, setReport] = useState(null);
 
@@ -89,9 +89,13 @@ export default function Dashboard({ deals }) {
               );
             })}
           </div>
-          <a href="#" onClick={(e) => e.preventDefault()} style={{ marginTop: "auto", textAlign: "center", background: colors.accent, color: "#fff", borderRadius: 8, padding: "10px 0", fontSize: 13, fontWeight: 600 }}>
+          <button
+            type="button"
+            onClick={onOpenReports}
+            style={{ marginTop: "auto", textAlign: "center", background: colors.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          >
             Open GC-7Q report →
-          </a>
+          </button>
         </div>
       </div>
     </div>
