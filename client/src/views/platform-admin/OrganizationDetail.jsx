@@ -11,6 +11,15 @@ const STATUS_OPTIONS = [
   { value: "canceled", label: "Canceled" },
 ];
 
+// Same palette as OrganizationsList.jsx's STATUS_STYLE, kept local here since
+// that one isn't exported.
+const STATUS_PILL_COLOR = {
+  trial: [colors.warningBg, colors.warning],
+  active: [colors.successBg, colors.success],
+  past_due: ["#fee2e2", colors.danger],
+  canceled: ["#f0f0f3", colors.textSecondary],
+};
+
 function toDateInput(value) {
   return value ? new Date(value).toISOString().slice(0, 10) : "";
 }
@@ -53,7 +62,7 @@ export default function OrganizationDetail({ orgId, onClose, onChanged }) {
             </div>
           </div>
 
-          <BillingForm orgId={org.id} billing={org.billing} onSaved={handleChanged} />
+          <BillingSection orgId={org.id} billing={org.billing} onSaved={handleChanged} />
           <SupportNotes orgId={org.id} notes={org.supportNotes} onChanged={handleChanged} />
 
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -65,7 +74,115 @@ export default function OrganizationDetail({ orgId, onClose, onChanged }) {
   );
 }
 
-function BillingForm({ orgId, billing, onSaved }) {
+// Stripe-managed once stripeSubscriptionId is set — the manual form becomes
+// read-only at that point (the server rejects manual edits too, this is just
+// keeping the UI honest about which one is live) and a billing-portal link
+// takes its place. Not yet on Stripe: today's manual form, plus a way to
+// start one.
+function BillingSection({ orgId, billing, onSaved }) {
+  if (billing.stripeSubscriptionId) {
+    return <StripeSyncedBilling orgId={orgId} billing={billing} />;
+  }
+  return (
+    <>
+      <ManualBillingForm orgId={orgId} billing={billing} onSaved={onSaved} />
+      <StartStripeSubscription orgId={orgId} onStarted={onSaved} />
+    </>
+  );
+}
+
+function StripeSyncedBilling({ orgId, billing }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [portalUrl, setPortalUrl] = useState("");
+
+  async function generatePortalLink() {
+    setBusy(true);
+    setError("");
+    setPortalUrl("");
+    try {
+      const res = await api.createStripePortalLink(orgId);
+      setPortalUrl(res.url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>Billing</div>
+        <span style={pill(colors.indigoBg, colors.indigo)}>Synced from Stripe</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, fontSize: 13 }}>
+        <div>
+          <div style={{ color: colors.textSecondary, fontSize: 11 }}>Status</div>
+          <span style={pill(...(STATUS_PILL_COLOR[billing.status] || STATUS_PILL_COLOR.trial))}>
+            {STATUS_OPTIONS.find((s) => s.value === billing.status)?.label || billing.status}
+          </span>
+        </div>
+        <div><div style={{ color: colors.textSecondary, fontSize: 11 }}>Plan</div>{billing.planName || "—"}</div>
+        <div><div style={{ color: colors.textSecondary, fontSize: 11 }}>Amount</div>{billing.billingAmount != null ? `$${billing.billingAmount}${billing.billingCycle ? `/${billing.billingCycle}` : ""}` : "—"}</div>
+        <div><div style={{ color: colors.textSecondary, fontSize: 11 }}>Renewal</div>{billing.renewalDate ? formatUtcDate(billing.renewalDate) : "—"}</div>
+      </div>
+      <div style={{ fontSize: 12, color: colors.textSecondary }}>
+        This org pays through Stripe — status and dates update automatically. To change their card, cadence, or cancel, send them the billing portal link below.
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+      <div><button style={button.ghost} disabled={busy} onClick={generatePortalLink}>{busy ? "Generating…" : "Generate billing portal link"}</button></div>
+      {portalUrl && (
+        <div style={{ fontSize: 12.5, wordBreak: "break-all", background: "#fafafa", border: `1px solid ${colors.borderLight}`, borderRadius: 6, padding: 10 }}>{portalUrl}</div>
+      )}
+    </div>
+  );
+}
+
+function StartStripeSubscription({ orgId, onStarted }) {
+  const [cadence, setCadence] = useState("annual");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [checkoutUrl, setCheckoutUrl] = useState("");
+
+  async function generateLink() {
+    setBusy(true);
+    setError("");
+    setCheckoutUrl("");
+    try {
+      const res = await api.createStripeCheckoutLink(orgId, cadence);
+      setCheckoutUrl(res.url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ fontSize: 14, fontWeight: 700 }}>Start a Stripe subscription</div>
+      <div style={{ fontSize: 12, color: colors.textSecondary }}>
+        Generates a Stripe Checkout link for this org's own card details — nothing here touches your side. Copy the link and send it to them directly.
+      </div>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <Field label="Cadence">
+          <select style={inputStyle} value={cadence} onChange={(e) => setCadence(e.target.value)}>
+            <option value="monthly">Monthly — $39</option>
+            <option value="annual">Annual — $390</option>
+          </select>
+        </Field>
+        <button style={button.primary} disabled={busy} onClick={generateLink}>{busy ? "Generating…" : "Generate checkout link"}</button>
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+      {checkoutUrl && (
+        <div style={{ fontSize: 12.5, wordBreak: "break-all", background: "#fafafa", border: `1px solid ${colors.borderLight}`, borderRadius: 6, padding: 10 }}>{checkoutUrl}</div>
+      )}
+    </div>
+  );
+}
+
+function ManualBillingForm({ orgId, billing, onSaved }) {
   const [form, setForm] = useState({
     status: billing.status,
     planName: billing.planName || "",

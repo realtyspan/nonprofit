@@ -781,6 +781,9 @@ model OrgBilling {
   renewalDate     DateTime?
   lastPaymentDate DateTime?
   notes           String?   // "paid via check 3/1", etc.
+  stripeCustomerId     String? // presence of this (or stripeSubscriptionId) marks the org as Stripe-managed — the manual fields above become webhook-synced instead of admin-typed once set
+  stripeSubscriptionId String?
+  stripePriceId        String?
   updatedAt       DateTime  @updatedAt
   createdAt       DateTime  @default(now())
 }

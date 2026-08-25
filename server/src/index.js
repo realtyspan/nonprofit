@@ -19,6 +19,7 @@ const raffleRoutes = require("./routes/raffle");
 const publicRaffleRoutes = require("./routes/publicRaffle");
 const platformAdminRoutes = require("./routes/platformAdmin");
 const elksToolsRoutes = require("./routes/elksTools");
+const { stripeWebhookHandler } = require("./routes/stripeWebhook");
 
 // Express 4 doesn't catch rejected promises from async route handlers, and Node
 // terminates the process on an unhandled rejection by default — one bad request
@@ -28,6 +29,14 @@ process.on("unhandledRejection", (err) => console.error("Unhandled rejection:", 
 const app = express();
 app.set("trust proxy", 1);
 app.use(cors());
+
+// Registered before the global JSON parser below, and deliberately given its
+// own express.raw() instead — Stripe's webhook signature check needs the
+// untouched raw request body, not JSON.parse'd output. Routes are matched in
+// registration order, so a request to this exact path never reaches
+// express.json() at all.
+app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookHandler);
+
 // Default 100kb is too small for a signature image (base64 PNG from the
 // Rental contract signing pad) or a compressed game-label photo.
 app.use(express.json({ limit: "8mb" }));

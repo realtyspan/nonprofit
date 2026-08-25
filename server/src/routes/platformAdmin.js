@@ -13,6 +13,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePlatformAdmin, requirePlatformOwner } = require("../lib/auth");
+const { stripe, PRICE_IDS, PRICE_AMOUNTS } = require("../lib/stripe");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions, requirePlatformAdmin);
@@ -27,7 +28,21 @@ async function findOrCreatePlatformOrg() {
 }
 
 const BILLING_STATUSES = ["trial", "active", "past_due", "canceled"];
-const DEFAULT_BILLING = { status: "trial", planName: null, billingAmount: null, billingCycle: null, renewalDate: null, lastPaymentDate: null, notes: null };
+const DEFAULT_BILLING = {
+  status: "trial", planName: null, billingAmount: null, billingCycle: null, renewalDate: null, lastPaymentDate: null, notes: null,
+  stripeCustomerId: null, stripeSubscriptionId: null, stripePriceId: null,
+};
+
+// Same fallback as resolveReplyTo in raffle.js: the org's own contact email
+// if it's set one, else its Owner's login email.
+async function resolveBillingEmail(orgId, org) {
+  if (org.contactEmail) return org.contactEmail;
+  const ownerMembership = await prisma.orgMembership.findFirst({
+    where: { orgId, tier: "Owner" },
+    include: { user: { select: { email: true, name: true } } },
+  });
+  return ownerMembership?.user?.email || null;
+}
 
 router.get("/summary", async (req, res) => {
   const [orgCount, billings] = await Promise.all([
@@ -76,8 +91,11 @@ router.get("/organizations/:id", async (req, res) => {
 });
 
 router.patch("/organizations/:id/billing", async (req, res) => {
-  const org = await prisma.organization.findUnique({ where: { id: req.params.id } });
+  const org = await prisma.organization.findUnique({ where: { id: req.params.id }, include: { billing: true } });
   if (!org) return res.status(404).json({ error: "Organization not found" });
+  if (org.billing?.stripeSubscriptionId) {
+    return res.status(400).json({ error: "This org is billed through Stripe — use the billing portal link instead of editing it manually." });
+  }
 
   const { status, planName, billingAmount, billingCycle, renewalDate, lastPaymentDate, notes } = req.body;
   if (status && !BILLING_STATUSES.includes(status)) {
@@ -99,6 +117,52 @@ router.patch("/organizations/:id/billing", async (req, res) => {
     create: { orgId: org.id, ...data },
   });
   res.json(billing);
+});
+
+// Generates a Stripe Checkout link for this org, in subscription mode, at
+// the chosen cadence. You copy the returned URL and send it to the org
+// directly — there's no self-serve billing screen inside an org's own
+// account (see project decision). client_reference_id carries the org id
+// through to the webhook so checkout.session.completed can map back to the
+// right org without guessing from the email alone.
+router.post("/organizations/:id/stripe/checkout-link", async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.params.id }, include: { billing: true } });
+  if (!org) return res.status(404).json({ error: "Organization not found" });
+  const { cadence } = req.body;
+  if (!PRICE_IDS[cadence]) return res.status(400).json({ error: "cadence must be monthly or annual" });
+
+  const email = await resolveBillingEmail(org.id, org);
+  if (!email) return res.status(400).json({ error: "This org has no contact email and no Owner — add one before generating a checkout link" });
+
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+  const session = await stripe.checkout.sessions.create({
+    mode: "subscription",
+    customer_email: org.billing?.stripeCustomerId ? undefined : email,
+    customer: org.billing?.stripeCustomerId || undefined,
+    client_reference_id: org.id,
+    line_items: [{ price: PRICE_IDS[cadence], quantity: 1 }],
+    success_url: `${appUrl}/?billing=success`,
+    cancel_url: `${appUrl}/`,
+  });
+  res.json({ url: session.url });
+});
+
+// Only meaningful once the org already has a Stripe customer — this is the
+// "manage my subscription" link (update card, switch cadence, cancel), all
+// on Stripe's own hosted page.
+router.post("/organizations/:id/stripe/portal-link", async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.params.id }, include: { billing: true } });
+  if (!org) return res.status(404).json({ error: "Organization not found" });
+  if (!org.billing?.stripeCustomerId) {
+    return res.status(400).json({ error: "This org isn't on Stripe yet — generate a checkout link first" });
+  }
+
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+  const session = await stripe.billingPortal.sessions.create({
+    customer: org.billing.stripeCustomerId,
+    return_url: `${appUrl}/`,
+  });
+  res.json({ url: session.url });
 });
 
 router.post("/organizations/:id/support-notes", async (req, res) => {

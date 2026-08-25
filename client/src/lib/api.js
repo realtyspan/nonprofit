@@ -233,6 +233,8 @@ export const api = {
   listPlatformOrganizations: () => request("/platform-admin/organizations"),
   getPlatformOrganization: (id) => request(`/platform-admin/organizations/${id}`),
   updatePlatformOrgBilling: (id, payload) => request(`/platform-admin/organizations/${id}/billing`, { method: "PATCH", body: payload }),
+  createStripeCheckoutLink: (id, cadence) => request(`/platform-admin/organizations/${id}/stripe/checkout-link`, { method: "POST", body: { cadence } }),
+  createStripePortalLink: (id) => request(`/platform-admin/organizations/${id}/stripe/portal-link`, { method: "POST" }),
   addPlatformSupportNote: (id, payload) => request(`/platform-admin/organizations/${id}/support-notes`, { method: "POST", body: payload }),
   resolvePlatformSupportNote: (id, noteId, status) => request(`/platform-admin/organizations/${id}/support-notes/${noteId}`, { method: "PATCH", body: { status } }),
 
