@@ -1,0 +1,346 @@
+import React, { useState } from "react";
+import { colors, card, pill, button, input as inputStyle, money } from "../lib/tokens";
+import { api } from "../lib/api";
+import { formatUtcDate } from "../lib/dates";
+import DataList from "../components/DataList";
+import Modal from "../components/Modal";
+
+// Tournament management (start a tournament, correct its details, open/close
+// it) — mirrors ManageRaffles.jsx's game-management pattern. Roster, sponsors,
+// check-in, and marketing email are separate views/build steps; this screen
+// is scoped to the tournament record itself.
+export default function ManageGolfTournaments({ tournaments, tournamentId, onTournamentsChanged }) {
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [editingTournament, setEditingTournament] = useState(null);
+  const [deletingTournament, setDeletingTournament] = useState(null);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  const [lifecycleError, setLifecycleError] = useState("");
+
+  const selected = tournaments.find((t) => t.id === tournamentId) || null;
+
+  async function toggleLifecycle() {
+    setLifecycleBusy(true);
+    setLifecycleError("");
+    try {
+      if (selected.status === "open") await api.closeGolfTournament(tournamentId);
+      else if (selected.status === "closed") await api.reopenGolfTournament(tournamentId);
+      else await api.openGolfTournament(tournamentId);
+      onTournamentsChanged();
+    } catch (err) {
+      setLifecycleError(err.message);
+    } finally {
+      setLifecycleBusy(false);
+    }
+  }
+
+  const lifecycleLabel = selected?.status === "open" ? "Close tournament" : selected?.status === "closed" ? "Reopen tournament" : "Open for registration";
+  const statusStyle = (status) =>
+    status === "open" ? [colors.successBg, colors.success] : status === "closed" ? ["#f0f0f3", colors.textSecondary] : [colors.warningBg, colors.warning];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {selected && (
+        <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>
+              {selected.name} — {formatUtcDate(selected.date)}
+            </div>
+            <span style={pill(...statusStyle(selected.status))}>{selected.status}</span>
+          </div>
+          <div style={{ fontSize: 12, color: colors.textSecondary }}>
+            {selected.status === "open"
+              ? "Closing stops new registrations and payments. Its roster and history stay fully visible for reporting."
+              : selected.status === "closed"
+              ? "Reopening allows new registrations and payments for this tournament again."
+              : "Not visible to the public yet — open it once the details below are ready."}
+          </div>
+          <div style={{ fontSize: 12, color: colors.textSecondary }}>
+            {money(selected.costPerPlayer)}/player · {selected.maxTeamSize}-person teams
+            {selected.capacity ? ` · ${selected.registeredTeamCount}/${selected.capacity} teams registered` : ` · ${selected.registeredTeamCount} team${selected.registeredTeamCount === 1 ? "" : "s"} registered`}
+            {selected.venueName ? ` · ${selected.venueName}` : ""}
+          </div>
+          <div style={{ fontSize: 12, color: colors.textSecondary }}>
+            Player/sponsor history source:{" "}
+            {selected.previousTournamentId
+              ? tournaments.find((t) => t.id === selected.previousTournamentId)?.name || "a linked tournament"
+              : <em>none linked — edit this tournament to pull past players/sponsors from a prior one</em>}
+          </div>
+          <div style={{ fontSize: 12, color: colors.textSecondary }}>
+            Payment options: {[
+              selected.allowCheckPayment && "mail a check",
+              selected.allowInPersonPayment && "pay in person",
+            ].filter(Boolean).join(", ") || "none enabled yet"}
+          </div>
+          {lifecycleError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{lifecycleError}</div>}
+          <div>
+            <button
+              style={selected.status === "open" ? { ...button.ghost, color: colors.danger } : button.primary}
+              disabled={lifecycleBusy}
+              onClick={toggleLifecycle}
+            >
+              {lifecycleBusy ? "Working…" : lifecycleLabel}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>All tournaments</div>
+          <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>Use the selector above to switch which one you're viewing/working in.</div>
+        </div>
+        <DataList
+          rows={tournaments}
+          rowStyle={(t) => (t.id === tournamentId ? { background: "#faf9ff" } : undefined)}
+          emptyMessage="No tournaments yet."
+          columns={[
+            { key: "name", label: "Name", grid: "1.4fr", primary: true, render: (t) => t.name },
+            { key: "date", label: "Date", grid: "1fr", render: (t) => formatUtcDate(t.date) },
+            { key: "cost", label: "Cost/player", grid: "1fr", render: (t) => money(t.costPerPlayer) },
+            { key: "teams", label: "Teams", grid: "1fr", render: (t) => (t.capacity ? `${t.registeredTeamCount}/${t.capacity}` : `${t.registeredTeamCount}`) },
+            { key: "status", label: "Status", grid: "0.7fr", render: (t) => <span style={pill(...statusStyle(t.status))}>{t.status}</span> },
+            {
+              key: "actions", label: "", footerRow: true,
+              render: (t) => t.status !== "closed" ? (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} onClick={() => setEditingTournament(t)}>Edit</button>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} onClick={() => setDeletingTournament(t)}>Delete</button>
+                </div>
+              ) : null,
+            },
+          ]}
+        />
+      </div>
+
+      {!showNewForm ? (
+        <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>{tournaments.length === 0 ? "Start your first tournament" : "Start another tournament"}</div>
+          <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+            Creating a new tournament never touches any other tournament — you can run more than one, each with its own roster, pricing, and dates.
+          </div>
+          <div><button style={button.primary} onClick={() => setShowNewForm(true)}>+ New tournament</button></div>
+        </div>
+      ) : (
+        <TournamentForm
+          tournaments={tournaments}
+          onCancel={() => setShowNewForm(false)}
+          onSaved={() => { setShowNewForm(false); onTournamentsChanged(); }}
+        />
+      )}
+
+      {editingTournament && (
+        <TournamentForm
+          tournament={editingTournament}
+          tournaments={tournaments}
+          onCancel={() => setEditingTournament(null)}
+          onSaved={() => { setEditingTournament(null); onTournamentsChanged(); }}
+          modal
+        />
+      )}
+
+      {deletingTournament && (
+        <DeleteTournamentModal
+          tournament={deletingTournament}
+          onCancel={() => setDeletingTournament(null)}
+          onDeleted={() => { setDeletingTournament(null); onTournamentsChanged(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function linkableTournamentOptions(tournaments, excludeId) {
+  return tournaments.filter((t) => t.id !== excludeId).sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+function emptyForm(tournament) {
+  return {
+    name: tournament?.name || "",
+    year: tournament?.year || new Date().getFullYear(),
+    date: tournament?.date ? tournament.date.slice(0, 10) : "",
+    format: tournament?.format || "",
+    maxTeamSize: tournament?.maxTeamSize || 4,
+    venueName: tournament?.venueName || "",
+    venueAddress: tournament?.venueAddress || "",
+    costPerPlayer: tournament?.costPerPlayer || "",
+    capacity: tournament?.capacity ?? "",
+    includedDescription: tournament?.includedDescription || "",
+    scheduleText: tournament?.scheduleText || "",
+    contactName: tournament?.contactName || "",
+    contactPhone: tournament?.contactPhone || "",
+    contactEmail: tournament?.contactEmail || "",
+    allowCheckPayment: tournament?.allowCheckPayment || false,
+    checkPayableInstructions: tournament?.checkPayableInstructions || "",
+    allowInPersonPayment: tournament?.allowInPersonPayment || false,
+    inPersonPaymentInstructions: tournament?.inPersonPaymentInstructions || "",
+    previousTournamentId: tournament?.previousTournamentId || "",
+  };
+}
+
+// Handles both create and edit — the form fields are identical either way,
+// only the submit action and surrounding chrome (inline card vs. modal) differ.
+function TournamentForm({ tournament, tournaments, onCancel, onSaved, modal }) {
+  const [form, setForm] = useState(emptyForm(tournament));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  function set(k, v) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!form.name.trim()) return setError("A name is required so you can tell tournaments apart");
+    if (!form.date) return setError("A date is required");
+    setBusy(true);
+    setError("");
+    try {
+      const payload = { ...form, previousTournamentId: form.previousTournamentId || null };
+      if (tournament) await api.updateGolfTournament(tournament.id, payload);
+      else await api.createGolfTournament(payload);
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const linkOptions = linkableTournamentOptions(tournaments, tournament?.id || null);
+
+  const body = (
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <Field label="Name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="24th Annual Golf Tournament" /></Field>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+        <Field label="Year"><input style={inputStyle} type="number" required value={form.year} onChange={(e) => set("year", e.target.value)} /></Field>
+        <Field label="Date"><input style={inputStyle} type="date" required value={form.date} onChange={(e) => set("date", e.target.value)} /></Field>
+      </div>
+
+      <Field label="Format (optional)"><input style={inputStyle} placeholder="Four-Person Team Scramble" value={form.format} onChange={(e) => set("format", e.target.value)} /></Field>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+        <Field label="Max players per team"><input style={inputStyle} type="number" min="1" max="12" required value={form.maxTeamSize} onChange={(e) => set("maxTeamSize", e.target.value)} /></Field>
+        <Field label="Cost per player"><input style={inputStyle} type="number" step="0.01" min="0.01" required value={form.costPerPlayer} onChange={(e) => set("costPerPlayer", e.target.value)} /></Field>
+        <Field label="Max teams (optional)"><input style={inputStyle} type="number" min="1" placeholder="Unlimited" value={form.capacity} onChange={(e) => set("capacity", e.target.value)} /></Field>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+        <Field label="Venue name"><input style={inputStyle} placeholder="Red Hook Golf Club" value={form.venueName} onChange={(e) => set("venueName", e.target.value)} /></Field>
+        <Field label="Venue address"><input style={inputStyle} placeholder="650 Route 199, Red Hook, NY" value={form.venueAddress} onChange={(e) => set("venueAddress", e.target.value)} /></Field>
+      </div>
+
+      <Field label="What's included (optional)">
+        <textarea style={{ ...inputStyle, minHeight: 60, resize: "vertical", fontFamily: "inherit" }} placeholder="18 holes with cart, breakfast, lunch on the turn, dinner & prizes" value={form.includedDescription} onChange={(e) => set("includedDescription", e.target.value)} />
+      </Field>
+
+      <Field label="Schedule (optional)">
+        <textarea style={{ ...inputStyle, minHeight: 60, resize: "vertical", fontFamily: "inherit" }} placeholder="9:00 AM Tee off · 11:00 AM Lunch at the turn · 3:30 PM Dinner · 4:00 PM Trophies" value={form.scheduleText} onChange={(e) => set("scheduleText", e.target.value)} />
+      </Field>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+        <Field label="Contact name"><input style={inputStyle} value={form.contactName} onChange={(e) => set("contactName", e.target.value)} /></Field>
+        <Field label="Contact phone"><input style={inputStyle} value={form.contactPhone} onChange={(e) => set("contactPhone", e.target.value)} /></Field>
+        <Field label="Contact email"><input style={inputStyle} type="email" value={form.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} /></Field>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4, borderTop: `1px solid ${colors.borderLight}` }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Payment options</div>
+        <div style={{ fontSize: 11.5, color: colors.textSecondary }}>
+          Online payment via your organization's connected Stripe account is managed separately — see the payment settings section below. These two are manual options players can choose instead.
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+          <input type="checkbox" checked={form.allowCheckPayment} onChange={(e) => set("allowCheckPayment", e.target.checked)} />
+          Allow mailing a check
+        </label>
+        {form.allowCheckPayment && (
+          <Field label="Check instructions">
+            <textarea style={{ ...inputStyle, minHeight: 50, resize: "vertical", fontFamily: "inherit" }} placeholder="Make checks payable to Red Hook Rhinebeck Elks Lodge, mail to..." value={form.checkPayableInstructions} onChange={(e) => set("checkPayableInstructions", e.target.value)} />
+          </Field>
+        )}
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+          <input type="checkbox" checked={form.allowInPersonPayment} onChange={(e) => set("allowInPersonPayment", e.target.checked)} />
+          Allow paying in person
+        </label>
+        {form.allowInPersonPayment && (
+          <Field label="In-person instructions">
+            <textarea style={{ ...inputStyle, minHeight: 50, resize: "vertical", fontFamily: "inherit" }} placeholder="See the Lodge treasurer at any Wednesday meeting" value={form.inPersonPaymentInstructions} onChange={(e) => set("inPersonPaymentInstructions", e.target.value)} />
+          </Field>
+        )}
+      </div>
+
+      {linkOptions.length > 0 && (
+        <Field label="Pull past players/sponsors from (optional)">
+          <select style={inputStyle} value={form.previousTournamentId} onChange={(e) => set("previousTournamentId", e.target.value)}>
+            <option value="">— None —</option>
+            {linkOptions.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        </Field>
+      )}
+
+      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+      <div style={{ display: "flex", gap: 10 }}>
+        <button type="submit" style={button.primary} disabled={busy}>{busy ? "Saving…" : tournament ? "Save changes" : "Create tournament"}</button>
+        <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+      </div>
+    </form>
+  );
+
+  if (modal) {
+    return (
+      <Modal onCancel={onCancel} width={560} title={tournament ? `Edit "${tournament.name}"` : "New tournament"}>
+        {body}
+      </Modal>
+    );
+  }
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 12, maxWidth: 560 }}>
+      <div style={{ fontSize: 15, fontWeight: 700 }}>New tournament details</div>
+      {body}
+    </div>
+  );
+}
+
+function DeleteTournamentModal({ tournament, onCancel, onDeleted }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function confirmDelete() {
+    setBusy(true);
+    setError("");
+    try {
+      await api.deleteGolfTournament(tournament.id);
+      onDeleted();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onCancel={onCancel} width={440} title={`Delete "${tournament.name}"?`}>
+      <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 16 }}>
+        This permanently removes the tournament and its settings. If any teams have already registered, delete is blocked — close the tournament instead so its roster and history stay on record.
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        <button style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+        <button style={{ ...button.primary, background: colors.danger }} onClick={confirmDelete} disabled={busy}>
+          {busy ? "Deleting…" : "Delete permanently"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+      {label}
+      {children}
+    </label>
+  );
+}

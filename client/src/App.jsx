@@ -39,6 +39,7 @@ import RaffleReport from "./views/RaffleReport";
 import RaffleDrawings from "./views/RaffleDrawings";
 import RaffleFinancials from "./views/RaffleFinancials";
 import RaffleCheckIn from "./views/RaffleCheckIn";
+import ManageGolfTournaments from "./views/ManageGolfTournaments";
 import FrsReport from "./views/elks-tools/FrsReport";
 
 function PublicGate() {
@@ -73,6 +74,9 @@ function Shell() {
   const [raffleGames, setRaffleGames] = useState([]);
   const [selectedRaffleGameId, setSelectedRaffleGameId] = useState(null);
   const selectedRaffleGame = raffleGames.find((g) => g.id === selectedRaffleGameId) || null;
+  const [golfTournaments, setGolfTournaments] = useState([]);
+  const [selectedGolfTournamentId, setSelectedGolfTournamentId] = useState(null);
+  const selectedGolfTournament = golfTournaments.find((t) => t.id === selectedGolfTournamentId) || null;
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -88,6 +92,10 @@ function Shell() {
 
   const refreshRaffleGames = useCallback(() => {
     return api.listRaffleGames().then(setRaffleGames).catch(() => {});
+  }, []);
+
+  const refreshGolfTournaments = useCallback(() => {
+    return api.listGolfTournaments().then(setGolfTournaments).catch(() => {});
   }, []);
 
   const refreshPermissions = useCallback(() => {
@@ -108,8 +116,9 @@ function Shell() {
     refreshDeals();
     refreshRentals();
     refreshRaffleGames();
+    refreshGolfTournaments();
     refreshPermissions().then(() => setLoading(false));
-  }, [userId, refreshDeals, refreshRentals, refreshRaffleGames, refreshPermissions]);
+  }, [userId, refreshDeals, refreshRentals, refreshRaffleGames, refreshGolfTournaments, refreshPermissions]);
 
   // Default to the most-recently-created active game whenever the game list
   // changes and nothing (or something that no longer exists) is selected —
@@ -119,6 +128,15 @@ function Shell() {
     const firstActive = raffleGames.find((g) => g.status === "active");
     setSelectedRaffleGameId(firstActive ? firstActive.id : raffleGames[0]?.id || null);
   }, [raffleGames, selectedRaffleGameId]);
+
+  // Same default-selection convention as raffle above: prefer an open
+  // tournament over a draft/closed one whenever nothing (or something that
+  // no longer exists) is selected.
+  useEffect(() => {
+    if (selectedGolfTournamentId && golfTournaments.some((t) => t.id === selectedGolfTournamentId)) return;
+    const firstOpen = golfTournaments.find((t) => t.status === "open");
+    setSelectedGolfTournamentId(firstOpen ? firstOpen.id : golfTournaments[0]?.id || null);
+  }, [golfTournaments, selectedGolfTournamentId]);
 
   // Once permissions load, return to wherever the user last was (so a page
   // refresh doesn't always bounce back to Bell Jar) if that module/view is
@@ -243,6 +261,28 @@ function Shell() {
             </div>
           )}
 
+          {activeModuleKey === "golf" && (
+            <div style={{ padding: isMobile ? "10px 16px" : "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#fafafa", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Golf</span>
+              {selectedGolfTournament && (
+                <span style={{ fontSize: 17, fontWeight: 700, color: colors.textPrimary }}>{selectedGolfTournament.name}</span>
+              )}
+              {golfTournaments.length > 0 ? (
+                <select
+                  value={selectedGolfTournamentId || ""}
+                  onChange={(e) => setSelectedGolfTournamentId(e.target.value)}
+                  style={{ border: `1px solid ${colors.border}`, borderRadius: 7, padding: "6px 10px", fontSize: 13, minWidth: isMobile ? 0 : 220, flex: isMobile ? 1 : undefined }}
+                >
+                  {golfTournaments.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.status})</option>
+                  ))}
+                </select>
+              ) : (
+                <span style={{ fontSize: 13, color: colors.textSecondary }}>No tournaments yet</span>
+              )}
+            </div>
+          )}
+
           <div style={{ flex: 1, minWidth: 0, padding: isMobile ? "16px 16px 40px" : "28px 32px 60px", overflowY: "auto", overflowX: "hidden" }}>
             {activeModuleKey === "bell-jar" && view === "dashboard" && <Dashboard deals={deals} onOpenReports={() => setView("reports")} />}
             {activeModuleKey === "bell-jar" && view === "worksheet" && <Worksheet deals={deals} onSaved={refreshDeals} />}
@@ -264,6 +304,7 @@ function Shell() {
             {activeModuleKey === "raffle" && view === "drawings" && <RaffleDrawings gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "financials" && <RaffleFinancials />}
             {activeModuleKey === "raffle" && view === "checkin" && <RaffleCheckIn gameId={selectedRaffleGameId} />}
+            {activeModuleKey === "golf" && view === "manage" && <ManageGolfTournaments tournaments={golfTournaments} tournamentId={selectedGolfTournamentId} onTournamentsChanged={refreshGolfTournaments} />}
             {activeModuleKey === "elks-tools" && view === "frs" && <FrsReport />}
             {view === "team" && canSeeTeam && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}
             {view === "profile" && <Profile />}

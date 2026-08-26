@@ -27,4 +27,5 @@ export const icons = {
   menu: wrap(`<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>`),
   close: wrap(`<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>`),
   dots: wrap(`<circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/>`),
+  flag: wrap(`<line x1="6" y1="3" x2="6" y2="21"/><path d="M6 4h13l-3 4 3 4H6"/>`),
 };

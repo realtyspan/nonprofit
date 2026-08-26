@@ -223,6 +223,16 @@ export const api = {
 
   sendRaffleReminders: (gameId) => request(`/raffle/games/${gameId}/reminders/send`, { method: "POST" }),
 
+  listGolfTournaments: () => request("/golf/tournaments"),
+  createGolfTournament: (payload) => request("/golf/tournaments", { method: "POST", body: payload }),
+  getGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}`),
+  updateGolfTournament: (tournamentId, payload) => request(`/golf/tournaments/${tournamentId}`, { method: "PATCH", body: payload }),
+  deleteGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}`, { method: "DELETE" }),
+  openGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}/open`, { method: "POST" }),
+  closeGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}/close`, { method: "POST" }),
+  reopenGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}/reopen`, { method: "POST" }),
+  listGolfLog: (tournamentId) => request(`/golf/tournaments/${tournamentId}/log`),
+
   generateFrsReport: (file, fileName) => request("/elks-tools/frs-report", { method: "POST", body: { file, fileName } }),
   listFrsReportRuns: () => request("/elks-tools/frs-report/runs"),
   downloadFrsReportSource: (id, filename) => download(`/elks-tools/frs-report/runs/${id}/source-file`, filename),

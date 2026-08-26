@@ -58,6 +58,15 @@ export const MODULES = [
     ],
   },
   {
+    key: "golf",
+    label: "Golf Tournament",
+    icon: icons.flag,
+    blurb: "Annual golf tournament fundraiser · Registration, roster & payment",
+    navItems: [
+      { key: "manage", label: "Tournaments", icon: icons.layers, title: "Tournaments", subtitle: "Start, edit, open, close, or reopen a tournament", requiresTier: "Admin" },
+    ],
+  },
+  {
     key: "elks-tools",
     label: "Elks Tools",
     icon: icons.apps,

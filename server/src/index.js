@@ -17,6 +17,7 @@ const calendarRoutes = require("./routes/calendar");
 const publicCalendarRoutes = require("./routes/publicCalendar");
 const raffleRoutes = require("./routes/raffle");
 const publicRaffleRoutes = require("./routes/publicRaffle");
+const golfRoutes = require("./routes/golf");
 const platformAdminRoutes = require("./routes/platformAdmin");
 const elksToolsRoutes = require("./routes/elksTools");
 const { stripeWebhookHandler } = require("./routes/stripeWebhook");
@@ -56,6 +57,7 @@ app.use("/api/calendar", calendarRoutes);
 app.use("/api/public/calendar", publicCalendarRoutes);
 app.use("/api/raffle", raffleRoutes);
 app.use("/api/public/raffle", publicRaffleRoutes);
+app.use("/api/golf", golfRoutes);
 app.use("/api/platform-admin", platformAdminRoutes);
 app.use("/api/elks-tools", elksToolsRoutes);
 

@@ -49,6 +49,16 @@ model Organization {
   frsReportRuns            FrsReportRun[]
   billing                  OrgBilling?
   platformSupportNotes     PlatformSupportNote[]
+  golfTournaments          GolfTournament[]
+  golfPlayers              GolfPlayer[]
+  golfTeams                GolfTeam[]
+  golfTeamPlayers          GolfTeamPlayer[]
+  golfCheckIns             GolfCheckIn[]
+  golfSponsorContacts      GolfSponsorContact[]
+  golfSponsorships         GolfSponsorship[]
+  golfLogs                 GolfLog[]
+  golfEmailSuppressions    GolfEmailSuppression[]
+  orgStripeConnect         OrgStripeConnect?
 }
 
 model User {
@@ -800,4 +810,248 @@ model PlatformSupportNote {
   resolvedAt    DateTime?
 
   @@index([orgId])
+}
+
+// --- Golf Tournament module ---
+// See D:\Elks_Management_App plan doc "Golf Tournament module" for full
+// design rationale. Mirrors Raffle's architecture (previousGameId-style
+// year-chaining, a single per-module Log table, a per-org email
+// suppression/unsubscribe list) with two new concepts raffle never needed:
+// team-based registration with a persistent player directory, and an
+// org-owned Stripe Connect account so tournament entry fees land directly
+// in that org's own bank account rather than the platform's.
+
+model GolfTournament {
+  id                     String   @id @default(cuid())
+  orgId                  String
+  org                    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name                   String   // "24th Annual Golf Tournament"
+  year                   Int
+  date                   DateTime
+  format                 String?  // freeform, e.g. "Four-Person Team Scramble" — never hardcode team size to this label
+  maxTeamSize            Int      @default(4) // configurable per tournament, not hardcoded
+  venueName              String?
+  venueAddress           String?
+  costPerPlayer          Float
+  capacity               Int?     // max teams; null = unlimited
+  registeredTeamCount    Int      @default(0) // atomic counter guarding capacity — incremented inside the same transaction that creates a team
+  includedDescription    String?  // freeform "what's included"
+  scheduleText           String?  // freeform schedule/agenda
+  contactName            String?
+  contactPhone           String?
+  contactEmail           String?
+  status                 String   @default("draft") // draft | open | closed
+  closedAt               DateTime?
+  allowCheckPayment      Boolean  @default(false)
+  checkPayableInstructions String?
+  allowInPersonPayment   Boolean  @default(false)
+  inPersonPaymentInstructions String?
+  previousTournamentId   String?
+  previousTournament     GolfTournament?  @relation("GolfTournamentChain", fields: [previousTournamentId], references: [id], onDelete: SetNull)
+  nextGolfTournaments    GolfTournament[] @relation("GolfTournamentChain")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  teams        GolfTeam[]
+  teamPlayers  GolfTeamPlayer[]
+  checkIns     GolfCheckIn[]
+  sponsorships GolfSponsorship[]
+  logs         GolfLog[]
+
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([previousTournamentId])
+}
+
+// Org-scoped, persists across years — one row per person, never duplicated
+// per tournament. "Is captain" lives on the roster row (GolfTeamPlayer),
+// never here, since the same person can be captain one year and a regular
+// player the next.
+model GolfPlayer {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name      String
+  email     String   @default("")
+  phone     String   @default("")
+  createdAt DateTime @default(now())
+
+  teamPlayers GolfTeamPlayer[]
+
+  @@index([orgId])
+  @@index([orgId, email]) // powers find-or-create-by-email at signup
+}
+
+model GolfTeam {
+  id             String   @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tournamentId   String
+  tournament     GolfTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  name           String?
+  status         String   @default("registered") // registered | cancelled
+  sponsorshipId  String?  // set by an admin, one-off, when a sponsorship package comps this team's entry
+  sponsorship    GolfSponsorship? @relation(fields: [sponsorshipId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  players GolfTeamPlayer[]
+
+  @@index([orgId])
+  @@index([tournamentId])
+  @@index([sponsorshipId])
+}
+
+// The roster/registration join row — one per player per team per tournament.
+// Created with no payment info at registration time; paid via a separate
+// "pay for your team" step that can cover any subset of a team's rows.
+model GolfTeamPlayer {
+  id                      String   @id @default(cuid())
+  orgId                   String
+  org                     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tournamentId            String   // denormalized for direct scoping, mirrors RaffleTicket's gameId+orgId convention
+  tournament              GolfTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teamId                  String
+  team                    GolfTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  playerId                String
+  player                  GolfPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  isCaptain               Boolean  @default(false)
+  paymentMethod           String?  // stripe | check | in_person | sponsor_covered
+  paymentStatus           String   @default("unpaid") // unpaid | pending | paid — "pending" = a Stripe session was created for this row, webhook/sync not confirmed yet
+  amountDue               Float    // snapshot of tournament.costPerPlayer at signup time
+  amountPaid              Float?
+  checkNumber             String?
+  stripeCheckoutSessionId String?  // set only on the rows included in a given payment attempt — lets one team have several sessions across several payers/times
+  stripePaymentIntentId   String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  checkIn GolfCheckIn?
+
+  @@unique([teamId, playerId])
+  @@index([orgId])
+  @@index([tournamentId])
+  @@index([teamId])
+  @@index([playerId])
+  @@index([stripeCheckoutSessionId])
+}
+
+// Toggle check-in — identical semantics to RaffleCheckIn (find-existing:
+// delete if present else create), keyed on the roster row instead of a
+// ticket number.
+model GolfCheckIn {
+  id                String   @id @default(cuid())
+  orgId             String
+  org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tournamentId      String
+  tournament        GolfTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teamPlayerId      String   @unique
+  teamPlayer        GolfTeamPlayer @relation(fields: [teamPlayerId], references: [id], onDelete: Cascade)
+  checkedInByUserId String?
+  checkedInByName   String   @default("")
+  checkedInAt       DateTime @default(now())
+
+  @@index([tournamentId])
+}
+
+// Persistent, org-scoped sponsor identity — the exact same split as
+// GolfPlayer, for the exact same reason: a sponsoring company needs one
+// identity that survives years so "email last year's sponsors" works via
+// the same previousTournamentId chain-walk pattern as players.
+model GolfSponsorContact {
+  id          String   @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  companyName String
+  contactName String?
+  email       String   @default("")
+  phone       String   @default("")
+  createdAt   DateTime @default(now())
+
+  sponsorships GolfSponsorship[]
+
+  @@index([orgId])
+  @@index([orgId, email])
+}
+
+// The per-tournament sponsorship record — tier/amount/paid/benefits change
+// year to year even though the sponsor (GolfSponsorContact) doesn't.
+// Deliberately not linked to GolfTeam/GolfTeamPlayer directly — the optional
+// comped-team link lives on GolfTeam.sponsorshipId instead, so a sponsorship
+// with no comped team (the common case) never touches team data at all.
+model GolfSponsorship {
+  id           String   @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tournamentId String
+  tournament   GolfTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  sponsorId    String
+  sponsor      GolfSponsorContact @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  tierName     String?
+  amount       Float?
+  paid         Boolean  @default(false)
+  paidAt       DateTime?
+  paymentMethod String? // check | in_person | other — no Stripe integration for sponsorships in this pass
+  benefitsText String?
+  status       String   @default("confirmed") // inquiry | confirmed | declined — "inquiry" only from the public form
+  source       String   @default("manual") // manual | public
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  comppedTeams GolfTeam[]
+
+  @@index([orgId])
+  @@index([tournamentId])
+  @@index([sponsorId])
+}
+
+model GolfLog {
+  id           String   @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tournamentId String
+  tournament   GolfTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  type         String   // tournament_created | tournament_edited | tournament_opened | tournament_closed | team_registered | team_cancelled | player_added | player_removed | payment_recorded | checkin | sponsorship_added | sponsorship_payment_recorded | sponsorship_comped_team | kickoff_email_sent | kickoff_email_test_sent | sponsor_email_sent | sponsor_email_test_sent | stripe_connected | stripe_disconnected
+  text         String
+  actorName    String   @default("")
+  teamId       String?
+  playerId     String?
+  sponsorshipId String?
+  createdAt    DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([tournamentId, createdAt])
+}
+
+// Shared by both marketing flows (player and sponsor outreach) — one
+// unsubscribe per org+email regardless of which list they were on, so a
+// real person never has to opt out twice from the same org's golf mail.
+model GolfEmailSuppression {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  email     String
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, email])
+  @@index([orgId])
+}
+
+// One connected payment account per org. `provider` is a seam for future
+// processors (PayPal, etc.) — only "stripe" is implemented in this pass.
+model OrgStripeConnect {
+  id                String    @id @default(cuid())
+  orgId             String    @unique
+  org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  provider          String    @default("stripe")
+  stripeAccountId   String?
+  chargesEnabled    Boolean   @default(false)
+  payoutsEnabled    Boolean   @default(false)
+  detailsSubmitted  Boolean   @default(false)
+  onboardingStatus  String    @default("not_started") // not_started | onboarding | complete | restricted
+  country           String?
+  defaultCurrency   String?
+  disconnectedAt    DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }
