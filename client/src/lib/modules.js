@@ -64,6 +64,10 @@ export const MODULES = [
     blurb: "Annual golf tournament fundraiser · Registration, roster & payment",
     navItems: [
       { key: "manage", label: "Tournaments", icon: icons.layers, title: "Tournaments", subtitle: "Start, edit, open, close, or reopen a tournament", requiresTier: "Admin" },
+      { key: "roster", label: "Roster", icon: icons.users, title: "Roster", subtitle: "Register teams, track payments, and comp entries via sponsorships" },
+      { key: "sponsors", label: "Sponsors", icon: icons.bank, title: "Sponsors", subtitle: "Track sponsorships and confirm inquiries" },
+      { key: "checkin", label: "Check-In", icon: icons.checkCircle, title: "Check-In", subtitle: "Check in players on tournament day" },
+      { key: "log", label: "Activity Log", icon: icons.fileCheck, title: "Activity Log", subtitle: "Every registration, payment, and check-in, in order" },
     ],
   },
   {

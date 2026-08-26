@@ -233,6 +233,28 @@ export const api = {
   reopenGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}/reopen`, { method: "POST" }),
   listGolfLog: (tournamentId) => request(`/golf/tournaments/${tournamentId}/log`),
 
+  listGolfTeams: (tournamentId) => request(`/golf/tournaments/${tournamentId}/teams`),
+  createGolfTeam: (tournamentId, payload) => request(`/golf/tournaments/${tournamentId}/teams`, { method: "POST", body: payload }),
+  updateGolfTeam: (tournamentId, teamId, payload) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}`, { method: "PATCH", body: payload }),
+  deleteGolfTeam: (tournamentId, teamId) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}`, { method: "DELETE" }),
+  addGolfTeamPlayer: (tournamentId, teamId, payload) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}/players`, { method: "POST", body: payload }),
+  updateGolfTeamPlayer: (tournamentId, teamId, teamPlayerId, payload) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}/players/${teamPlayerId}`, { method: "PATCH", body: payload }),
+  removeGolfTeamPlayer: (tournamentId, teamId, teamPlayerId) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}/players/${teamPlayerId}`, { method: "DELETE" }),
+  markGolfTeamPaid: (tournamentId, teamId, payload) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}/mark-paid`, { method: "POST", body: payload }),
+  getGolfStats: (tournamentId) => request(`/golf/tournaments/${tournamentId}/stats`),
+  searchGolfPlayers: (search) => request(`/golf/players?search=${encodeURIComponent(search)}`),
+
+  searchGolfCheckIn: (tournamentId) => request(`/golf/tournaments/${tournamentId}/checkin-search`),
+  listGolfCheckIns: (tournamentId) => request(`/golf/tournaments/${tournamentId}/checkins`),
+  toggleGolfCheckIn: (tournamentId, teamPlayerId) => request(`/golf/tournaments/${tournamentId}/checkins/${teamPlayerId}`, { method: "POST" }),
+
+  listGolfSponsorships: (tournamentId) => request(`/golf/tournaments/${tournamentId}/sponsorships`),
+  createGolfSponsorship: (tournamentId, payload) => request(`/golf/tournaments/${tournamentId}/sponsorships`, { method: "POST", body: payload }),
+  updateGolfSponsorship: (tournamentId, sponsorshipId, payload) => request(`/golf/tournaments/${tournamentId}/sponsorships/${sponsorshipId}`, { method: "PATCH", body: payload }),
+  deleteGolfSponsorship: (tournamentId, sponsorshipId) => request(`/golf/tournaments/${tournamentId}/sponsorships/${sponsorshipId}`, { method: "DELETE" }),
+  confirmGolfSponsorship: (tournamentId, sponsorshipId) => request(`/golf/tournaments/${tournamentId}/sponsorships/${sponsorshipId}/confirm`, { method: "POST" }),
+  searchGolfSponsors: (search) => request(`/golf/sponsors?search=${encodeURIComponent(search)}`),
+
   generateFrsReport: (file, fileName) => request("/elks-tools/frs-report", { method: "POST", body: { file, fileName } }),
   listFrsReportRuns: () => request("/elks-tools/frs-report/runs"),
   downloadFrsReportSource: (id, filename) => download(`/elks-tools/frs-report/runs/${id}/source-file`, filename),
