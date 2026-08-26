@@ -36,7 +36,10 @@ async function registerTeam(orgId, tournament, { teamName, players }) {
 
   return prisma.$transaction(async (tx) => {
     const capacityResult = await tx.golfTournament.updateMany({
-      where: { id: tournament.id, OR: [{ capacity: null }, { registeredTeamCount: { lt: tournament.capacity } }] },
+      where:
+        tournament.capacity == null
+          ? { id: tournament.id }
+          : { id: tournament.id, registeredTeamCount: { lt: tournament.capacity } },
       data: { registeredTeamCount: { increment: 1 } },
     });
     if (capacityResult.count === 0) throw Object.assign(new Error("This tournament is full"), { status: 409 });

@@ -131,13 +131,11 @@ function RegisterForm({ tournament, slug, onCancel }) {
         <div style={{ fontSize: 13 }}>
           {result.team.players.map((p) => p.name).join(", ")} — {money(tournament.costPerPlayer)} per player.
         </div>
-        {payment.allowCheckPayment && (
-          <div style={{ fontSize: 12.5 }}><strong>To pay by check:</strong> {payment.checkPayableInstructions || "Contact the organizer for instructions."}</div>
-        )}
-        {payment.allowInPersonPayment && (
-          <div style={{ fontSize: 12.5 }}><strong>To pay in person:</strong> {payment.inPersonPaymentInstructions || "Contact the organizer for instructions."}</div>
-        )}
-        {!payment.allowCheckPayment && !payment.allowInPersonPayment && (
+        {(payment.allowCheckPayment || payment.allowInPersonPayment) && result.payUrl ? (
+          <div style={{ fontSize: 12.5 }}>
+            When you're ready, <a href={result.payUrl}>pay for your team here</a>.
+          </div>
+        ) : (
           <div style={{ fontSize: 12.5, color: colors.textSecondary }}>The organizer will follow up with payment instructions.</div>
         )}
       </div>

@@ -27,6 +27,7 @@ import PublicRental from "./views/PublicRental";
 import CalendarView from "./views/CalendarView";
 import PublicCalendar from "./views/PublicCalendar";
 import PublicGolf from "./views/PublicGolf";
+import PublicGolfPay from "./views/PublicGolfPay";
 import PublicRaffleUnsubscribe from "./views/PublicRaffleUnsubscribe";
 import PlatformAdminApp from "./views/platform-admin/PlatformAdminApp";
 import ManageRaffles from "./views/ManageRaffles";
@@ -327,6 +328,8 @@ function Shell() {
 function matchPublicPath(pathname) {
   const embedMatch = pathname.match(/^\/(rentals|calendar)\/embed\/([a-z0-9-]+)\/?$/);
   if (embedMatch) return { module: embedMatch[1], slug: embedMatch[2], embed: true };
+  const payMatch = pathname.match(/^\/golf\/([a-z0-9-]+)\/tournaments\/([^/]+)\/teams\/([^/]+)\/pay\/?$/);
+  if (payMatch) return { module: "golf-pay", slug: payMatch[1], tournamentId: payMatch[2], teamId: payMatch[3] };
   const m = pathname.match(/^\/(rentals|calendar|golf)\/([a-z0-9-]+)\/?$/);
   return m ? { module: m[1], slug: m[2] } : null;
 }
@@ -357,6 +360,7 @@ export default function App() {
   if (publicMatch?.module === "rentals") return <PublicRental slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "calendar") return <PublicCalendar slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "golf") return <PublicGolf slug={publicMatch.slug} />;
+  if (publicMatch?.module === "golf-pay") return <PublicGolfPay slug={publicMatch.slug} tournamentId={publicMatch.tournamentId} teamId={publicMatch.teamId} />;
 
   // Needs to render for a logged-out visitor arriving from an email link, so
   // it's handled before AuthProvider/Shell rather than as a route inside it.

@@ -318,6 +318,22 @@ export const publicApi = {
     if (!res.ok) throw new Error(data.error || "Registration failed");
     return data;
   },
+  async getGolfTeamForPay(slug, tournamentId, teamId) {
+    const res = await fetch(`/api/public/golf/${slug}/tournaments/${tournamentId}/teams/${teamId}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Not found");
+    return data;
+  },
+  async payForGolfTeam(slug, tournamentId, teamId, payload) {
+    const res = await fetch(`/api/public/golf/${slug}/tournaments/${tournamentId}/teams/${teamId}/pay`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  },
 };
 
 export function saveSession(token, user) {
