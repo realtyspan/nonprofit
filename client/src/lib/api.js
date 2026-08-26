@@ -302,6 +302,22 @@ export const publicApi = {
     if (!res.ok) throw new Error(data.error || "Not found");
     return data;
   },
+  async getGolfPage(slug) {
+    const res = await fetch(`/api/public/golf/${slug}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Not found");
+    return data;
+  },
+  async registerGolfTeam(slug, tournamentId, payload) {
+    const res = await fetch(`/api/public/golf/${slug}/tournaments/${tournamentId}/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Registration failed");
+    return data;
+  },
 };
 
 export function saveSession(token, user) {
