@@ -9,7 +9,7 @@ The product owner is non-technical — all code in this repo is written by Claud
 - **Monorepo**: `client/` (React + Vite) and `server/` (Express + Prisma) as separate `npm` projects — no workspace tooling, just two independent `package.json`s.
 - **Database**: Postgres, hosted on Railway. **Local dev and production point at the same database** — there is no separate dev DB. Any test data created while developing/verifying a feature must be cleaned up afterward (a small Prisma script deleting rows in dependency order is the established pattern) so it doesn't pollute real lodge data.
 - **Deployment**: Railway auto-deploys from `origin/main` on GitHub (`realtyspan/nonprofit`). Pushing to `main` ships to production — there's no separate staging environment or review step.
-- **Domains**: `elkslodges.org` (bare + www) serves the marketing landing page; every other hostname (the app subdomain, `localhost`, Railway's own `*.up.railway.app`) serves the actual app. This split lives in `client/src/App.jsx` as a hostname check, not a routing config.
+- **Domains**: `charitypulse.org` (bare + www) serves the marketing landing page; every other hostname (the app subdomain, `localhost`, Railway's own `*.up.railway.app`) serves the actual app. This split lives in `client/src/App.jsx` as a hostname check, not a routing config.
 - **Multi-tenant**: every org-scoped table has an `orgId`; every route filters by `req.user.orgId`. Permissions are per-module (`bell-jar`, `rentals`, `calendar`, `raffle`, `elks-tools`) with tiers `Owner > Admin > Helper > Viewer`.
 
 ## Non-obvious gotchas

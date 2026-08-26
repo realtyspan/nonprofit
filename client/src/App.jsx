@@ -42,7 +42,7 @@ import RaffleCheckIn from "./views/RaffleCheckIn";
 import FrsReport from "./views/elks-tools/FrsReport";
 
 function PublicGate() {
-  // Lets a cross-domain redirect from the marketing site (elkslodges.org)
+  // Lets a cross-domain redirect from the marketing site (charitypulse.org)
   // land straight on the signup/login form instead of bouncing through this
   // app's own copy of the landing page first.
   const requestedView = new URLSearchParams(window.location.search).get("view");

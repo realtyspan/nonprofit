@@ -8,7 +8,7 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       // Registered manually (see src/lib/registerPwa.js) instead of the
-      // default auto-injected <script> — the marketing site (elkslodges.org)
+      // default auto-injected <script> — the marketing site (charitypulse.org)
       // shares this same build but should never get a service worker: a
       // stale-cache bug there would greet first-time visitors evaluating
       // the product, not just an already-signed-up lodge officer.
