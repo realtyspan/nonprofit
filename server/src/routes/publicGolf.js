@@ -7,7 +7,7 @@ const router = express.Router();
 
 const PUBLIC_TOURNAMENT_FIELDS = {
   id: true, name: true, year: true, date: true, format: true, maxTeamSize: true,
-  venueName: true, venueAddress: true, costPerPlayer: true, capacity: true, registeredTeamCount: true,
+  venueName: true, venueAddress: true, flyerImage: true, costPerPlayer: true, capacity: true, registeredTeamCount: true,
   includedDescription: true, scheduleText: true, contactName: true, contactPhone: true, contactEmail: true,
   allowCheckPayment: true, checkPayableInstructions: true, allowInPersonPayment: true, inPersonPaymentInstructions: true,
 };

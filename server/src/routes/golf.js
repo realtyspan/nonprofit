@@ -146,7 +146,7 @@ async function resolvePreviousTournamentId(orgId, previousTournamentId, selfId) 
 }
 
 function resolveTournamentFields(body) {
-  const { name, year, date, format, maxTeamSize, venueName, venueAddress, costPerPlayer, capacity, includedDescription, scheduleText, contactName, contactPhone, contactEmail, allowCheckPayment, checkPayableInstructions, allowInPersonPayment, inPersonPaymentInstructions } = body;
+  const { name, year, date, format, maxTeamSize, venueName, venueAddress, flyerImage, costPerPlayer, capacity, includedDescription, scheduleText, contactName, contactPhone, contactEmail, allowCheckPayment, checkPayableInstructions, allowInPersonPayment, inPersonPaymentInstructions } = body;
 
   if (!name || !name.trim()) throw Object.assign(new Error("name is required"), { status: 400 });
 
@@ -181,6 +181,7 @@ function resolveTournamentFields(body) {
     maxTeamSize: teamSize,
     venueName: venueName?.trim() || null,
     venueAddress: venueAddress?.trim() || null,
+    flyerImage: flyerImage || null,
     costPerPlayer: price,
     capacity: parsedCapacity,
     includedDescription: includedDescription?.trim() || null,

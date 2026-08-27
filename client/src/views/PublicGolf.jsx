@@ -83,6 +83,12 @@ function TournamentCard({ tournament, slug, expanded, onToggle, t }) {
   const cardStyle = { ...card, background: t.surface, border: `1px solid ${t.border}`, color: t.textPrimary };
   return (
     <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 12 }}>
+      {tournament.flyerImage && (
+        <img
+          src={tournament.flyerImage} alt=""
+          style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 8, margin: "-4px -4px 0" }}
+        />
+      )}
       <div>
         <div style={{ fontSize: 19, fontWeight: 700 }}>{tournament.name}</div>
         {tournament.format && <div style={{ fontSize: 13, color: t.textSecondary, marginTop: 2 }}>{tournament.format}</div>}

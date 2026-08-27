@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
+import { resizeImageFile } from "../lib/imageResize";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
 import PublicLinkBox from "../components/PublicLinkBox";
@@ -262,6 +263,7 @@ function emptyForm(tournament) {
     maxTeamSize: tournament?.maxTeamSize || 4,
     venueName: tournament?.venueName || "",
     venueAddress: tournament?.venueAddress || "",
+    flyerImage: tournament?.flyerImage || "",
     costPerPlayer: tournament?.costPerPlayer || "",
     capacity: tournament?.capacity ?? "",
     includedDescription: tournament?.includedDescription || "",
@@ -311,6 +313,8 @@ function TournamentForm({ tournament, tournaments, onCancel, onSaved, modal }) {
   const body = (
     <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <Field label="Name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="24th Annual Golf Tournament" /></Field>
+
+      <TournamentFlyerField image={form.flyerImage} onChange={(img) => set("flyerImage", img)} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
         <Field label="Year"><input style={inputStyle} type="number" required value={form.year} onChange={(e) => set("year", e.target.value)} /></Field>
@@ -433,6 +437,58 @@ function DeleteTournamentModal({ tournament, onCancel, onDeleted }) {
         </button>
       </div>
     </Modal>
+  );
+}
+
+// Same pattern as Deals.jsx's LabelPhotoField / ReceiptField — resize
+// client-side to a bounded JPEG data URL before it ever leaves the browser,
+// then store that string directly (see GolfTournament.flyerImage). Shown at
+// the top of the public registration page and its website embed.
+function TournamentFlyerField({ image, onChange }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Attach an image file");
+      return;
+    }
+    setError("");
+    setBusy(true);
+    try {
+      onChange(await resizeImageFile(file));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b" }}>Tournament photo/flyer (optional)</div>
+      <div style={{ fontSize: 11, color: colors.textSecondary }}>Shown at the top of your public registration page and website embed.</div>
+      {image && (
+        <img src={image} alt="Tournament flyer" style={{ width: "100%", maxWidth: 320, maxHeight: 180, objectFit: "cover", borderRadius: 8, border: `1px solid ${colors.border}` }} />
+      )}
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <label style={{ cursor: "pointer" }}>
+          <input type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} />
+          <span style={{ ...button.ghost, display: "inline-block", padding: "6px 12px", fontSize: 12.5 }}>
+            {busy ? "Uploading…" : image ? "Replace photo" : "Add photo"}
+          </span>
+        </label>
+        {image && !busy && (
+          <button type="button" style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5, color: colors.danger }} onClick={() => onChange("")}>
+            Remove
+          </button>
+        )}
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 11.5 }}>{error}</div>}
+    </div>
   );
 }
 

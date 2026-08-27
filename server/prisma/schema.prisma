@@ -832,6 +832,7 @@ model GolfTournament {
   maxTeamSize            Int      @default(4) // configurable per tournament, not hardcoded
   venueName              String?
   venueAddress           String?
+  flyerImage             String?  // base64 data URL of a tournament photo/flyer, shown on the public registration page (same pattern as Deal.labelImage)
   costPerPlayer          Float
   capacity               Int?     // max teams; null = unlimited
   registeredTeamCount    Int      @default(0) // atomic counter guarding capacity — incremented inside the same transaction that creates a team
