@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
+import PublicLinkBox from "../components/PublicLinkBox";
 
 // Tournament management (start a tournament, correct its details, open/close
 // it) — mirrors ManageRaffles.jsx's game-management pattern. Roster, sponsors,
@@ -145,6 +146,105 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
           onDeleted={() => { setDeletingTournament(null); onTournamentsChanged(); }}
         />
       )}
+
+      <PublicLinkBox
+        basePath="golf"
+        embedBasePath="golf/embed"
+        embedTitle="Golf Tournament Registration"
+        description="Set a link so players can view open tournaments and register a team from your website."
+      />
+
+      <StripeConnectCard />
+    </div>
+  );
+}
+
+// Org-wide (not per-tournament) — one connected Stripe account covers every
+// tournament this org ever runs. Express account + direct charges, so the
+// connected account (not this platform) is the merchant of record; see plan
+// doc for why. Onboarding happens on Stripe's own hosted page — clicking
+// "Connect Stripe" redirects there immediately rather than copy-pasting a
+// link, since the org admin is the one clicking through, not someone else.
+function StripeConnectCard() {
+  const [connect, setConnect] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  function reload() {
+    api.getGolfStripeConnect().then(setConnect).catch((err) => setError(err.message));
+  }
+
+  useEffect(reload, []);
+
+  async function startOnboarding() {
+    setBusy(true);
+    setError("");
+    try {
+      const { url } = await api.onboardGolfStripeConnect();
+      window.location.href = url;
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  async function refreshStatus() {
+    setBusy(true);
+    setError("");
+    try {
+      setConnect(await api.syncGolfStripeConnect());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disconnect() {
+    if (!window.confirm("Disconnect Stripe? Online payment will stop appearing as an option until it's reconnected.")) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.disconnectGolfStripeConnect();
+      reload();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!connect) return null;
+
+  const connected = connect.chargesEnabled;
+  const startedNotFinished = connect.stripeAccountId && !connect.chargesEnabled;
+
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Online payment settings</div>
+        <span style={pill(...(connected ? [colors.successBg, colors.success] : ["#f0f0f3", colors.textSecondary]))}>
+          {connected ? "Connected" : startedNotFinished ? "Setup incomplete" : "Not connected"}
+        </span>
+      </div>
+      <div style={{ fontSize: 12, color: colors.textSecondary }}>
+        Connect your own Stripe account so players can pay their entry fee online. This app never holds or transfers your funds — Stripe pays your organization directly.
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {!connect.stripeAccountId && (
+          <button style={button.primary} disabled={busy} onClick={startOnboarding}>{busy ? "Redirecting…" : "Connect Stripe"}</button>
+        )}
+        {startedNotFinished && (
+          <button style={button.primary} disabled={busy} onClick={startOnboarding}>{busy ? "Redirecting…" : "Finish Stripe setup"}</button>
+        )}
+        {connect.stripeAccountId && (
+          <button style={button.ghost} disabled={busy} onClick={refreshStatus}>Refresh status</button>
+        )}
+        {connect.stripeAccountId && (
+          <button style={{ ...button.ghost, color: colors.danger }} disabled={busy} onClick={disconnect}>Disconnect</button>
+        )}
+      </div>
     </div>
   );
 }

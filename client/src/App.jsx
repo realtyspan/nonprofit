@@ -71,6 +71,11 @@ function navStorageKey(userId) {
 
 function Shell() {
   const { session } = useAuth();
+  // Captured once at mount (not recomputed on every render) so it stays true
+  // even after the cleanup effect below strips the query string — Stripe's
+  // Account Link return_url lands here after the org admin finishes (or
+  // abandons) hosted onboarding.
+  const [golfStripeReturn] = useState(() => new URLSearchParams(window.location.search).get("golfStripeReturn") === "1");
   const [permissions, setPermissions] = useState(null);
   const [activeModuleKey, setActiveModuleKey] = useState(null);
   const [view, setView] = useState(null);
@@ -107,6 +112,17 @@ function Shell() {
   const refreshPermissions = useCallback(() => {
     return api.getMyPermissions().then(setPermissions).catch(() => {});
   }, []);
+
+  // Stripe doesn't push account.updated the instant hosted onboarding
+  // finishes, so this gives an immediate, accurate status right when the
+  // admin lands back instead of waiting on the webhook — see golfLogic/
+  // golf.js's own /stripe-connect/sync route (same call, admin-triggered).
+  useEffect(() => {
+    if (!golfStripeReturn) return;
+    api.syncGolfStripeConnect().catch(() => {}).finally(() => {
+      window.history.replaceState({}, "", window.location.pathname);
+    });
+  }, [golfStripeReturn]);
 
   // Keyed on the logged-in user's id, not just `session` truthiness — Shell
   // itself never unmounts across a login/logout cycle (AuthProvider wraps it
@@ -153,6 +169,12 @@ function Shell() {
     if (!permissions || activeModuleKey !== null) return;
     const visible = filterModulesForUser(MODULES, permissions);
 
+    if (golfStripeReturn && visible.some((m) => m.key === "golf")) {
+      setActiveModuleKey("golf");
+      setView("manage");
+      return;
+    }
+
     const saved = userId ? JSON.parse(localStorage.getItem(navStorageKey(userId)) || "null") : null;
     if (saved) {
       const savedModule = visible.find((m) => m.key === saved.activeModuleKey);
@@ -174,7 +196,7 @@ function Shell() {
     } else {
       setView("profile");
     }
-  }, [permissions, activeModuleKey, userId]);
+  }, [permissions, activeModuleKey, userId, golfStripeReturn]);
 
   // Keep the saved module/view current as the user navigates, so the effect
   // above has something fresh to restore on the next refresh.
@@ -326,7 +348,7 @@ function Shell() {
 }
 
 function matchPublicPath(pathname) {
-  const embedMatch = pathname.match(/^\/(rentals|calendar)\/embed\/([a-z0-9-]+)\/?$/);
+  const embedMatch = pathname.match(/^\/(rentals|calendar|golf)\/embed\/([a-z0-9-]+)\/?$/);
   if (embedMatch) return { module: embedMatch[1], slug: embedMatch[2], embed: true };
   const payMatch = pathname.match(/^\/golf\/([a-z0-9-]+)\/tournaments\/([^/]+)\/teams\/([^/]+)\/pay\/?$/);
   if (payMatch) return { module: "golf-pay", slug: payMatch[1], tournamentId: payMatch[2], teamId: payMatch[3] };
@@ -359,7 +381,7 @@ export default function App() {
   const publicMatch = matchPublicPath(window.location.pathname);
   if (publicMatch?.module === "rentals") return <PublicRental slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "calendar") return <PublicCalendar slug={publicMatch.slug} embed={publicMatch.embed} />;
-  if (publicMatch?.module === "golf") return <PublicGolf slug={publicMatch.slug} />;
+  if (publicMatch?.module === "golf") return <PublicGolf slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "golf-pay") return <PublicGolfPay slug={publicMatch.slug} tournamentId={publicMatch.tournamentId} teamId={publicMatch.teamId} />;
 
   // Needs to render for a logged-out visitor arriving from an email link, so

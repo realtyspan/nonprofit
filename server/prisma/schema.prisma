@@ -1011,7 +1011,9 @@ model GolfLog {
   org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   tournamentId String
   tournament   GolfTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  type         String   // tournament_created | tournament_edited | tournament_opened | tournament_closed | team_registered | team_cancelled | player_added | player_removed | payment_recorded | checkin | sponsorship_added | sponsorship_payment_recorded | sponsorship_comped_team | kickoff_email_sent | kickoff_email_test_sent | sponsor_email_sent | sponsor_email_test_sent | stripe_connected | stripe_disconnected
+  type         String   // tournament_created | tournament_edited | tournament_opened | tournament_closed | team_registered | team_cancelled | player_added | player_removed | payment_recorded | checkin | sponsorship_added | sponsorship_payment_recorded | sponsorship_comped_team | kickoff_email_sent | kickoff_email_test_sent | sponsor_email_sent | sponsor_email_test_sent
+  // Note: Stripe Connect connect/disconnect is an org-wide setting, not tied to
+  // any one tournament, so it isn't logged here (GolfLog.tournamentId is required).
   text         String
   actorName    String   @default("")
   teamId       String?

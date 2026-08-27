@@ -33,4 +33,28 @@ const PRICE_AMOUNTS = {
   annual: 390,
 };
 
-module.exports = { stripe, PRICE_IDS, PRICE_AMOUNTS };
+// Golf Stripe Connect: Express accounts, direct charges. The platform takes
+// no fee and must never touch a connected org's player payments even
+// transiently, so this runs on the platform's own Stripe account/key (same
+// client as above) purely to create/manage the connected account — actual
+// charges are made directly against the connected account via the
+// `{ stripeAccount: acctId }` request option, elsewhere.
+async function createExpressAccount({ email, orgName }) {
+  return stripe.accounts.create({
+    type: "express",
+    email: email || undefined,
+    business_profile: { name: orgName },
+    capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+  });
+}
+
+async function createOnboardingLink(accountId, { refreshUrl, returnUrl }) {
+  return stripe.accountLinks.create({
+    account: accountId,
+    refresh_url: refreshUrl,
+    return_url: returnUrl,
+    type: "account_onboarding",
+  });
+}
+
+module.exports = { stripe, PRICE_IDS, PRICE_AMOUNTS, createExpressAccount, createOnboardingLink };

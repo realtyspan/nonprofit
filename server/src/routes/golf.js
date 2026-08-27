@@ -1,10 +1,19 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
-const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
+const { requireAuth, loadPermissions, requirePermission, requireReadAccess, requireOwner } = require("../lib/auth");
 const { normalizeEmail, findOrCreatePlayer, registerTeam, addGolfLog } = require("../lib/golfLogic");
+const { stripe, createExpressAccount, createOnboardingLink } = require("../lib/stripe");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
+
+// Mirrors org.js's requireOwnerOrBellJarAdmin — connecting/disconnecting
+// online payment is a big enough decision that the technical Owner can
+// always do it, but so can whoever holds Admin on the golf module day to day.
+function requireOwnerOrGolfAdmin(req, res, next) {
+  if (req.orgTier === "Owner") return next();
+  return requirePermission("golf", "Admin")(req, res, next);
+}
 
 // Denormalized names (checkedInByName, log actorName) need the caller's
 // current display name — the JWT only carries userId/orgId (see auth.js),
@@ -51,6 +60,69 @@ router.param("sponsorshipId", async (req, res, next, sponsorshipId) => {
   if (!sponsorship) return res.status(404).json({ error: "Sponsorship not found" });
   req.golfSponsorship = sponsorship;
   next();
+});
+
+// --- Stripe Connect (org-wide, not tournament-scoped) ---
+// Express account + direct charges — see plan doc for why (Stripe hosts the
+// whole KYC flow for a volunteer treasurer; direct charges make the
+// connected account the merchant of record so the platform never touches
+// player money, even transiently).
+
+router.get("/stripe-connect", requireOwnerOrGolfAdmin, async (req, res) => {
+  const connect = await prisma.orgStripeConnect.findUnique({ where: { orgId: req.user.orgId } });
+  res.json(connect || { chargesEnabled: false, onboardingStatus: "not_started" });
+});
+
+router.post("/stripe-connect/onboard", requireOwnerOrGolfAdmin, async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  let connect = await prisma.orgStripeConnect.findUnique({ where: { orgId: req.user.orgId } });
+
+  if (!connect?.stripeAccountId) {
+    const account = await createExpressAccount({ email: org.contactEmail, orgName: org.name });
+    connect = await prisma.orgStripeConnect.upsert({
+      where: { orgId: req.user.orgId },
+      update: { stripeAccountId: account.id, disconnectedAt: null, onboardingStatus: "onboarding" },
+      create: { orgId: req.user.orgId, stripeAccountId: account.id, onboardingStatus: "onboarding" },
+    });
+  }
+
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+  const returnUrl = `${appUrl}/?golfStripeReturn=1`;
+  const link = await createOnboardingLink(connect.stripeAccountId, { refreshUrl: returnUrl, returnUrl });
+  res.json({ url: link.url });
+});
+
+// Called by the client right after the org admin lands back from Stripe's
+// hosted onboarding — Stripe doesn't push a webhook the instant onboarding
+// finishes, so this gives the admin an immediate, accurate status instead of
+// waiting on account.updated to arrive.
+router.post("/stripe-connect/sync", requireOwnerOrGolfAdmin, async (req, res) => {
+  const connect = await prisma.orgStripeConnect.findUnique({ where: { orgId: req.user.orgId } });
+  if (!connect?.stripeAccountId) return res.status(400).json({ error: "Stripe isn't connected yet" });
+
+  const account = await stripe.accounts.retrieve(connect.stripeAccountId);
+  const updated = await prisma.orgStripeConnect.update({
+    where: { orgId: req.user.orgId },
+    data: {
+      chargesEnabled: !!account.charges_enabled,
+      payoutsEnabled: !!account.payouts_enabled,
+      detailsSubmitted: !!account.details_submitted,
+      onboardingStatus: account.charges_enabled ? "complete" : account.details_submitted ? "restricted" : "onboarding",
+      country: account.country || null,
+      defaultCurrency: account.default_currency || null,
+    },
+  });
+  res.json(updated);
+});
+
+router.delete("/stripe-connect", requireOwner, async (req, res) => {
+  const connect = await prisma.orgStripeConnect.findUnique({ where: { orgId: req.user.orgId } });
+  if (!connect) return res.json({ ok: true });
+  await prisma.orgStripeConnect.update({
+    where: { orgId: req.user.orgId },
+    data: { disconnectedAt: new Date(), chargesEnabled: false },
+  });
+  res.json({ ok: true });
 });
 
 // --- Tournament management ---

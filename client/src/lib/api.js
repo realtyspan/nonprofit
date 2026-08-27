@@ -255,6 +255,11 @@ export const api = {
   confirmGolfSponsorship: (tournamentId, sponsorshipId) => request(`/golf/tournaments/${tournamentId}/sponsorships/${sponsorshipId}/confirm`, { method: "POST" }),
   searchGolfSponsors: (search) => request(`/golf/sponsors?search=${encodeURIComponent(search)}`),
 
+  getGolfStripeConnect: () => request("/golf/stripe-connect"),
+  onboardGolfStripeConnect: () => request("/golf/stripe-connect/onboard", { method: "POST" }),
+  syncGolfStripeConnect: () => request("/golf/stripe-connect/sync", { method: "POST" }),
+  disconnectGolfStripeConnect: () => request("/golf/stripe-connect", { method: "DELETE" }),
+
   generateFrsReport: (file, fileName) => request("/elks-tools/frs-report", { method: "POST", body: { file, fileName } }),
   listFrsReportRuns: () => request("/elks-tools/frs-report/runs"),
   downloadFrsReportSource: (id, filename) => download(`/elks-tools/frs-report/runs/${id}/source-file`, filename),

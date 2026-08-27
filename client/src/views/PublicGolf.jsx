@@ -1,56 +1,91 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { colors, card, button, input as inputStyle, money } from "../lib/tokens";
 import { publicApi } from "../lib/api";
+import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
 import logo from "../assets/logo.png";
 
 function emptyPlayer(isCaptain) {
   return { name: "", email: "", phone: "", isCaptain };
 }
 
-export default function PublicGolf({ slug }) {
+export default function PublicGolf({ slug, embed }) {
   const [page, setPage] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [openTournamentId, setOpenTournamentId] = useState(null);
+  const containerRef = useRef(null);
+
+  const params = new URLSearchParams(window.location.search);
+  const theme = parseThemeFromQuery(params);
+  const t = { ...colors, ...theme };
+  const font = params.get("font");
+  useGoogleFont(font);
 
   useEffect(() => {
     publicApi.getGolfPage(slug).then(setPage).catch((err) => setLoadError(err.message));
   }, [slug]);
 
-  if (loadError) return <Centered>This page isn't available.</Centered>;
-  if (!page) return <Centered>Loading…</Centered>;
+  // Tells the host page how tall the content actually is, so its listener
+  // script (see PublicLinkBox's generated snippet) can resize the iframe
+  // instead of leaving it at a fixed height that clips or wastes space.
+  useEffect(() => {
+    if (!embed || !containerRef.current) return;
+    const el = containerRef.current;
+    const post = () => postEmbedResize(el.scrollHeight);
+    post();
+    const observer = new ResizeObserver(post);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [embed, page, openTournamentId]);
+
+  if (loadError) return <Centered embed={embed} t={t}>This page isn't available.</Centered>;
+  if (!page) return <Centered embed={embed} t={t}>Loading…</Centered>;
 
   return (
-    <div style={{ minHeight: "100vh", background: colors.bg, color: colors.textPrimary }}>
-      <header style={{ display: "flex", alignItems: "center", gap: 10, padding: "18px 32px", borderBottom: `1px solid ${colors.border}`, background: "#fff" }}>
-        <img src={logo} alt="" style={{ width: 28, height: 28, objectFit: "contain" }} />
-        <div style={{ fontWeight: 700, fontSize: 15 }}>{page.orgName} — Golf Tournament</div>
-      </header>
+    <div
+      ref={containerRef}
+      style={{
+        minHeight: embed ? "auto" : "100vh", background: embed ? (theme.bg || "transparent") : colors.bg,
+        color: t.textPrimary, fontFamily: font ? `"${font}", sans-serif` : undefined,
+      }}
+    >
+      {!embed && (
+        <header style={{ display: "flex", alignItems: "center", gap: 10, padding: "18px 32px", borderBottom: `1px solid ${colors.border}`, background: "#fff" }}>
+          <img src={logo} alt="" style={{ width: 28, height: 28, objectFit: "contain" }} />
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{page.orgName} — Golf Tournament</div>
+        </header>
+      )}
 
-      <div style={{ maxWidth: 640, margin: "0 auto", padding: "28px 20px 60px", display: "flex", flexDirection: "column", gap: 20 }}>
-        {page.tournaments.length === 0 && (
-          <div style={{ ...card, fontSize: 13.5, color: colors.textSecondary }}>No tournaments are open for registration right now.</div>
-        )}
+      <div style={embed ? { padding: 4 } : { maxWidth: 640, margin: "0 auto", padding: "28px 20px 60px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {page.tournaments.length === 0 && (
+            <div style={{ ...card, background: t.surface, border: `1px solid ${t.border}`, fontSize: 13.5, color: t.textSecondary }}>
+              No tournaments are open for registration right now.
+            </div>
+          )}
 
-        {page.tournaments.map((t) => (
-          <TournamentCard
-            key={t.id}
-            tournament={t}
-            slug={slug}
-            expanded={openTournamentId === t.id}
-            onToggle={() => setOpenTournamentId(openTournamentId === t.id ? null : t.id)}
-          />
-        ))}
+          {page.tournaments.map((tournament) => (
+            <TournamentCard
+              key={tournament.id}
+              tournament={tournament}
+              slug={slug}
+              t={t}
+              expanded={openTournamentId === tournament.id}
+              onToggle={() => setOpenTournamentId(openTournamentId === tournament.id ? null : tournament.id)}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function TournamentCard({ tournament, slug, expanded, onToggle }) {
+function TournamentCard({ tournament, slug, expanded, onToggle, t }) {
+  const cardStyle = { ...card, background: t.surface, border: `1px solid ${t.border}`, color: t.textPrimary };
   return (
-    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
         <div style={{ fontSize: 19, fontWeight: 700 }}>{tournament.name}</div>
-        {tournament.format && <div style={{ fontSize: 13, color: colors.textSecondary, marginTop: 2 }}>{tournament.format}</div>}
+        {tournament.format && <div style={{ fontSize: 13, color: t.textSecondary, marginTop: 2 }}>{tournament.format}</div>}
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 20px", fontSize: 13.5 }}>
@@ -60,13 +95,13 @@ function TournamentCard({ tournament, slug, expanded, onToggle }) {
       </div>
 
       {tournament.includedDescription && (
-        <div style={{ fontSize: 13, color: colors.textSecondary, whiteSpace: "pre-wrap" }}>{tournament.includedDescription}</div>
+        <div style={{ fontSize: 13, color: t.textSecondary, whiteSpace: "pre-wrap" }}>{tournament.includedDescription}</div>
       )}
       {tournament.scheduleText && (
-        <div style={{ fontSize: 13, color: colors.textSecondary, whiteSpace: "pre-wrap" }}><strong>Schedule:</strong> {tournament.scheduleText}</div>
+        <div style={{ fontSize: 13, color: t.textSecondary, whiteSpace: "pre-wrap" }}><strong>Schedule:</strong> {tournament.scheduleText}</div>
       )}
       {(tournament.contactName || tournament.contactPhone || tournament.contactEmail) && (
-        <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+        <div style={{ fontSize: 12.5, color: t.textSecondary }}>
           Questions? {tournament.contactName}{tournament.contactPhone ? ` · ${tournament.contactPhone}` : ""}{tournament.contactEmail ? ` · ${tournament.contactEmail}` : ""}
         </div>
       )}
@@ -76,12 +111,12 @@ function TournamentCard({ tournament, slug, expanded, onToggle }) {
       ) : (
         <>
           {tournament.spotsRemaining != null && (
-            <div style={{ fontSize: 12.5, color: colors.textSecondary }}>{tournament.spotsRemaining} team spot{tournament.spotsRemaining === 1 ? "" : "s"} remaining</div>
+            <div style={{ fontSize: 12.5, color: t.textSecondary }}>{tournament.spotsRemaining} team spot{tournament.spotsRemaining === 1 ? "" : "s"} remaining</div>
           )}
           {!expanded ? (
-            <div><button style={button.primary} onClick={onToggle}>Register a team</button></div>
+            <div><button style={{ ...button.primary, background: t.accent }} onClick={onToggle}>Register a team</button></div>
           ) : (
-            <RegisterForm tournament={tournament} slug={slug} onCancel={onToggle} />
+            <RegisterForm tournament={tournament} slug={slug} onCancel={onToggle} t={t} />
           )}
         </>
       )}
@@ -89,7 +124,7 @@ function TournamentCard({ tournament, slug, expanded, onToggle }) {
   );
 }
 
-function RegisterForm({ tournament, slug, onCancel }) {
+function RegisterForm({ tournament, slug, onCancel, t }) {
   const [teamName, setTeamName] = useState("");
   const [players, setPlayers] = useState([emptyPlayer(true)]);
   const [website, setWebsite] = useState(""); // honeypot — real visitors never see this field
@@ -136,14 +171,14 @@ function RegisterForm({ tournament, slug, onCancel }) {
             When you're ready, <a href={result.payUrl}>pay for your team here</a>.
           </div>
         ) : (
-          <div style={{ fontSize: 12.5, color: colors.textSecondary }}>The organizer will follow up with payment instructions.</div>
+          <div style={{ fontSize: 12.5, color: t.textSecondary }}>The organizer will follow up with payment instructions.</div>
         )}
       </div>
     );
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10, padding: 14, background: "#fafafa", borderRadius: 8 }}>
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10, padding: 14, background: t.surface === colors.surface ? "#fafafa" : t.surface, border: `1px solid ${t.border}`, borderRadius: 8 }}>
       <input
         type="text" value={website} onChange={(e) => setWebsite(e.target.value)} tabIndex={-1} autoComplete="off"
         style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} aria-hidden="true"
@@ -162,17 +197,17 @@ function RegisterForm({ tournament, slug, onCancel }) {
       )}
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
       <div style={{ display: "flex", gap: 10 }}>
-        <button type="submit" style={button.primary} disabled={busy}>{busy ? "Registering…" : "Register"}</button>
+        <button type="submit" style={{ ...button.primary, background: t.accent }} disabled={busy}>{busy ? "Registering…" : "Register"}</button>
         <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
       </div>
     </form>
   );
 }
 
-function Centered({ children }) {
+function Centered({ children, embed, t }) {
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: colors.bg }}>
-      <div style={{ fontSize: 13.5, color: colors.textSecondary }}>{children}</div>
+    <div style={{ minHeight: embed ? "auto" : "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: embed ? "transparent" : colors.bg, padding: embed ? 20 : 0 }}>
+      <div style={{ fontSize: 13.5, color: t ? t.textSecondary : colors.textSecondary }}>{children}</div>
     </div>
   );
 }

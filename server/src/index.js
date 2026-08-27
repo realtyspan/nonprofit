@@ -22,6 +22,7 @@ const publicGolfRoutes = require("./routes/publicGolf");
 const platformAdminRoutes = require("./routes/platformAdmin");
 const elksToolsRoutes = require("./routes/elksTools");
 const { stripeWebhookHandler } = require("./routes/stripeWebhook");
+const { stripeConnectWebhookHandler } = require("./routes/stripeConnectWebhook");
 
 // Express 4 doesn't catch rejected promises from async route handlers, and Node
 // terminates the process on an unhandled rejection by default — one bad request
@@ -38,6 +39,7 @@ app.use(cors());
 // registration order, so a request to this exact path never reaches
 // express.json() at all.
 app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookHandler);
+app.post("/api/webhooks/stripe-connect", express.raw({ type: "application/json" }), stripeConnectWebhookHandler);
 
 // Default 100kb is too small for a signature image (base64 PNG from the
 // Rental contract signing pad) or a compressed game-label photo.
