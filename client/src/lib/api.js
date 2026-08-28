@@ -72,6 +72,7 @@ async function download(path, filename) {
 export const api = {
   login: (email, password) => request("/auth/login", { method: "POST", body: { email, password } }),
   signupOrg: (payload) => request("/auth/signup-org", { method: "POST", body: payload }),
+  getOrgCategories: () => request("/auth/org-categories"),
   listUsers: () => request("/auth/users"),
   inviteUser: (payload) => request("/auth/invite", { method: "POST", body: payload }),
   getMe: () => request("/auth/me"),
@@ -279,6 +280,12 @@ export const api = {
   createPlatformAdmin: (payload) => request("/platform-admin/admins", { method: "POST", body: payload }),
   updatePlatformAdminRole: (userId, platformRole) => request(`/platform-admin/admins/${userId}`, { method: "PATCH", body: { platformRole } }),
   revokePlatformAdmin: (userId) => request(`/platform-admin/admins/${userId}`, { method: "DELETE" }),
+
+  listPlatformOrgCategories: () => request("/platform-admin/org-categories"),
+  createPlatformOrgCategory: (name) => request("/platform-admin/org-categories", { method: "POST", body: { name } }),
+  updatePlatformOrgCategory: (id, name) => request(`/platform-admin/org-categories/${id}`, { method: "PATCH", body: { name } }),
+  deletePlatformOrgCategory: (id) => request(`/platform-admin/org-categories/${id}`, { method: "DELETE" }),
+  updatePlatformOrgCategoryAssignment: (orgId, orgCategoryId) => request(`/platform-admin/organizations/${orgId}/category`, { method: "PATCH", body: { orgCategoryId } }),
 };
 
 export { downloadTextFile };

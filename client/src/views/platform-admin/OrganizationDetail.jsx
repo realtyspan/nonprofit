@@ -50,6 +50,8 @@ export default function OrganizationDetail({ orgId, onClose, onChanged }) {
             {org.contactEmail ? ` · ${org.contactEmail}` : ""}
           </div>
 
+          <OrgCategoryField org={org} onSaved={handleChanged} />
+
           <div>
             <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em", marginBottom: 6 }}>Users</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -71,6 +73,53 @@ export default function OrganizationDetail({ orgId, onClose, onChanged }) {
         </div>
       )}
     </Modal>
+  );
+}
+
+// Lets an admin set/change which kind of org this is — drives module
+// visibility (see client/src/lib/modules.js's MODULE_CATEGORY_RESTRICTIONS).
+// Mainly for orgs that signed up before this existed, or skipped the
+// dropdown, so they aren't permanently stuck with a restricted module hidden.
+function OrgCategoryField({ org, onSaved }) {
+  const [categories, setCategories] = useState([]);
+  const [value, setValue] = useState(org.orgCategoryId || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api.listPlatformOrgCategories().then(setCategories).catch(() => {});
+  }, []);
+
+  async function save(nextValue) {
+    setValue(nextValue);
+    setBusy(true);
+    setError("");
+    setSaved(false);
+    try {
+      await api.updatePlatformOrgCategoryAssignment(org.id, nextValue || null);
+      setSaved(true);
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <Field label="Organization type">
+        <select style={{ ...inputStyle, minWidth: 200 }} value={value} disabled={busy} onChange={(e) => save(e.target.value)}>
+          <option value="">— Not set —</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </Field>
+      {saved && <span style={{ fontSize: 12, color: colors.success, marginTop: 14 }}>Saved.</span>}
+      {error && <span style={{ fontSize: 12, color: colors.danger, marginTop: 14 }}>{error}</span>}
+    </div>
   );
 }
 

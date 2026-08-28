@@ -64,11 +64,12 @@ router.get("/summary", async (req, res) => {
 router.get("/organizations", async (req, res) => {
   const orgs = await prisma.organization.findMany({
     orderBy: { createdAt: "desc" },
-    include: { billing: true, _count: { select: { users: true } } },
+    include: { billing: true, orgCategory: true, _count: { select: { users: true } } },
   });
   res.json(orgs.map((o) => ({
     id: o.id, name: o.name, createdAt: o.createdAt, userCount: o._count.users,
     billing: o.billing || DEFAULT_BILLING,
+    orgCategoryId: o.orgCategoryId, orgCategoryName: o.orgCategory?.name || null,
   })));
 });
 
@@ -77,6 +78,7 @@ router.get("/organizations/:id", async (req, res) => {
     where: { id: req.params.id },
     include: {
       billing: true,
+      orgCategory: true,
       users: { select: { id: true, name: true, email: true, createdAt: true }, orderBy: { createdAt: "asc" } },
       platformSupportNotes: { orderBy: { createdAt: "desc" } },
     },
@@ -84,10 +86,73 @@ router.get("/organizations/:id", async (req, res) => {
   if (!org) return res.status(404).json({ error: "Organization not found" });
   res.json({
     id: org.id, name: org.name, createdAt: org.createdAt, slug: org.slug, contactEmail: org.contactEmail,
+    orgCategoryId: org.orgCategoryId, orgCategoryName: org.orgCategory?.name || null,
     users: org.users,
     billing: org.billing || DEFAULT_BILLING,
     supportNotes: org.platformSupportNotes,
   });
+});
+
+// Lets a platform admin set (or clear) an existing org's category — needed
+// for orgs that signed up before this feature existed, or that skipped the
+// dropdown, so they aren't stuck with restricted modules (e.g. Elks Tools)
+// hidden forever just because no category was ever recorded.
+router.patch("/organizations/:id/category", async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.params.id } });
+  if (!org) return res.status(404).json({ error: "Organization not found" });
+  const { orgCategoryId } = req.body;
+  if (orgCategoryId) {
+    const category = await prisma.orgCategory.findUnique({ where: { id: orgCategoryId } });
+    if (!category) return res.status(400).json({ error: "That category wasn't found" });
+  }
+  const updated = await prisma.organization.update({
+    where: { id: org.id },
+    data: { orgCategoryId: orgCategoryId || null },
+    include: { orgCategory: true },
+  });
+  res.json({ orgCategoryId: updated.orgCategoryId, orgCategoryName: updated.orgCategory?.name || null });
+});
+
+// --- Org categories (the signup dropdown's source list) ---
+// Simple platform-admin-managed lookup list — see schema.prisma's
+// OrgCategory comment for why this is just the name list, not a
+// category-to-module matrix (that mapping is a small hardcoded table in the
+// client instead, see modules.js's MODULE_CATEGORY_RESTRICTIONS).
+
+router.get("/org-categories", async (req, res) => {
+  const categories = await prisma.orgCategory.findMany({
+    orderBy: { name: "asc" },
+    include: { _count: { select: { organizations: true } } },
+  });
+  res.json(categories.map((c) => ({ id: c.id, name: c.name, orgCount: c._count.organizations })));
+});
+
+router.post("/org-categories", async (req, res) => {
+  const name = (req.body.name || "").trim();
+  if (!name) return res.status(400).json({ error: "name is required" });
+  const existing = await prisma.orgCategory.findUnique({ where: { name } });
+  if (existing) return res.status(409).json({ error: "That category already exists" });
+  const category = await prisma.orgCategory.create({ data: { name } });
+  res.json(category);
+});
+
+router.patch("/org-categories/:id", async (req, res) => {
+  const name = (req.body.name || "").trim();
+  if (!name) return res.status(400).json({ error: "name is required" });
+  const category = await prisma.orgCategory.findUnique({ where: { id: req.params.id } });
+  if (!category) return res.status(404).json({ error: "Category not found" });
+  const updated = await prisma.orgCategory.update({ where: { id: category.id }, data: { name } });
+  res.json(updated);
+});
+
+// Safe to allow even for a category currently in use — Organization.orgCategoryId
+// is onDelete: SetNull, so any org using it just reverts to "not set" rather
+// than being blocked or cascading.
+router.delete("/org-categories/:id", async (req, res) => {
+  const category = await prisma.orgCategory.findUnique({ where: { id: req.params.id } });
+  if (!category) return res.status(404).json({ error: "Category not found" });
+  await prisma.orgCategory.delete({ where: { id: category.id } });
+  res.json({ ok: true });
 });
 
 router.patch("/organizations/:id/billing", async (req, res) => {

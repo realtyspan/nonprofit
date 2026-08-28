@@ -54,6 +54,7 @@ export default function OrganizationsList() {
             onRowClick={(o) => setSelectedOrgId(o.id)}
             columns={[
               { key: "name", label: "Name", grid: "1.4fr", primary: true, render: (o) => o.name },
+              { key: "type", label: "Type", grid: "1fr", render: (o) => o.orgCategoryName || <span style={{ color: colors.textSecondary }}>—</span> },
               { key: "users", label: "Users", grid: "0.7fr", render: (o) => o.userCount },
               {
                 key: "status", label: "Status", grid: "0.9fr",

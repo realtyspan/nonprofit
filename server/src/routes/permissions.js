@@ -10,14 +10,16 @@ router.use(requireAuth, loadPermissions);
 // What the caller themself can see/do — the client uses this to filter nav
 // and to know which GC-7Q signature slots (if any) it's designated to sign.
 router.get("/me", async (req, res) => {
-  const signerRows = await prisma.gC7QSignerDesignation.findMany({
-    where: { orgId: req.user.orgId, userId: req.user.userId },
-  });
+  const [signerRows, org] = await Promise.all([
+    prisma.gC7QSignerDesignation.findMany({ where: { orgId: req.user.orgId, userId: req.user.userId } }),
+    prisma.organization.findUnique({ where: { id: req.user.orgId }, include: { orgCategory: true } }),
+  ]);
   res.json({
     orgTier: req.orgTier,
     moduleGrants: req.moduleGrants,
     gc7qSignerSlots: signerRows.map((r) => r.slot),
     platformRole: req.platformRole,
+    orgCategory: org?.orgCategory?.name || null,
   });
 });
 

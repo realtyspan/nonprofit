@@ -20,6 +20,8 @@ model Organization {
   licenseLast5    String?  // last 5 digits of the GC license number, per the Schedule 1 header
   plan            String   @default("trial") // trial | active | canceled
   createdAt       DateTime @default(now())
+  orgCategoryId   String?  // chosen at signup or set later by a platform admin — drives which modules are relevant to this kind of org (e.g. Elks Tools only for "Elks Lodge"); null means "not set", not "every category"
+  orgCategory     OrgCategory? @relation(fields: [orgCategoryId], references: [id], onDelete: SetNull)
 
   users          User[]
   deals          Deal[]
@@ -59,6 +61,21 @@ model Organization {
   golfLogs                 GolfLog[]
   golfEmailSuppressions    GolfEmailSuppression[]
   orgStripeConnect         OrgStripeConnect?
+}
+
+// Platform-admin-managed list (e.g. "Elks Lodge", "VFW Post", "Fire
+// Department") — the dropdown offered at signup, and editable later on an
+// existing org from the platform admin's organization detail screen. Which
+// modules a category unlocks/restricts is a small hardcoded table in the
+// client (see modules.js's MODULE_CATEGORY_RESTRICTIONS), not admin-editable
+// here — the category list itself is what needs to grow over time, not the
+// module-gating rules.
+model OrgCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  organizations Organization[]
 }
 
 model User {

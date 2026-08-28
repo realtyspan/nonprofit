@@ -21,21 +21,36 @@ const LEGACY_ROLE_GRANTS = {
   Cashier: { orgTier: null, moduleGrants: [{ module: "bell-jar", tier: "Helper" }] },
 };
 
+// Unauthenticated — the signup form needs this before any login exists.
+// Read-only; the list itself is managed from the platform admin dashboard
+// (see platformAdmin.js's /org-categories routes).
+router.get("/org-categories", async (req, res) => {
+  const categories = await prisma.orgCategory.findMany({ orderBy: { name: "asc" } });
+  res.json(categories);
+});
+
 // Creates a brand new organization (tenant) + its first user, who becomes the
 // org's technical Owner (administers users/permissions, views everything —
 // see server/src/lib/auth.js for what Owner does and doesn't grant by default).
 // licenseId (the NYS Games of Chance license #) is optional here — required to file
 // but a lodge may not have it in hand yet when first setting up; it can be added or
-// updated later from the org profile (Reports > Form details).
+// updated later from the org profile (Reports > Form details). orgCategoryId is
+// likewise optional — drives which modules are relevant to this org (see
+// modules.js's MODULE_CATEGORY_RESTRICTIONS) but signup shouldn't hard-block on it.
 router.post("/signup-org", async (req, res) => {
-  const { orgName, name, email, password, licenseId } = req.body;
+  const { orgName, name, email, password, licenseId, orgCategoryId } = req.body;
   if (!orgName || !name || !email || !password) {
     return res.status(400).json({ error: "orgName, name, email, password are required" });
   }
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return res.status(409).json({ error: "Email already in use" });
 
-  const org = await prisma.organization.create({ data: { name: orgName, licenseId: licenseId || null } });
+  let validCategoryId = null;
+  if (orgCategoryId) {
+    const category = await prisma.orgCategory.findUnique({ where: { id: orgCategoryId } });
+    if (category) validCategoryId = category.id;
+  }
+  const org = await prisma.organization.create({ data: { name: orgName, licenseId: licenseId || null, orgCategoryId: validCategoryId } });
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
     data: { orgId: org.id, name, email, passwordHash, role: "Head" }, // role column is a frozen legacy field, see auth.js dual-read note

@@ -99,12 +99,33 @@ export function filterNavItemsForUser(navItems, permissions, moduleKey) {
   return navItems.filter((item) => !item.requiresTier || hasModuleTier(permissions, moduleKey, item.requiresTier));
 }
 
-// A module is visible if the user is an org-wide Owner/Viewer (see everything,
-// at least read-only) or holds any grant (Admin or Helper) in that module.
-// Someone with neither sees no modules at all — just Profile/Team.
+// Some modules are relevant only to specific kinds of organizations (e.g.
+// Elks Tools is Elks-specific compliance utilities — meaningless to a VFW
+// post or a fire department). The org's category is chosen at signup or set
+// later by a platform admin (see platform-admin's Org Categories tab); this
+// table is the actual module-gating rule and is deliberately NOT
+// admin-editable — it's a small, rarely-changing fact about what a module is
+// for, not something that needs a UI. A module key not listed here is open
+// to every category. An org with no category set (never chosen one) sees no
+// restricted module — "unset" is not the same as "belongs to every category".
+const MODULE_CATEGORY_RESTRICTIONS = {
+  "elks-tools": ["Elks Lodge"],
+};
+
+function categoryAllowsModule(moduleKey, orgCategory) {
+  const allowed = MODULE_CATEGORY_RESTRICTIONS[moduleKey];
+  if (!allowed) return true;
+  return !!orgCategory && allowed.includes(orgCategory);
+}
+
+// A module is visible if its category restriction (if any) allows the org's
+// category, AND the user is an org-wide Owner/Viewer (see everything within
+// that, at least read-only) or holds any grant (Admin or Helper) in that
+// module. Someone with neither sees no modules at all — just Profile/Team.
 export function filterModulesForUser(modules, permissions) {
   if (!permissions) return [];
-  const { orgTier, moduleGrants } = permissions;
-  if (orgTier === "Owner" || orgTier === "Viewer") return modules;
-  return modules.filter((m) => !!moduleGrants?.[m.key]);
+  const { orgTier, moduleGrants, orgCategory } = permissions;
+  const allowedByCategory = modules.filter((m) => categoryAllowsModule(m.key, orgCategory));
+  if (orgTier === "Owner" || orgTier === "Viewer") return allowedByCategory;
+  return allowedByCategory.filter((m) => !!moduleGrants?.[m.key]);
 }

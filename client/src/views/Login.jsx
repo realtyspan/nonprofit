@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { colors, card, button, input } from "../lib/tokens";
 import { useAuth } from "../lib/AuthContext";
 import { api } from "../lib/api";
@@ -7,10 +7,15 @@ import logo from "../assets/logo.png";
 export default function Login({ initialMode = "login", onBack }) {
   const { login, signupOrg } = useAuth();
   const [mode, setMode] = useState(initialMode); // login | signup | forgot
-  const [form, setForm] = useState({ email: "", password: "", orgName: "", name: "", licenseId: "" });
+  const [form, setForm] = useState({ email: "", password: "", orgName: "", name: "", licenseId: "", orgCategoryId: "" });
+  const [categories, setCategories] = useState([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+
+  useEffect(() => {
+    api.getOrgCategories().then(setCategories).catch(() => {});
+  }, []);
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -64,6 +69,16 @@ export default function Login({ initialMode = "login", onBack }) {
             <Field label="Games of Chance license # (optional — add later if you don't have it yet)">
               <input style={input} value={form.licenseId} onChange={(e) => set("licenseId", e.target.value)} placeholder="NYS-BJ-XXXX" />
             </Field>
+            {categories.length > 0 && (
+              <Field label="Organization type (optional)">
+                <select style={input} value={form.orgCategoryId} onChange={(e) => set("orgCategoryId", e.target.value)}>
+                  <option value="">— Not sure / other —</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
           </>
         )}
 
