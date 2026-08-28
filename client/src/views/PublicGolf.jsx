@@ -61,14 +61,8 @@ const EVT_CSS = `
   position: absolute; left: 44px; right: 44px; bottom: 30px;
   display: flex; flex-direction: column; gap: 10px; pointer-events: none;
 }
-.evt-hero .evt-kicker { color: var(--evt-accent-tint); }
-.evt-hero .evt-title  { color: var(--evt-surface); }
+.evt-hero .evt-title { color: var(--evt-surface); }
 
-.evt-kicker {
-  font-size: 10.5px; font-weight: 500; line-height: 1;
-  letter-spacing: .16em; text-transform: uppercase;
-  color: var(--evt-accent-deep);
-}
 .evt-title {
   font-size: 46px; font-weight: 500; line-height: 1.04;
   letter-spacing: -.022em; color: var(--evt-ink);
@@ -172,6 +166,19 @@ function FlagIcon() {
   return (
     <svg className="evt-ico" viewBox="0 0 256 256" aria-hidden="true">
       <path d="M40 32v184M40 48h150l-30 44 30 44H40" fill="none" stroke="currentColor" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+// Added to match the flag/clock/phone set (same 256 viewBox, 18 stroke
+// width, round caps/joins) — not part of the original handoff's three
+// icons, since the date used to live as text on the hero photo instead of
+// as a detail line.
+function CalendarIcon() {
+  return (
+    <svg className="evt-ico" viewBox="0 0 256 256" aria-hidden="true">
+      <rect x="32" y="48" width="192" height="160" rx="16" fill="none" stroke="currentColor" strokeWidth="18" strokeLinejoin="round" />
+      <path d="M32 96h192" fill="none" stroke="currentColor" strokeWidth="18" strokeLinecap="round" />
+      <path d="M80 24v48M176 24v48" fill="none" stroke="currentColor" strokeWidth="18" strokeLinecap="round" />
     </svg>
   );
 }
@@ -287,7 +294,6 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
             <img className="evt-hero-img" src={tournament.flyerImage} alt="" style={{ objectPosition: `center ${tournament.flyerImagePosition || "center"}` }} />
             <div className="evt-hero-scrim" />
             <div className="evt-hero-text">
-              <p className="evt-kicker">{kicker}</p>
               <h2 className="evt-title">{tournament.name}</h2>
             </div>
           </div>
@@ -302,7 +308,6 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
         <div className={`evt-body${hasPhoto ? "" : " evt-body-noimg"}`}>
           {!hasPhoto && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <p className="evt-kicker">{kicker}</p>
               <h2 className="evt-title">{tournament.name}</h2>
             </div>
           )}
@@ -312,6 +317,7 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
               {tournament.includedDescription && (
                 <p className="evt-line"><FlagIcon />{tournament.includedDescription}</p>
               )}
+              <p className="evt-line"><CalendarIcon />{kicker}</p>
               {tournament.scheduleText && (
                 <p className="evt-line"><ClockIcon /><span><strong className="evt-strong">Schedule:</strong> {tournament.scheduleText}</span></p>
               )}
