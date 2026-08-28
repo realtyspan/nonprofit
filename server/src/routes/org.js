@@ -35,7 +35,7 @@ router.patch("/", requireOwnerOrBellJarAdmin, async (req, res) => {
 // operational detail — see Team.jsx's "Organization" section, the one place
 // this is editable regardless of which modules an org even has.
 router.patch("/identity", requireOwner, async (req, res) => {
-  const { name, contactEmail, address, slug } = req.body;
+  const { name, contactEmail, address, mailingAddress, slug } = req.body;
   if (name !== undefined && !name.trim()) {
     return res.status(400).json({ error: "Organization name can't be blank" });
   }
@@ -52,7 +52,7 @@ router.patch("/identity", requireOwner, async (req, res) => {
 
   const org = await prisma.organization.update({
     where: { id: req.user.orgId },
-    data: { name: name !== undefined ? name.trim() : undefined, contactEmail, address, slug: slug || undefined },
+    data: { name: name !== undefined ? name.trim() : undefined, contactEmail, address, mailingAddress, slug: slug || undefined },
   });
   res.json(org);
 });

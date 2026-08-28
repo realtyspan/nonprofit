@@ -228,8 +228,9 @@ function InviteForm({ isOwner, adminModules, onInvited, onError, error }) {
   );
 }
 
-// The org's core identity — name, contact email, address, and the public
-// slug shared across every module's public page. One consolidated place for
+// The org's core identity — name, contact email, physical + mailing address,
+// and the public slug shared across every module's public page. One
+// consolidated place for
 // this regardless of which modules an org has (the old home, a card buried
 // inside Reports, was only reachable via the Bell Jar module's nav — an org
 // running only Golf or Rentals had no way to reach it at all). Owner-only to
@@ -238,14 +239,14 @@ function InviteForm({ isOwner, adminModules, onInvited, onError, error }) {
 function OrganizationInfoCard({ isOwner }) {
   const [org, setOrg] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: "", contactEmail: "", address: "", slug: "" });
+  const [form, setForm] = useState({ name: "", contactEmail: "", address: "", mailingAddress: "", slug: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   function refresh() {
     api.getOrg().then((o) => {
       setOrg(o);
-      setForm({ name: o.name || "", contactEmail: o.contactEmail || "", address: o.address || "", slug: o.slug || "" });
+      setForm({ name: o.name || "", contactEmail: o.contactEmail || "", address: o.address || "", mailingAddress: o.mailingAddress || "", slug: o.slug || "" });
     }).catch(() => {});
   }
   useEffect(refresh, []);
@@ -285,7 +286,8 @@ function OrganizationInfoCard({ isOwner }) {
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6, fontSize: 12.5 }}>
           <OrgInfoRow label="Name" value={org.name} />
           <OrgInfoRow label="Contact email" value={org.contactEmail} />
-          <OrgInfoRow label="Address" value={org.address} />
+          <OrgInfoRow label="Physical address" value={org.address} />
+          <OrgInfoRow label="Mailing address" value={org.mailingAddress} />
           <OrgInfoRow label="Public link" value={org.slug ? `/${org.slug}` : null} />
           {!isOwner && <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>Only an Owner can change this.</div>}
         </div>
@@ -295,7 +297,13 @@ function OrganizationInfoCard({ isOwner }) {
           <Field label="Contact email">
             <input style={inputStyle} type="email" value={form.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} placeholder="lodge@example.org" />
           </Field>
-          <Field label="Address"><input style={inputStyle} value={form.address} onChange={(e) => set("address", e.target.value)} /></Field>
+          <Field label="Physical address">
+            <input style={inputStyle} value={form.address} onChange={(e) => set("address", e.target.value)} />
+          </Field>
+          <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: -6 }}>Also the address used on your GC-7Q filing and buyer-facing raffle emails.</div>
+          <Field label="Mailing address (optional, if different)">
+            <input style={inputStyle} value={form.mailingAddress} onChange={(e) => set("mailingAddress", e.target.value)} placeholder="Same as physical address if left blank" />
+          </Field>
           <Field label="Public link">
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontSize: 12.5, color: colors.textSecondary }}>{window.location.origin}/…/</span>

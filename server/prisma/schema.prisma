@@ -13,7 +13,8 @@ model Organization {
   slug            String?  @unique // public-facing URL segment, shared across modules' public pages (rentals, calendar)
   contactEmail    String?  // used as the Reply-To on buyer-facing emails (e.g. Raffle) sent from the platform's shared sender address
   licenseId       String?
-  address         String?
+  address         String?  // physical address — also the one already used on the GC-7Q PDF header (gc7q.js) and buyer-facing raffle emails; kept as-is on purpose so neither silently changes
+  mailingAddress  String?  // separate from the physical address above — not wired into anything yet, just stored/displayed for now
   county          String?  // Schedule 1 / GC-7Q header field
   municipality    String?  // Schedule 1 / GC-7Q header field
   licenseCategory String?  // Schedule 1 / GC-7Q header field (e.g. "Bell Jar")
