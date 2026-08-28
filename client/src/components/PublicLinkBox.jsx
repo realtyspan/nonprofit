@@ -13,6 +13,7 @@ import { api } from "../lib/api";
 // separate document and can't otherwise inherit the host site's styling.
 export default function PublicLinkBox({ basePath, description, embedBasePath, embedTitle = "Embed" }) {
   const [org, setOrg] = useState(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [slug, setSlug] = useState("");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -23,6 +24,11 @@ export default function PublicLinkBox({ basePath, description, embedBasePath, em
 
   useEffect(() => {
     api.getOrg().then((o) => { setOrg(o); setSlug(o.slug || ""); }).catch(() => {});
+    // Changing the org's public link is Owner-only (see org.js's PATCH
+    // /identity) — the slug isn't scoped to any one module, so this checks
+    // org-wide tier directly rather than taking it as a prop from every
+    // module screen that embeds this component.
+    api.getMyPermissions().then((p) => setIsOwner(p.orgTier === "Owner")).catch(() => {});
   }, []);
 
   const publicUrl = org?.slug ? `${window.location.origin}/${basePath}/${org.slug}` : null;
@@ -32,7 +38,7 @@ export default function PublicLinkBox({ basePath, description, embedBasePath, em
     setError("");
     setBusy(true);
     try {
-      const updated = await api.updateOrg({ slug: slug.trim().toLowerCase() });
+      const updated = await api.updateOrgIdentity({ slug: slug.trim().toLowerCase() });
       setOrg(updated);
       setEditing(false);
     } catch (err) {
@@ -114,7 +120,11 @@ window.addEventListener("message", function (e) {
             </>
           ) : (
             <>
-              <button style={button.ghost} onClick={() => setEditing(true)}>{publicUrl ? "Edit link" : "Set up link"}</button>
+              {isOwner ? (
+                <button style={button.ghost} onClick={() => setEditing(true)}>{publicUrl ? "Edit link" : "Set up link"}</button>
+              ) : (
+                !publicUrl && <span style={{ fontSize: 12, color: colors.textSecondary }}>Ask your organization's Owner to set this up.</span>
+              )}
               {embedBasePath && publicUrl && (
                 <button style={button.ghost} onClick={() => setShowEmbed((s) => !s)}>{showEmbed ? "Hide embed code" : "Embed on your website"}</button>
               )}

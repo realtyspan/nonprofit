@@ -326,7 +326,6 @@ function OrgProfileCard({ org, canEdit, onSaved }) {
     municipality: org.municipality || "",
     licenseCategory: org.licenseCategory || "",
     licenseLast5: org.licenseLast5 || "",
-    contactEmail: org.contactEmail || "",
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -370,6 +369,7 @@ function OrgProfileCard({ org, canEdit, onSaved }) {
           {org.licenseId && !filled && <div style={{ color: colors.warning, fontSize: 11.5, marginTop: 4 }}>Incomplete — the Schedule 1 header will be blank for missing fields.</div>}
           <div style={{ borderTop: `1px solid ${colors.borderLight}`, marginTop: 4, paddingTop: 10 }}>
             <Row2 label="Contact email" value={org.contactEmail} />
+            <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>Edited from the Team screen's "Organization" section (Owner only) — used as the reply-to address on buyer emails sent by modules like Raffle, not part of the GC-7Q form.</div>
           </div>
         </div>
       )}
@@ -381,12 +381,6 @@ function OrgProfileCard({ org, canEdit, onSaved }) {
           <Field label="Municipality"><input style={inputStyle} value={form.municipality} onChange={(e) => set("municipality", e.target.value)} /></Field>
           <Field label="License category"><input style={inputStyle} value={form.licenseCategory} onChange={(e) => set("licenseCategory", e.target.value)} placeholder="Bell Jar" /></Field>
           <Field label="GC license (last 5 digits)"><input style={inputStyle} value={form.licenseLast5} onChange={(e) => set("licenseLast5", e.target.value)} maxLength={5} /></Field>
-          <div style={{ borderTop: `1px solid ${colors.borderLight}`, marginTop: 4, paddingTop: 10 }}>
-            <Field label="Contact email">
-              <input style={inputStyle} type="email" value={form.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} placeholder="lodge@example.org" />
-            </Field>
-            <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>Used as the reply-to address on buyer emails sent by modules like Raffle — not part of the GC-7Q form.</div>
-          </div>
           {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
           <button style={button.primary} type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
         </form>

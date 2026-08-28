@@ -10,16 +10,35 @@ router.get("/", async (req, res) => {
   res.json(org);
 });
 
-// The org's compliance-form profile (county, license #, etc.) and its public
-// slug both live here — either the technical Owner or the Bell Jar module's
-// Admin may edit it, since both have legitimate reason to (Owner for org
-// identity/slug, Bell Jar Admin for the compliance header fields).
+// The Bell Jar module's own GC-7Q compliance header fields (county, license
+// #, etc.) — either the technical Owner or the Bell Jar module's Admin may
+// edit these, since both have legitimate reason to. Org identity (name,
+// contact, address, public slug) is a separate, Owner-only concern — see
+// PATCH /identity below — so it isn't accepted here even from a Bell Jar Admin.
 function requireOwnerOrBellJarAdmin(req, res, next) {
   if (req.orgTier === "Owner") return next();
   return requirePermission("bell-jar", "Admin")(req, res, next);
 }
 router.patch("/", requireOwnerOrBellJarAdmin, async (req, res) => {
-  const { county, municipality, licenseCategory, licenseLast5, licenseId, address, slug, contactEmail } = req.body;
+  const { county, municipality, licenseCategory, licenseLast5, licenseId } = req.body;
+  const org = await prisma.organization.update({
+    where: { id: req.user.orgId },
+    data: { county, municipality, licenseCategory, licenseLast5, licenseId },
+  });
+  res.json(org);
+});
+
+// Org identity — name, contact email, address, and the public slug shared
+// across every module's public page (Rentals, Calendar, Golf). Deliberately
+// Owner-only, unlike the compliance fields above: this is org-wide (not tied
+// to any one module) and is the org's core identity, not a per-module
+// operational detail — see Team.jsx's "Organization" section, the one place
+// this is editable regardless of which modules an org even has.
+router.patch("/identity", requireOwner, async (req, res) => {
+  const { name, contactEmail, address, slug } = req.body;
+  if (name !== undefined && !name.trim()) {
+    return res.status(400).json({ error: "Organization name can't be blank" });
+  }
 
   if (slug !== undefined && slug !== null && slug !== "") {
     if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) {
@@ -33,7 +52,7 @@ router.patch("/", requireOwnerOrBellJarAdmin, async (req, res) => {
 
   const org = await prisma.organization.update({
     where: { id: req.user.orgId },
-    data: { county, municipality, licenseCategory, licenseLast5, licenseId, address, slug: slug || undefined, contactEmail },
+    data: { name: name !== undefined ? name.trim() : undefined, contactEmail, address, slug: slug || undefined },
   });
   res.json(org);
 });

@@ -122,6 +122,7 @@ export const api = {
 
   getOrg: () => request("/org"),
   updateOrg: (payload) => request("/org", { method: "PATCH", body: payload }),
+  updateOrgIdentity: (payload) => request("/org/identity", { method: "PATCH", body: payload }),
 
   listRentalSpaces: () => request("/rentals/spaces"),
   createRentalSpace: (payload) => request("/rentals/spaces", { method: "POST", body: payload }),

@@ -36,6 +36,8 @@ export default function Team({ permissions, onPermissionsChanged }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <OrganizationInfoCard isOwner={isOwner} />
+
       {isOwner && <LabelsCard labels={labels} onSaved={refresh} />}
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
@@ -223,6 +225,98 @@ function InviteForm({ isOwner, adminModules, onInvited, onError, error }) {
         <button style={button.primary} type="submit" disabled={busy}>{busy ? "Inviting…" : "Invite"}</button>
       </div>
     </form>
+  );
+}
+
+// The org's core identity — name, contact email, address, and the public
+// slug shared across every module's public page. One consolidated place for
+// this regardless of which modules an org has (the old home, a card buried
+// inside Reports, was only reachable via the Bell Jar module's nav — an org
+// running only Golf or Rentals had no way to reach it at all). Owner-only to
+// edit, same as changing who else is Owner; a non-Owner still sees the
+// current values read-only since it's useful org context for any admin.
+function OrganizationInfoCard({ isOwner }) {
+  const [org, setOrg] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ name: "", contactEmail: "", address: "", slug: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  function refresh() {
+    api.getOrg().then((o) => {
+      setOrg(o);
+      setForm({ name: o.name || "", contactEmail: o.contactEmail || "", address: o.address || "", slug: o.slug || "" });
+    }).catch(() => {});
+  }
+  useEffect(refresh, []);
+
+  function set(k, v) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function save(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await api.updateOrgIdentity({ ...form, slug: form.slug.trim().toLowerCase() || null });
+      setOrg(updated);
+      setEditing(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!org) return null;
+
+  return (
+    <div style={card}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: editing ? 12 : 0 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>Organization</div>
+          <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>Your organization's name, contact info, and public link — used across every module.</div>
+        </div>
+        {isOwner && <button style={button.ghost} onClick={() => setEditing((s) => !s)}>{editing ? "− Cancel" : "Edit"}</button>}
+      </div>
+
+      {!editing ? (
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6, fontSize: 12.5 }}>
+          <OrgInfoRow label="Name" value={org.name} />
+          <OrgInfoRow label="Contact email" value={org.contactEmail} />
+          <OrgInfoRow label="Address" value={org.address} />
+          <OrgInfoRow label="Public link" value={org.slug ? `/${org.slug}` : null} />
+          {!isOwner && <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>Only an Owner can change this.</div>}
+        </div>
+      ) : (
+        <form onSubmit={save} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <Field label="Organization name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
+          <Field label="Contact email">
+            <input style={inputStyle} type="email" value={form.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} placeholder="lodge@example.org" />
+          </Field>
+          <Field label="Address"><input style={inputStyle} value={form.address} onChange={(e) => set("address", e.target.value)} /></Field>
+          <Field label="Public link">
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 12.5, color: colors.textSecondary }}>{window.location.origin}/…/</span>
+              <input style={inputStyle} value={form.slug} onChange={(e) => set("slug", e.target.value)} placeholder="red-hook-lodge-2022" />
+            </div>
+            <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>Lowercase letters, numbers, and hyphens only — shared by Rentals, Calendar, and Golf's public pages.</div>
+          </Field>
+          {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+          <div><button style={button.primary} type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</button></div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function OrgInfoRow({ label, value }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+      <span style={{ color: colors.textSecondary }}>{label}</span>
+      <span style={{ color: value ? colors.textPrimary : colors.textTertiary }}>{value || "—"}</span>
+    </div>
   );
 }
 
