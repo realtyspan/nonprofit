@@ -83,14 +83,14 @@ export default function Team({ permissions, onPermissionsChanged }) {
                   value={u.orgTier || ""}
                   onChange={(e) => act(() => api.setOrgTier(u.id, e.target.value || null))}
                 >
-                  <option value="">—</option>
+                  <option value="">Module only</option>
                   <option value="Viewer">Viewer</option>
                   <option value="Owner">Owner</option>
                 </select>
               ) : u.orgTier ? (
                 <span style={pill(colors.indigoBg, colors.indigo)}>{u.orgTier}</span>
               ) : (
-                <span style={{ color: colors.textTertiary }}>—</span>
+                <span style={{ color: colors.textTertiary }}>Module only</span>
               ),
             },
             {
