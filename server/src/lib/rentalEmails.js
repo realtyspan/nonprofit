@@ -84,4 +84,36 @@ function rentalInquiryAlertHtml({ booking, space, org }) {
   });
 }
 
-module.exports = { rentalInquiryConfirmationHtml, rentalInquiryAlertHtml };
+// Sent when a payment is recorded against a booking — tells whoever needs to
+// physically receive the money (a Rentals Admin/Helper, and/or the org's
+// separately-configured funds contact, who may not even be a Charity Pulse
+// user) what just came in, plus the full running list of everything else
+// still awaiting turnover, since the funds-contact recipient specifically
+// can't just log in and check the "Funds to Turn Over" screen themselves.
+function rentalPaymentTurnoverAlertHtml({ payment, booking, space, org, outstanding }) {
+  const paymentRow = `<tr><td style="padding:6px 0;color:#605E5C;width:150px;vertical-align:top;">Collected from</td><td style="padding:6px 0;font-weight:600;">${booking.renterName}</td></tr>` +
+    `<tr><td style="padding:6px 0;color:#605E5C;width:150px;vertical-align:top;">Amount</td><td style="padding:6px 0;font-weight:600;">$${payment.amount.toFixed(2)} (${payment.method}${payment.receiptNum ? ` · #${payment.receiptNum}` : ""})</td></tr>` +
+    `<tr><td style="padding:6px 0;color:#605E5C;width:150px;vertical-align:top;">Booking</td><td style="padding:6px 0;font-weight:600;">${space.name} — ${fmtDateTime(booking.startAt)}</td></tr>` +
+    `<tr><td style="padding:6px 0;color:#605E5C;width:150px;vertical-align:top;">Collected by</td><td style="padding:6px 0;font-weight:600;">${payment.recordedByName || "—"}</td></tr>`;
+
+  // Appended as more <tr> rows in the same table, not a nested table inside
+  // shell()'s footer <p> — that footer is plain text, not a block container.
+  const others = outstanding.filter((o) => o.id !== payment.id);
+  const outstandingRows = others.length
+    ? `<tr><td colspan="2" style="padding:16px 0 4px 0;font-size:13px;font-weight:700;border-top:1px solid #F1EFED;">Also still awaiting turnover (${others.length})</td></tr>` +
+      others.map((o) =>
+        `<tr><td style="padding:4px 0;color:#605E5C;">${o.renterName}</td><td style="padding:4px 0;text-align:right;font-weight:600;">$${o.amount.toFixed(2)} (${o.method})</td></tr>`
+      ).join("")
+    : "";
+
+  return shell({
+    badge: `Payment collected — ${space.name}`,
+    badgeColor: { bg: "#E9F5EA", text: "#22691A" },
+    heading: `A payment is ready to be turned in`,
+    intro: `A rental payment was just recorded and hasn't been marked as turned over yet.`,
+    rows: paymentRow + outstandingRows,
+    footer: `${org.name} — Rental Space module`,
+  });
+}
+
+module.exports = { rentalInquiryConfirmationHtml, rentalInquiryAlertHtml, rentalPaymentTurnoverAlertHtml };

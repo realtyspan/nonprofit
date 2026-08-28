@@ -25,6 +25,7 @@ export const MODULES = [
     blurb: "Lodge facility rentals · Bookings, spaces & rates",
     navItems: [
       { key: "bookings", label: "Bookings", icon: icons.inbox, title: "Bookings", subtitle: "Review inquiries and manage confirmed rentals" },
+      { key: "funds", label: "Funds to Turn Over", icon: icons.bank, title: "Funds to Turn Over", subtitle: "Payments collected but not yet handed off, plus who to notify" },
       { key: "spaces", label: "Spaces & Rates", icon: icons.sliders, title: "Spaces & Rates", subtitle: "Manage rentable spaces, pricing, and your public booking link" },
       { key: "blocks", label: "Internal Blocks", icon: icons.ban, title: "Internal Blocks", subtitle: "Hold a space for the Lodge's own use" },
     ],

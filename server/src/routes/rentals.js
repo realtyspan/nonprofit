@@ -7,6 +7,9 @@ const { lodgeDateTimeStringToUtc } = require("../lib/timezone");
 const { buildRentalContractPdf } = require("../lib/rentalContractPdf");
 const { publishRentalBooking, publishRentalBlock, removeCalendarEventFor } = require("../lib/calendarSync");
 const { addRentalLog } = require("../lib/rentalLog");
+const { resolveRentalAlertRecipients } = require("../lib/rentalAlerts");
+const { rentalPaymentTurnoverAlertHtml } = require("../lib/rentalEmails");
+const { sendEmail } = require("../lib/notifications");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -17,6 +20,54 @@ router.use(requireAuth, loadPermissions);
 router.use(async (req, res, next) => {
   req.callerUser = await prisma.user.findUnique({ where: { id: req.user.userId }, select: { id: true, name: true } });
   next();
+});
+
+// --- Module settings ---
+// Just the funds-turnover contact for now — deliberately not tied to being a
+// Charity Pulse user (see Organization.rentalsFundsContactEmail's schema
+// comment). Read access matches every other rentals screen; only a Rentals
+// Admin can change it, same tier as every other money-handling action here.
+
+router.get("/settings", requireReadAccess("rentals"), async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId }, select: { rentalsFundsContactEmail: true } });
+  res.json(org);
+});
+
+router.patch("/settings", requirePermission("rentals", "Admin"), async (req, res) => {
+  const org = await prisma.organization.update({
+    where: { id: req.user.orgId },
+    data: { rentalsFundsContactEmail: req.body.rentalsFundsContactEmail?.trim() || null },
+  });
+  res.json({ rentalsFundsContactEmail: org.rentalsFundsContactEmail });
+});
+
+// --- Funds to turn over ---
+// Every collected payment across every booking that hasn't yet been handed
+// off — the manifest a collector uses instead of digging through bookings
+// one at a time. "adjustment" rows never appear here — no money to turn over.
+
+async function getFundsAwaitingTurnover(orgId) {
+  const payments = await prisma.rentalPayment.findMany({
+    where: { orgId, type: "payment", turnedOverAt: null },
+    include: { booking: { include: { space: true } } },
+    orderBy: { recordedAt: "asc" },
+  });
+  return payments.map((p) => ({
+    id: p.id,
+    bookingId: p.bookingId,
+    amount: p.amount,
+    method: p.method,
+    receiptNum: p.receiptNum,
+    recordedByName: p.recordedByName,
+    recordedAt: p.recordedAt,
+    renterName: p.booking.renterName,
+    spaceName: p.booking.space?.name,
+    startAt: p.booking.startAt,
+  }));
+}
+
+router.get("/funds-to-turn-over", requireReadAccess("rentals"), async (req, res) => {
+  res.json(await getFundsAwaitingTurnover(req.user.orgId));
 });
 
 // --- Spaces ---
@@ -415,6 +466,41 @@ router.post("/bookings/:id/payments", requirePermission("rentals", "Admin"), asy
     actorName: req.callerUser?.name,
   });
   res.json(payment);
+
+  // Fire-and-forget: the payment's already recorded and the caller already
+  // has their response, so an email hiccup here shouldn't fail the request —
+  // same best-effort spirit as the public inquiry alert above. Only a real
+  // "payment" needs this — an "adjustment" is never physically turned over.
+  if (type === "payment") {
+    try {
+      const [org, outstanding] = await Promise.all([
+        prisma.organization.findUnique({ where: { id: req.user.orgId } }),
+        getFundsAwaitingTurnover(req.user.orgId),
+      ]);
+      const space = await prisma.rentalSpace.findUnique({ where: { id: booking.spaceId } });
+      // outstanding always includes the payment just created — it's an
+      // unpaid-turnover "payment" row by construction the instant it exists.
+      const html = rentalPaymentTurnoverAlertHtml({ payment, booking, space, org, outstanding });
+      const recipients = await resolveRentalAlertRecipients(req.user.orgId, org);
+      const seen = new Set(recipients.map((r) => r.email));
+      if (org.rentalsFundsContactEmail && !seen.has(org.rentalsFundsContactEmail)) {
+        recipients.push({ email: org.rentalsFundsContactEmail, name: org.name });
+      }
+      for (const recipient of recipients) {
+        try {
+          await sendEmail({
+            to: recipient.email, toName: recipient.name,
+            subject: `Payment collected — ${space.name}`,
+            html, fromName: org.name,
+          });
+        } catch (err) {
+          console.error(`Rental payment turnover email failed for payment ${payment.id} -> ${recipient.email}:`, err.message);
+        }
+      }
+    } catch (err) {
+      console.error(`Rental payment turnover alert failed for payment ${payment.id}:`, err.message);
+    }
+  }
 });
 
 router.delete("/bookings/:id/payments/:paymentId", requirePermission("rentals", "Admin"), async (req, res) => {
@@ -427,6 +513,38 @@ router.delete("/bookings/:id/payments/:paymentId", requirePermission("rentals", 
     actorName: req.callerUser?.name,
   });
   res.json({ ok: true });
+});
+
+// Toggles whether a payment has been physically handed off to whoever banks
+// it — find-existing-state -> clear, else set, same pattern as a check-in
+// toggle elsewhere in the app. Only ever applies to a "payment" row; an
+// "adjustment" never involves money changing hands. Reachable from either
+// the booking's own Payment modal or the cross-booking "Funds to Turn Over"
+// screen, since both act on the same RentalPayment row.
+router.post("/bookings/:id/payments/:paymentId/toggle-turned-over", requirePermission("rentals", "Admin"), async (req, res) => {
+  const payment = await prisma.rentalPayment.findFirst({ where: { id: req.params.paymentId, bookingId: req.params.id, orgId: req.user.orgId } });
+  if (!payment) return res.status(404).json({ error: "Payment not found" });
+  if (payment.type !== "payment") return res.status(400).json({ error: "Only a payment can be marked turned over — an adjustment never involves money changing hands" });
+
+  if (payment.turnedOverAt) {
+    const updated = await prisma.rentalPayment.update({ where: { id: payment.id }, data: { turnedOverAt: null, turnedOverToName: null } });
+    await addRentalLog(req.user.orgId, req.params.id, {
+      type: "payment_turnover_undone",
+      text: `Turnover undone for $${payment.amount.toFixed(2)} payment (was marked received by ${payment.turnedOverToName || "someone"})`,
+      actorName: req.callerUser?.name,
+    });
+    return res.json(updated);
+  }
+
+  const turnedOverToName = req.body.turnedOverToName?.trim();
+  if (!turnedOverToName) return res.status(400).json({ error: "Enter who received the funds" });
+  const updated = await prisma.rentalPayment.update({ where: { id: payment.id }, data: { turnedOverAt: new Date(), turnedOverToName } });
+  await addRentalLog(req.user.orgId, req.params.id, {
+    type: "payment_turned_over",
+    text: `$${payment.amount.toFixed(2)} payment turned over to ${turnedOverToName}`,
+    actorName: req.callerUser?.name,
+  });
+  res.json(updated);
 });
 
 router.get("/bookings/:id/logs", requireReadAccess("rentals"), async (req, res) => {

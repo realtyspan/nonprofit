@@ -23,6 +23,8 @@ const LOG_TYPE_LABEL = {
   contract_uploaded: "Contract uploaded",
   payment_added: "Payment",
   payment_deleted: "Payment removed",
+  payment_turned_over: "Turned over",
+  payment_turnover_undone: "Turnover undone",
   funds_deposited: "Funds deposited",
   unlocked: "Unlocked",
 };
@@ -39,6 +41,8 @@ const LOG_TYPE_COLOR = {
   contract_uploaded: [colors.successBg, colors.success],
   payment_added: [colors.successBg, colors.success],
   payment_deleted: ["#fee2e2", colors.danger],
+  payment_turned_over: [colors.successBg, colors.success],
+  payment_turnover_undone: [colors.warningBg, colors.warning],
   funds_deposited: [colors.warningBg, colors.warning],
   unlocked: ["#fee2e2", colors.danger],
 };
@@ -241,7 +245,7 @@ export default function RentalBookings({ spaces, onChanged, permissions }) {
         />
       )}
       {paying && (
-        <PaymentModal booking={paying} onCancel={() => setPaying(null)} onSaved={() => { setPaying(null); refresh(); }} />
+        <PaymentModal booking={paying} isRentalsAdmin={isRentalsAdmin} onCancel={() => setPaying(null)} onSaved={() => { setPaying(null); refresh(); }} />
       )}
       {signing && (
         <SignModal booking={signing} onCancel={() => setSigning(null)} onSaved={() => { setSigning(null); refresh(); }} />
@@ -406,7 +410,7 @@ function ReviewModal({ booking, onCancel, onDone }) {
   );
 }
 
-function PaymentModal({ booking, onCancel, onSaved }) {
+function PaymentModal({ booking, isRentalsAdmin, onCancel, onSaved }) {
   const [payments, setPayments] = useState([]);
   const [totalPaid, setTotalPaid] = useState(booking.totalPaid || 0);
   const [totalAdjustments, setTotalAdjustments] = useState(booking.totalAdjustments || 0);
@@ -418,6 +422,8 @@ function PaymentModal({ booking, onCancel, onSaved }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [markingTurnoverId, setMarkingTurnoverId] = useState(null);
+  const [turnoverName, setTurnoverName] = useState("");
 
   function refresh() {
     api.listRentalPayments(booking.id).then(setPayments).catch(() => {});
@@ -465,6 +471,29 @@ function PaymentModal({ booking, onCancel, onSaved }) {
     }
   }
 
+  async function undoTurnover(payment) {
+    if (!window.confirm(`Undo turnover for this $${payment.amount.toFixed(2)} payment?`)) return;
+    try {
+      await api.toggleRentalPaymentTurnedOver(booking.id, payment.id, {});
+      refresh();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function confirmTurnover(payment) {
+    if (!turnoverName.trim()) return setError("Enter who received the funds");
+    setError("");
+    try {
+      await api.toggleRentalPaymentTurnedOver(booking.id, payment.id, { turnedOverToName: turnoverName.trim() });
+      setMarkingTurnoverId(null);
+      setTurnoverName("");
+      refresh();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   const isMobile = useIsMobile();
 
   return (
@@ -479,20 +508,57 @@ function PaymentModal({ booking, onCancel, onSaved }) {
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 160, overflow: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflow: "auto" }}>
           {payments.map((p) => (
-            <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, padding: "6px 0", borderBottom: `1px solid ${colors.borderLight}` }}>
-              <div>
-                <span style={pill(p.type === "adjustment" ? colors.warningBg : colors.successBg, p.type === "adjustment" ? colors.warning : colors.success)}>
-                  {p.type === "adjustment" ? "Adjustment" : "Payment"}
-                </span>{" "}
-                <span style={{ fontWeight: 700 }}>{money(p.amount)}</span>{" "}
-                <span style={{ color: colors.textTertiary }}>
-                  {p.type === "payment" ? `${p.method}${p.receiptNum ? ` · #${p.receiptNum}` : ""}` : p.note}
-                </span>
-                <div style={{ color: colors.textTertiary }}>{new Date(p.recordedAt).toLocaleString()} · {p.recordedByName}</div>
+            <div key={p.id} style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12.5, padding: "6px 0", borderBottom: `1px solid ${colors.borderLight}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <span style={pill(p.type === "adjustment" ? colors.warningBg : colors.successBg, p.type === "adjustment" ? colors.warning : colors.success)}>
+                    {p.type === "adjustment" ? "Adjustment" : "Payment"}
+                  </span>{" "}
+                  <span style={{ fontWeight: 700 }}>{money(p.amount)}</span>{" "}
+                  <span style={{ color: colors.textTertiary }}>
+                    {p.type === "payment" ? `${p.method}${p.receiptNum ? ` · #${p.receiptNum}` : ""}` : p.note}
+                  </span>
+                  <div style={{ color: colors.textTertiary }}>{new Date(p.recordedAt).toLocaleString()} · {p.recordedByName}</div>
+                </div>
+                <button type="button" style={{ ...button.ghost, padding: "3px 8px", fontSize: 11 }} onClick={() => removeEntry(p.id)}>Delete</button>
               </div>
-              <button type="button" style={{ ...button.ghost, padding: "3px 8px", fontSize: 11 }} onClick={() => removeEntry(p.id)}>Delete</button>
+
+              {p.type === "payment" && (
+                p.turnedOverAt ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={pill(colors.successBg, colors.success)}>
+                      ✓ Turned over to {p.turnedOverToName} · {new Date(p.turnedOverAt).toLocaleDateString()}
+                    </span>
+                    {isRentalsAdmin && (
+                      <button type="button" style={{ ...button.ghost, padding: "3px 8px", fontSize: 11 }} onClick={() => undoTurnover(p)}>Undo</button>
+                    )}
+                  </div>
+                ) : isRentalsAdmin ? (
+                  markingTurnoverId === p.id ? (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <input
+                        style={{ ...inputStyle, flex: 1, padding: "5px 8px", fontSize: 12 }}
+                        placeholder="Received by (e.g. Secretary name)"
+                        value={turnoverName}
+                        onChange={(e) => setTurnoverName(e.target.value)}
+                        autoFocus
+                      />
+                      <button type="button" style={{ ...button.primary, padding: "5px 10px", fontSize: 11.5 }} onClick={() => confirmTurnover(p)}>Confirm</button>
+                      <button type="button" style={{ ...button.ghost, padding: "5px 10px", fontSize: 11.5 }} onClick={() => { setMarkingTurnoverId(null); setTurnoverName(""); setError(""); }}>Cancel</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <button type="button" style={{ ...button.ghost, padding: "3px 8px", fontSize: 11 }} onClick={() => { setMarkingTurnoverId(p.id); setTurnoverName(""); }}>
+                        Mark turned over
+                      </button>
+                    </div>
+                  )
+                ) : (
+                  <span style={pill(colors.warningBg, colors.warning)}>Awaiting turnover</span>
+                )
+              )}
             </div>
           ))}
           {payments.length === 0 && <div style={{ fontSize: 12.5, color: colors.textSecondary }}>No payments recorded yet.</div>}

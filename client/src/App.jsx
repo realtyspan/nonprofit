@@ -23,6 +23,7 @@ import Profile from "./views/Profile";
 import RentalBookings from "./views/RentalBookings";
 import RentalSpaces from "./views/RentalSpaces";
 import RentalBlocks from "./views/RentalBlocks";
+import RentalFundsTurnover from "./views/RentalFundsTurnover";
 import PublicRental from "./views/PublicRental";
 import CalendarView from "./views/CalendarView";
 import PublicCalendar from "./views/PublicCalendar";
@@ -318,6 +319,7 @@ function Shell() {
             {activeModuleKey === "bell-jar" && view === "ledger" && <Ledger />}
             {activeModuleKey === "bell-jar" && view === "reports" && <Reports permissions={permissions} />}
             {activeModuleKey === "rentals" && view === "bookings" && <RentalBookings spaces={rentalSpaces} onChanged={refreshRentals} permissions={permissions} />}
+            {activeModuleKey === "rentals" && view === "funds" && <RentalFundsTurnover permissions={permissions} />}
             {activeModuleKey === "rentals" && view === "spaces" && <RentalSpaces spaces={rentalSpaces} onChanged={refreshRentals} />}
             {activeModuleKey === "rentals" && view === "blocks" && <RentalBlocks spaces={rentalSpaces} />}
             {activeModuleKey === "calendar" && view === "month" && <CalendarView rentalSpaces={rentalSpaces} permissions={permissions} currentUserId={session?.user?.id} />}

@@ -145,6 +145,10 @@ export const api = {
   listRentalPayments: (bookingId) => request(`/rentals/bookings/${bookingId}/payments`),
   addRentalPayment: (bookingId, payload) => request(`/rentals/bookings/${bookingId}/payments`, { method: "POST", body: payload }),
   deleteRentalPayment: (bookingId, paymentId) => request(`/rentals/bookings/${bookingId}/payments/${paymentId}`, { method: "DELETE" }),
+  toggleRentalPaymentTurnedOver: (bookingId, paymentId, payload) => request(`/rentals/bookings/${bookingId}/payments/${paymentId}/toggle-turned-over`, { method: "POST", body: payload }),
+  listRentalFundsToTurnOver: () => request("/rentals/funds-to-turn-over"),
+  getRentalSettings: () => request("/rentals/settings"),
+  updateRentalSettings: (payload) => request("/rentals/settings", { method: "PATCH", body: payload }),
   downloadRentalContractPdf: (id, renterName) => download(`/rentals/bookings/${id}/contract.pdf`, `Rental_${(renterName || "agreement").replace(/\s+/g, "_")}.pdf`),
 
   listRentalBlocks: () => request("/rentals/blocks"),

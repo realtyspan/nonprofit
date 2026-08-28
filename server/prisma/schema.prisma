@@ -23,6 +23,14 @@ model Organization {
   createdAt       DateTime @default(now())
   orgCategoryId   String?  // chosen at signup or set later by a platform admin — drives which modules are relevant to this kind of org (e.g. Elks Tools only for "Elks Lodge"); null means "not set", not "every category"
   orgCategory     OrgCategory? @relation(fields: [orgCategoryId], references: [id], onDelete: SetNull)
+  // Who to notify when a rental payment is collected and still needs to be
+  // handed off — deliberately NOT tied to being a Charity Pulse user (a lodge
+  // secretary who only ever handles cash/checks by hand may never log in at
+  // all). Editable by any Rentals Admin (see rentals.js's /settings route).
+  // Users who already hold a rentals Admin/Helper grant get the same alert
+  // automatically via resolveRentalAlertRecipients — this field is for
+  // reaching someone who isn't a grant holder (or isn't a user at all).
+  rentalsFundsContactEmail String?
 
   users          User[]
   deals          Deal[]
@@ -440,6 +448,14 @@ model RentalPayment {
   note           String?
   recordedByName String
   recordedAt     DateTime @default(now())
+  // Tracks the physical handoff from whoever collected the money to whoever
+  // banks it (e.g. the lodge secretary) — separate from and finer-grained
+  // than RentalBooking.fundsDepositedAt, which locks a whole booking at once.
+  // Only meaningful for type "payment" — an "adjustment" never involves money
+  // changing hands, so it's never turned over. Toggleable (find-existing →
+  // clear, else set), same pattern as a check-in toggle elsewhere in the app.
+  turnedOverAt      DateTime?
+  turnedOverToName  String?  // who physically received it (e.g. the secretary's name)
 
   @@index([orgId])
   @@index([bookingId])
