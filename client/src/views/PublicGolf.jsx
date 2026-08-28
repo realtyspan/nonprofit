@@ -3,6 +3,7 @@ import { colors, card, button, input as inputStyle, money } from "../lib/tokens"
 import { publicApi } from "../lib/api";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
 import logo from "../assets/logo.png";
+import defaultFlyerImage from "../assets/golf-default-flyer.jpg";
 
 function emptyPlayer(isCaptain) {
   return { name: "", email: "", phone: "", isCaptain };
@@ -92,8 +93,6 @@ const EVT_CSS = `
   display: flex; gap: 56px; flex-wrap: wrap;
   align-items: flex-start; padding: 34px 44px 30px;
 }
-.evt-body.evt-body-noimg { flex-direction: column; gap: 24px; }
-.evt-body-noimg .evt-body-row { display: flex; gap: 56px; flex-wrap: wrap; align-items: flex-start; width: 100%; }
 .evt-details { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 12px; }
 .evt-line {
   display: flex; align-items: center; gap: 9px;
@@ -277,7 +276,15 @@ function RailCell({ label, value }) {
 }
 
 function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
-  const hasPhoto = !!tournament.flyerImage;
+  // Every tournament shows a hero photo now — the org's own upload if they
+  // have one, otherwise Charity Pulse's own default golf graphic (uploaded
+  // once, on the platform's own org, and baked in here as a static asset so
+  // every other org's registration page never renders with no image at all).
+  // A tournament with its own photo keeps its own crop position; the
+  // platform default always crops from the top, matching how it was
+  // originally cropped/verified.
+  const heroImage = tournament.flyerImage || defaultFlyerImage;
+  const heroPosition = tournament.flyerImage ? (tournament.flyerImagePosition || "center") : "top";
   const kicker = new Date(tournament.date).toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
   const contactBits = [tournament.contactName, tournament.contactPhone, tournament.contactEmail].filter(Boolean).length > 0;
   const railCells = [
@@ -289,15 +296,13 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
   return (
     <div className="evt" style={evtStyleVars(theme, font)}>
       <div className="evt-card">
-        {hasPhoto && (
-          <div className="evt-hero">
-            <img className="evt-hero-img" src={tournament.flyerImage} alt="" style={{ objectPosition: `center ${tournament.flyerImagePosition || "center"}` }} />
-            <div className="evt-hero-scrim" />
-            <div className="evt-hero-text">
-              <h2 className="evt-title">{tournament.name}</h2>
-            </div>
+        <div className="evt-hero">
+          <img className="evt-hero-img" src={heroImage} alt="" style={{ objectPosition: `center ${heroPosition}` }} />
+          <div className="evt-hero-scrim" />
+          <div className="evt-hero-text">
+            <h2 className="evt-title">{tournament.name}</h2>
           </div>
-        )}
+        </div>
 
         <div className="evt-rail" style={{ gridTemplateColumns: `repeat(${railCells.length}, minmax(0, 1fr))` }}>
           <RailCell label="Format" value={tournament.format} />
@@ -305,46 +310,38 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
           <RailCell label="Venue" value={tournament.venueName} />
         </div>
 
-        <div className={`evt-body${hasPhoto ? "" : " evt-body-noimg"}`}>
-          {!hasPhoto && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <h2 className="evt-title">{tournament.name}</h2>
-            </div>
-          )}
+        <div className="evt-body">
+          <div className="evt-details">
+            {tournament.includedDescription && (
+              <p className="evt-line"><FlagIcon />{tournament.includedDescription}</p>
+            )}
+            <p className="evt-line"><CalendarIcon />{kicker}</p>
+            {tournament.scheduleText && (
+              <p className="evt-line"><ClockIcon /><span><strong className="evt-strong">Schedule:</strong> {tournament.scheduleText}</span></p>
+            )}
+            {contactBits && (
+              <p className="evt-line evt-line-muted">
+                <PhoneIcon />
+                <span>
+                  Questions?{tournament.contactName ? ` ${tournament.contactName}` : ""}
+                  {tournament.contactPhone ? <> · <a href={`tel:${tournament.contactPhone.replace(/[^\d+]/g, "")}`}>{tournament.contactPhone}</a></> : null}
+                  {tournament.contactEmail ? <> · <a href={`mailto:${tournament.contactEmail}`}>{tournament.contactEmail}</a></> : null}
+                </span>
+              </p>
+            )}
+          </div>
 
-          <div className={hasPhoto ? undefined : "evt-body-row"} style={hasPhoto ? { display: "contents" } : undefined}>
-            <div className="evt-details">
-              {tournament.includedDescription && (
-                <p className="evt-line"><FlagIcon />{tournament.includedDescription}</p>
-              )}
-              <p className="evt-line"><CalendarIcon />{kicker}</p>
-              {tournament.scheduleText && (
-                <p className="evt-line"><ClockIcon /><span><strong className="evt-strong">Schedule:</strong> {tournament.scheduleText}</span></p>
-              )}
-              {contactBits && (
-                <p className="evt-line evt-line-muted">
-                  <PhoneIcon />
-                  <span>
-                    Questions?{tournament.contactName ? ` ${tournament.contactName}` : ""}
-                    {tournament.contactPhone ? <> · <a href={`tel:${tournament.contactPhone.replace(/[^\d+]/g, "")}`}>{tournament.contactPhone}</a></> : null}
-                    {tournament.contactEmail ? <> · <a href={`mailto:${tournament.contactEmail}`}>{tournament.contactEmail}</a></> : null}
-                  </span>
-                </p>
-              )}
-            </div>
-
-            <div className="evt-action">
-              {tournament.isFull ? (
-                <p className="evt-full">This tournament is full.</p>
-              ) : (
-                <>
-                  {!expanded && <button type="button" className="evt-btn" onClick={onToggle}>Register a team</button>}
-                  {tournament.spotsRemaining != null && (
-                    <p className="evt-spots"><span className="evt-dot" />{tournament.spotsRemaining} team spot{tournament.spotsRemaining === 1 ? "" : "s"} remaining</p>
-                  )}
-                </>
-              )}
-            </div>
+          <div className="evt-action">
+            {tournament.isFull ? (
+              <p className="evt-full">This tournament is full.</p>
+            ) : (
+              <>
+                {!expanded && <button type="button" className="evt-btn" onClick={onToggle}>Register a team</button>}
+                {tournament.spotsRemaining != null && (
+                  <p className="evt-spots"><span className="evt-dot" />{tournament.spotsRemaining} team spot{tournament.spotsRemaining === 1 ? "" : "s"} remaining</p>
+                )}
+              </>
+            )}
           </div>
         </div>
 
