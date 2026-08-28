@@ -391,11 +391,13 @@ model RentalBooking {
   uploadedContractFile     String? // base64 data URL — a scan/photo of a physically-signed paper contract, an alternative to the in-app drawn signature above
   uploadedContractFileName String?
   uploadedContractAt       DateTime?
-  // Set once the collected funds have actually been turned in/deposited —
-  // locks the booking's own details (renter info, dates, space, pricing)
-  // against further edits, same "lock after the money's real" pattern as
-  // GC7QReport.status "filed". Payments, signing, and lifecycle actions
-  // (complete/cancel) are never gated on this — only the PATCH edit route is.
+  // Set once every payment on this booking has been marked turned over (see
+  // RentalPayment.turnedOverAt) — locks the booking's own details (renter
+  // info, dates, space, pricing) against further edits, same "lock after the
+  // money's settled" pattern as GC7QReport.status "filed". Enforced
+  // server-side in rentals.js's mark-funds-deposited route, shown to staff as
+  // "Lock booking". Payments, signing, and lifecycle actions (complete/cancel)
+  // are never gated on this — only the PATCH edit route is.
   fundsDepositedAt   DateTime?
   createdAt          DateTime @default(now())
 

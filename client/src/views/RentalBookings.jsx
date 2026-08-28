@@ -25,7 +25,7 @@ const LOG_TYPE_LABEL = {
   payment_deleted: "Payment removed",
   payment_turned_over: "Turned over",
   payment_turnover_undone: "Turnover undone",
-  funds_deposited: "Funds deposited",
+  funds_deposited: "Locked",
   unlocked: "Unlocked",
 };
 
@@ -58,7 +58,7 @@ export default function RentalBookings({ spaces, onChanged, permissions }) {
   const [signing, setSigning] = useState(null);
   const [uploadingContract, setUploadingContract] = useState(null);
   const [editingBooking, setEditingBooking] = useState(null);
-  const [markingDeposited, setMarkingDeposited] = useState(null);
+  const [lockingBooking, setLockingBooking] = useState(null);
   const [unlocking, setUnlocking] = useState(null);
   const [viewingLogs, setViewingLogs] = useState(null);
   const [viewingHistory, setViewingHistory] = useState(null);
@@ -153,7 +153,7 @@ export default function RentalBookings({ spaces, onChanged, permissions }) {
               render: (b) => (
                 <>
                   {b.renterName}
-                  {b.fundsDepositedAt && <span style={{ ...pill("#f0f0f3", colors.textSecondary), marginLeft: 8 }}>🔒 Deposited</span>}
+                  {b.fundsDepositedAt && <span style={{ ...pill("#f0f0f3", colors.textSecondary), marginLeft: 8 }}>🔒 Locked</span>}
                 </>
               ),
             },
@@ -188,7 +188,16 @@ export default function RentalBookings({ spaces, onChanged, permissions }) {
                   {isRentalsAdmin && (b.fundsDepositedAt ? (
                     <button style={button.ghost} onClick={() => setUnlocking(b)}>Unlock</button>
                   ) : (
-                    <button style={button.ghost} onClick={() => setMarkingDeposited(b)}>Mark funds deposited</button>
+                    (() => {
+                      const outstandingCount = (b.payments || []).filter((p) => p.type === "payment" && !p.turnedOverAt).length;
+                      return outstandingCount > 0 ? (
+                        <span style={pill(colors.warningBg, colors.warning)} title="Every payment must be turned over (see Payment) before this booking can be locked">
+                          {outstandingCount} payment{outstandingCount === 1 ? "" : "s"} pending turnover
+                        </span>
+                      ) : (
+                        <button style={button.ghost} onClick={() => setLockingBooking(b)}>Lock booking</button>
+                      );
+                    })()
                   ))}
                 </div>
               ),
@@ -245,7 +254,7 @@ export default function RentalBookings({ spaces, onChanged, permissions }) {
         />
       )}
       {paying && (
-        <PaymentModal booking={paying} isRentalsAdmin={isRentalsAdmin} onCancel={() => setPaying(null)} onSaved={() => { setPaying(null); refresh(); }} />
+        <PaymentModal booking={paying} isRentalsAdmin={isRentalsAdmin} onCancel={() => setPaying(null)} onSaved={() => { setPaying(null); refresh(); }} onBookingRefresh={refresh} />
       )}
       {signing && (
         <SignModal booking={signing} onCancel={() => setSigning(null)} onSaved={() => { setSigning(null); refresh(); }} />
@@ -262,11 +271,11 @@ export default function RentalBookings({ spaces, onChanged, permissions }) {
           onSaved={() => { setEditingBooking(null); refresh(); onChanged(); }}
         />
       )}
-      {markingDeposited && (
-        <MarkFundsDepositedModal
-          booking={markingDeposited}
-          onCancel={() => setMarkingDeposited(null)}
-          onDone={() => { setMarkingDeposited(null); refresh(); onChanged(); }}
+      {lockingBooking && (
+        <LockBookingModal
+          booking={lockingBooking}
+          onCancel={() => setLockingBooking(null)}
+          onDone={() => { setLockingBooking(null); refresh(); onChanged(); }}
         />
       )}
       {unlocking && (
@@ -410,7 +419,7 @@ function ReviewModal({ booking, onCancel, onDone }) {
   );
 }
 
-function PaymentModal({ booking, isRentalsAdmin, onCancel, onSaved }) {
+function PaymentModal({ booking, isRentalsAdmin, onCancel, onSaved, onBookingRefresh }) {
   const [payments, setPayments] = useState([]);
   const [totalPaid, setTotalPaid] = useState(booking.totalPaid || 0);
   const [totalAdjustments, setTotalAdjustments] = useState(booking.totalAdjustments || 0);
@@ -476,6 +485,7 @@ function PaymentModal({ booking, isRentalsAdmin, onCancel, onSaved }) {
     try {
       await api.toggleRentalPaymentTurnedOver(booking.id, payment.id, {});
       refresh();
+      onBookingRefresh?.(); // the Bookings row's "pending turnover" pill / Lock button reads this
     } catch (err) {
       setError(err.message);
     }
@@ -489,6 +499,7 @@ function PaymentModal({ booking, isRentalsAdmin, onCancel, onSaved }) {
       setMarkingTurnoverId(null);
       setTurnoverName("");
       refresh();
+      onBookingRefresh?.(); // the Bookings row's "pending turnover" pill / Lock button reads this
     } catch (err) {
       setError(err.message);
     }
@@ -833,9 +844,11 @@ function EditBookingModal({ booking, spaces, isRentalsAdmin, onCancel, onSaved }
 }
 
 // A one-way (but Admin-reversible via Unlock) confirmation, same spirit as
-// GC-7Q's file/unlock — once the money's actually been turned in, the
-// booking's own details shouldn't keep moving out from under that number.
-function MarkFundsDepositedModal({ booking, onCancel, onDone }) {
+// GC-7Q's file/unlock — once every payment's been turned over, the booking's
+// own details shouldn't keep moving out from under those numbers. The server
+// enforces the "every payment turned over" prerequisite too (see
+// mark-funds-deposited in rentals.js) — this is just the front door for it.
+function LockBookingModal({ booking, onCancel, onDone }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -853,9 +866,9 @@ function MarkFundsDepositedModal({ booking, onCancel, onDone }) {
   }
 
   return (
-    <Modal onCancel={onCancel} width={420} title="Mark funds deposited?">
+    <Modal onCancel={onCancel} width={420} title="Lock booking details?">
       <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 16 }}>
-        Confirms the deposit and any payments collected for <strong>{booking.renterName}</strong>'s booking have been turned in. This locks the booking's details (renter info, dates, space, pricing) against further edits — Payment, Sign, Upload contract, Complete, and Cancel all still work as normal. A Rentals Admin can Unlock it later if something needs correcting.
+        Every payment on <strong>{booking.renterName}</strong>'s booking has been turned over. Locking freezes the renter info, dates, space, and pricing against further edits — Payment, Sign, Upload contract, Complete, and Cancel all still work as normal. A Rentals Admin can Unlock it later if something needs correcting.
       </div>
       {error && <div style={{ color: colors.danger, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
@@ -886,7 +899,7 @@ function UnlockBookingModal({ booking, onCancel, onDone }) {
   return (
     <Modal onCancel={onCancel} width={420} title="Unlock for correction?">
       <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 16 }}>
-        Reopens <strong>{booking.renterName}</strong>'s booking for editing. Only do this if the deposited funds figure genuinely needs correcting — not to reopen something that's already been reconciled elsewhere.
+        Reopens <strong>{booking.renterName}</strong>'s booking for editing. Only do this if the renter info, dates, space, or pricing genuinely needs correcting — not to reopen something that's already been reconciled elsewhere.
       </div>
       {error && <div style={{ color: colors.danger, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>

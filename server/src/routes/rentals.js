@@ -152,7 +152,7 @@ const EDIT_FIELD_LABELS = {
 // Edits are only allowed before a booking is locked into a final state —
 // either by status (declined/cancelled/completed are history, not editable)
 // or by fundsDepositedAt, which locks a confirmed booking's own details once
-// its money has actually been turned in (see /mark-funds-deposited below).
+// every payment on it has been turned over (see /mark-funds-deposited below).
 router.patch("/bookings/:id", requirePermission("rentals", "Helper"), async (req, res) => {
   const booking = await prisma.rentalBooking.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!booking) return res.status(404).json({ error: "Booking not found" });
@@ -160,7 +160,7 @@ router.patch("/bookings/:id", requirePermission("rentals", "Helper"), async (req
     return res.status(400).json({ error: "This booking is no longer editable" });
   }
   if (booking.fundsDepositedAt) {
-    return res.status(400).json({ error: "Funds have been deposited — unlock this booking for correction before editing" });
+    return res.status(400).json({ error: "This booking is locked — unlock it for correction before editing" });
   }
 
   const {
@@ -244,20 +244,31 @@ router.patch("/bookings/:id", requirePermission("rentals", "Helper"), async (req
   res.json(updated);
 });
 
-// Marks the booking's collected funds as physically turned in/deposited —
-// locks its own details (renter info, dates, space, pricing) against further
-// edits from here on, same "lock once the money's real" pattern as a filed
-// GC-7Q report. Payments, signing, and lifecycle actions are never gated on
-// this. Reversible via /unlock below for a genuine correction.
+// Locks a booking's own details (renter info, dates, space, pricing) against
+// further edits — same "lock once the money's settled" pattern as a filed
+// GC-7Q report. Requires every "payment" row on the booking to have already
+// been marked turned over (see the payments' toggle-turned-over route above)
+// — this is what makes "Lock booking" in the client an honest claim rather
+// than an unenforced one. Payments, signing, and lifecycle actions are never
+// gated on the lock itself. Reversible via /unlock below for a genuine
+// correction.
 router.post("/bookings/:id/mark-funds-deposited", requirePermission("rentals", "Admin"), async (req, res) => {
   const booking = await prisma.rentalBooking.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
   if (!booking) return res.status(404).json({ error: "Booking not found" });
   if (!["confirmed", "completed"].includes(booking.status)) {
-    return res.status(400).json({ error: "Only a confirmed or completed booking can be marked as deposited" });
+    return res.status(400).json({ error: "Only a confirmed or completed booking can be locked" });
   }
-  if (booking.fundsDepositedAt) return res.status(400).json({ error: "Already marked as deposited" });
+  if (booking.fundsDepositedAt) return res.status(400).json({ error: "This booking is already locked" });
+  const outstanding = await prisma.rentalPayment.count({
+    where: { bookingId: booking.id, orgId: req.user.orgId, type: "payment", turnedOverAt: null },
+  });
+  if (outstanding > 0) {
+    return res.status(400).json({
+      error: `${outstanding} payment${outstanding === 1 ? "" : "s"} on this booking ${outstanding === 1 ? "hasn't" : "haven't"} been marked turned over yet — see Payment`,
+    });
+  }
   const updated = await prisma.rentalBooking.update({ where: { id: booking.id }, data: { fundsDepositedAt: new Date() } });
-  await addRentalLog(req.user.orgId, booking.id, { type: "funds_deposited", text: "Funds marked deposited — booking locked", actorName: req.callerUser?.name });
+  await addRentalLog(req.user.orgId, booking.id, { type: "funds_deposited", text: "Booking locked — every payment had been turned over", actorName: req.callerUser?.name });
   res.json(updated);
 });
 
