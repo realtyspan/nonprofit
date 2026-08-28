@@ -94,9 +94,16 @@ export default function Team({ permissions, onPermissionsChanged }) {
               ),
             },
             {
-              key: "moduleAccess", label: "Module access", grid: "2fr", fullWidthOnMobile: true,
+              // footerRow pulls this out of the grid entirely and renders it
+              // as its own full-width strip under Name/Email/Org tier —
+              // needed once an org has enough modules that six dropdowns
+              // stopped fitting in a grid column even on a large monitor and
+              // started wrapping awkwardly against the row's other cells.
+              key: "moduleAccess", label: "Module access", footerRow: true,
               render: (u) => (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".02em", color: colors.textSecondary }}>Module access</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                   {MODULES.map((m) => {
                     const tier = u.moduleGrants?.[m.key];
                     const canEdit = isOwner || adminModules.includes(m.key);
@@ -130,6 +137,7 @@ export default function Team({ permissions, onPermissionsChanged }) {
                       </label>
                     );
                   })}
+                  </div>
                 </div>
               ),
             },
