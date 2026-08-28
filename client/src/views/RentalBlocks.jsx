@@ -48,7 +48,9 @@ export default function RentalBlocks({ spaces }) {
           { key: "end", label: "End", grid: "1fr", render: (b) => new Date(b.endAt).toLocaleString() },
           { key: "reason", label: "Reason", grid: "1.2fr", render: (b) => <span style={{ color: colors.textSecondary }}>{b.reason || "—"}</span> },
           {
-            key: "flags", label: "", grid: "1fr",
+            // footerRow: up to 3 badges wrapped awkwardly in a narrow 1fr
+            // column — this gives them the full row width instead.
+            key: "flags", label: "", footerRow: true,
             render: (b) => (
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {b.recurrenceId && <span style={pill("#f0f0f3", colors.textSecondary)}>Repeats</span>}

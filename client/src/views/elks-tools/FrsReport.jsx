@@ -120,7 +120,9 @@ export default function FrsReport() {
               render: (r) => <span style={{ fontSize: 12, color: colors.textSecondary }}>{r.generatedByName} · {new Date(r.generatedAt).toLocaleDateString()}</span>,
             },
             {
-              key: "actions", label: "", grid: "1.6fr", fullWidthOnMobile: true,
+              // footerRow: 3 buttons were wrapping in a 1.6fr column even on
+              // a modest desktop window — full row width fixes it.
+              key: "actions", label: "", footerRow: true,
               render: (r) => (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5 }} onClick={() => api.downloadFrsReportSource(r.id, r.sourceFileName)}>📄 Source</button>
