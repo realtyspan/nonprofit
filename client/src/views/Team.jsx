@@ -105,6 +105,11 @@ export default function Team({ permissions, onPermissionsChanged }) {
                         <span key={m.key} style={pill("#f0f0f3", colors.textSecondary)}>{m.label}: {tier}</span>
                       ) : null;
                     }
+                    // An org-wide Owner or Viewer sees every module read-only
+                    // regardless of an explicit grant (see auth.js's
+                    // requireReadAccess) — a bare "no grant" label would read
+                    // as "no access at all", which isn't true for them.
+                    const seesEverythingReadOnly = u.orgTier === "Owner" || u.orgTier === "Viewer";
                     return (
                       <label key={m.key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: colors.textSecondary }}>
                         {m.label}
@@ -117,7 +122,7 @@ export default function Team({ permissions, onPermissionsChanged }) {
                             else act(() => api.setModuleGrant(u.id, m.key, newTier));
                           }}
                         >
-                          <option value="">—</option>
+                          <option value="">{seesEverythingReadOnly ? "View only" : "No Access"}</option>
                           <option value="Viewer">Viewer</option>
                           <option value="Helper">Helper</option>
                           {isOwner && <option value="Admin">Admin</option>}
