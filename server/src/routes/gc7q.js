@@ -160,7 +160,7 @@ router.get("/:year/:quarter/pdf", requireReadAccess("bell-jar"), async (req, res
       year,
       orgName: org.name,
       gcId: org.licenseId,
-      street: org.address,
+      street: org.mailingAddress || org.address, // mailing address is what a filing should show; fall back to physical for an org that hasn't set one yet
       adjustmentExplanation: report?.adjustmentExplanation,
     },
     values,

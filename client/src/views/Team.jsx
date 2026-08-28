@@ -300,10 +300,11 @@ function OrganizationInfoCard({ isOwner }) {
           <Field label="Physical address">
             <input style={inputStyle} value={form.address} onChange={(e) => set("address", e.target.value)} />
           </Field>
-          <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: -6 }}>Also the address used on your GC-7Q filing and buyer-facing raffle emails.</div>
+          <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: -6 }}>Also used on buyer-facing raffle emails.</div>
           <Field label="Mailing address (optional, if different)">
             <input style={inputStyle} value={form.mailingAddress} onChange={(e) => set("mailingAddress", e.target.value)} placeholder="Same as physical address if left blank" />
           </Field>
+          <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: -6 }}>This is the address that appears on your GC-7Q filing — falls back to the physical address above if left blank.</div>
           <Field label="Public link">
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontSize: 12.5, color: colors.textSecondary }}>{window.location.origin}/…/</span>
