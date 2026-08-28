@@ -264,6 +264,7 @@ function emptyForm(tournament) {
     venueName: tournament?.venueName || "",
     venueAddress: tournament?.venueAddress || "",
     flyerImage: tournament?.flyerImage || "",
+    flyerImagePosition: tournament?.flyerImagePosition || "center",
     costPerPlayer: tournament?.costPerPlayer || "",
     capacity: tournament?.capacity ?? "",
     includedDescription: tournament?.includedDescription || "",
@@ -314,7 +315,12 @@ function TournamentForm({ tournament, tournaments, onCancel, onSaved, modal }) {
     <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <Field label="Name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="24th Annual Golf Tournament" /></Field>
 
-      <TournamentFlyerField image={form.flyerImage} onChange={(img) => set("flyerImage", img)} />
+      <TournamentFlyerField
+        image={form.flyerImage}
+        position={form.flyerImagePosition}
+        onChange={(img) => set("flyerImage", img)}
+        onPositionChange={(pos) => set("flyerImagePosition", pos)}
+      />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
         <Field label="Year"><input style={inputStyle} type="number" required value={form.year} onChange={(e) => set("year", e.target.value)} /></Field>
@@ -444,7 +450,35 @@ function DeleteTournamentModal({ tournament, onCancel, onDeleted }) {
 // client-side to a bounded JPEG data URL before it ever leaves the browser,
 // then store that string directly (see GolfTournament.flyerImage). Shown at
 // the top of the public registration page and its website embed.
-function TournamentFlyerField({ image, onChange }) {
+//
+// The hero band it feeds is wide and short (~1100x280, cropped with
+// object-fit: cover) — 1400px on the long edge is already more resolution
+// than that ever needs, so this targets a noticeably smaller file than the
+// general-purpose resizeImageFile default. A too-large result (a very
+// detailed photo can still land big even downsized) retries at lower JPEG
+// quality rather than just erroring, since re-encoding is cheap and most
+// photos settle well under the cap on the first or second try. The server
+// enforces the real ceiling regardless (see golf.js's MAX_FLYER_IMAGE_CHARS)
+// — this loop just avoids bothering the admin with an error in the common
+// case where a smaller/lower-quality re-encode would've fit fine.
+const FLYER_TARGET_CHARS = 500000; // ~375KB raw — leaves headroom under the server's cap
+const FLYER_QUALITY_STEPS = [0.82, 0.65, 0.5];
+const FLYER_POSITIONS = [
+  { value: "top", label: "Top" },
+  { value: "center", label: "Center" },
+  { value: "bottom", label: "Bottom" },
+];
+
+async function resizeFlyerImage(file) {
+  let dataUrl;
+  for (const quality of FLYER_QUALITY_STEPS) {
+    dataUrl = await resizeImageFile(file, 1400, quality);
+    if (dataUrl.length <= FLYER_TARGET_CHARS) return dataUrl;
+  }
+  throw new Error("That photo is too large even compressed — try a smaller or simpler image");
+}
+
+function TournamentFlyerField({ image, position, onChange, onPositionChange }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -459,7 +493,7 @@ function TournamentFlyerField({ image, onChange }) {
     setError("");
     setBusy(true);
     try {
-      onChange(await resizeImageFile(file));
+      onChange(await resizeFlyerImage(file));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -472,7 +506,27 @@ function TournamentFlyerField({ image, onChange }) {
       <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b" }}>Tournament photo/flyer (optional)</div>
       <div style={{ fontSize: 11, color: colors.textSecondary }}>Shown at the top of your public registration page and website embed.</div>
       {image && (
-        <img src={image} alt="Tournament flyer" style={{ width: "100%", maxWidth: 320, maxHeight: 180, objectFit: "cover", borderRadius: 8, border: `1px solid ${colors.border}` }} />
+        <img
+          src={image} alt="Tournament flyer"
+          style={{ width: "100%", maxWidth: 400, height: 100, objectFit: "cover", objectPosition: `center ${position || "center"}`, borderRadius: 8, border: `1px solid ${colors.border}` }}
+        />
+      )}
+      {image && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 11, color: colors.textSecondary }}>Crop position:</span>
+          {FLYER_POSITIONS.map((p) => (
+            <button
+              key={p.value} type="button"
+              style={{
+                ...button.ghost, padding: "4px 10px", fontSize: 11.5,
+                ...(position === p.value || (!position && p.value === "center") ? { background: colors.indigoBg, borderColor: colors.accent, color: colors.accent } : {}),
+              }}
+              onClick={() => onPositionChange(p.value)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       )}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <label style={{ cursor: "pointer" }}>

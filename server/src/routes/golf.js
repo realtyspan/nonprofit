@@ -145,8 +145,21 @@ async function resolvePreviousTournamentId(orgId, previousTournamentId, selfId) 
   return tournament.id;
 }
 
+// Base64 data URLs are ~33% larger than the underlying bytes, so this caps
+// the actual image around 450KB — plenty for a resized hero photo, and a
+// real ceiling regardless of what the client sends (the client's own resize
+// targets a much smaller size than this; this is the backstop). Kept low
+// because this string round-trips through the public tournament-list API on
+// every visit to the registration page, not just an admin-only view.
+const MAX_FLYER_IMAGE_CHARS = 600000;
+const FLYER_IMAGE_POSITIONS = ["top", "center", "bottom"];
+
 function resolveTournamentFields(body) {
-  const { name, year, date, format, maxTeamSize, venueName, venueAddress, flyerImage, costPerPlayer, capacity, includedDescription, scheduleText, contactName, contactPhone, contactEmail, allowCheckPayment, checkPayableInstructions, allowInPersonPayment, inPersonPaymentInstructions } = body;
+  const { name, year, date, format, maxTeamSize, venueName, venueAddress, flyerImage, flyerImagePosition, costPerPlayer, capacity, includedDescription, scheduleText, contactName, contactPhone, contactEmail, allowCheckPayment, checkPayableInstructions, allowInPersonPayment, inPersonPaymentInstructions } = body;
+
+  if (flyerImage && flyerImage.length > MAX_FLYER_IMAGE_CHARS) {
+    throw Object.assign(new Error("That photo is too large — choose a smaller or simpler image"), { status: 400 });
+  }
 
   if (!name || !name.trim()) throw Object.assign(new Error("name is required"), { status: 400 });
 
@@ -182,6 +195,7 @@ function resolveTournamentFields(body) {
     venueName: venueName?.trim() || null,
     venueAddress: venueAddress?.trim() || null,
     flyerImage: flyerImage || null,
+    flyerImagePosition: FLYER_IMAGE_POSITIONS.includes(flyerImagePosition) ? flyerImagePosition : "center",
     costPerPlayer: price,
     capacity: parsedCapacity,
     includedDescription: includedDescription?.trim() || null,

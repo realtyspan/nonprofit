@@ -284,7 +284,7 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
       <div className="evt-card">
         {hasPhoto && (
           <div className="evt-hero">
-            <img className="evt-hero-img" src={tournament.flyerImage} alt="" />
+            <img className="evt-hero-img" src={tournament.flyerImage} alt="" style={{ objectPosition: `center ${tournament.flyerImagePosition || "center"}` }} />
             <div className="evt-hero-scrim" />
             <div className="evt-hero-text">
               <p className="evt-kicker">{kicker}</p>
