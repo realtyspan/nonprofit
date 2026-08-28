@@ -861,6 +861,7 @@ model GolfTournament {
   contactEmail           String?
   status                 String   @default("draft") // draft | open | closed
   closedAt               DateTime?
+  isHistorical           Boolean  @default(false) // past-years data uploaded via CSV import — archival only, excluded from the operational tournament list (see golf.js's GET /tournaments), same pattern as RaffleGame.isHistorical
   allowCheckPayment      Boolean  @default(false)
   checkPayableInstructions String?
   allowInPersonPayment   Boolean  @default(false)

@@ -17,6 +17,12 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
   const [deletingTournament, setDeletingTournament] = useState(null);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [lifecycleError, setLifecycleError] = useState("");
+  const [historicalImports, setHistoricalImports] = useState([]);
+
+  function refreshHistoricalImports() {
+    api.listGolfHistoricalImports().then(setHistoricalImports).catch(() => {});
+  }
+  useEffect(refreshHistoricalImports, []);
 
   const selected = tournaments.find((t) => t.id === tournamentId) || null;
 
@@ -125,6 +131,7 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
       ) : (
         <TournamentForm
           tournaments={tournaments}
+          historicalImports={historicalImports}
           onCancel={() => setShowNewForm(false)}
           onSaved={() => { setShowNewForm(false); onTournamentsChanged(); }}
         />
@@ -134,6 +141,7 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
         <TournamentForm
           tournament={editingTournament}
           tournaments={tournaments}
+          historicalImports={historicalImports}
           onCancel={() => setEditingTournament(null)}
           onSaved={() => { setEditingTournament(null); onTournamentsChanged(); }}
           modal
@@ -156,6 +164,8 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
       />
 
       <StripeConnectCard />
+
+      <HistoricalImports tournaments={tournaments} imports={historicalImports} onImportsChanged={refreshHistoricalImports} />
     </div>
   );
 }
@@ -250,8 +260,10 @@ function StripeConnectCard() {
   );
 }
 
-function linkableTournamentOptions(tournaments, excludeId) {
-  return tournaments.filter((t) => t.id !== excludeId).sort((a, b) => new Date(b.date) - new Date(a.date));
+function linkableTournamentOptions(tournaments, historicalImports, excludeId) {
+  return [...tournaments, ...historicalImports]
+    .filter((t) => t.id !== excludeId)
+    .sort((a, b) => b.year - a.year);
 }
 
 function emptyForm(tournament) {
@@ -282,7 +294,7 @@ function emptyForm(tournament) {
 
 // Handles both create and edit — the form fields are identical either way,
 // only the submit action and surrounding chrome (inline card vs. modal) differ.
-function TournamentForm({ tournament, tournaments, onCancel, onSaved, modal }) {
+function TournamentForm({ tournament, tournaments, historicalImports = [], onCancel, onSaved, modal }) {
   const [form, setForm] = useState(emptyForm(tournament));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -309,7 +321,7 @@ function TournamentForm({ tournament, tournaments, onCancel, onSaved, modal }) {
     }
   }
 
-  const linkOptions = linkableTournamentOptions(tournaments, tournament?.id || null);
+  const linkOptions = linkableTournamentOptions(tournaments, historicalImports, tournament?.id || null);
 
   const body = (
     <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -542,6 +554,242 @@ function TournamentFlyerField({ image, position, onChange, onPositionChange }) {
         )}
       </div>
       {error && <div style={{ color: colors.danger, fontSize: 11.5 }}>{error}</div>}
+    </div>
+  );
+}
+
+// Past-years player/sponsor data, uploaded once so the "email last year's
+// players/sponsors" marketing lists have real data to pull from instead of
+// coming up empty until the org has run a few tournaments inside this app.
+// Mirrors ManageRaffles.jsx's HistoricalImports section — golf just has two
+// independent lists (players, sponsors) instead of one, so each import can
+// either create a new archival tournament or add to an existing one, letting
+// both lists for the same year end up on one row (see golf.js's comment on
+// why that matters for previousTournamentId linking).
+function HistoricalImports({ tournaments, imports, onImportsChanged }) {
+  const [showForm, setShowForm] = useState(null); // null | "players" | "sponsors"
+  const [editingImport, setEditingImport] = useState(null);
+
+  async function remove(item) {
+    if (!window.confirm(`Remove the imported "${item.name}" data? This deletes its ${item.playerCount} imported player(s) and ${item.sponsorshipCount} imported sponsorship(s) — archival only, no effect on any live tournament.`)) return;
+    await api.deleteGolfHistoricalImport(item.id);
+    onImportsChanged();
+  }
+
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Historical data</div>
+        <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>
+          Import past years' players and/or sponsors so "email last year's players/sponsors" has real data to work with. This is archival only — it never appears as a tournament you can run.
+        </div>
+      </div>
+
+      {imports.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {imports.map((item) => {
+            const linkedTo = item.previousTournamentId ? [...tournaments, ...imports].find((t) => t.id === item.previousTournamentId) : null;
+            return (
+              <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 10px", border: `1px solid ${colors.borderLight}`, borderRadius: 7, fontSize: 13 }}>
+                <div>
+                  <strong>{item.name}</strong>
+                  <span style={{ color: colors.textSecondary, marginLeft: 8, fontSize: 12 }}>
+                    {item.playerCount} player{item.playerCount === 1 ? "" : "s"} · {item.sponsorshipCount} sponsor{item.sponsorshipCount === 1 ? "" : "s"}
+                  </span>
+                  <div style={{ color: colors.textSecondary, fontSize: 11.5, marginTop: 2 }}>
+                    Marketing history source: {linkedTo ? linkedTo.name : <em>none linked</em>}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} onClick={() => setEditingImport(item)}>Edit</button>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} onClick={() => remove(item)}>Remove</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {!showForm ? (
+        <div style={{ display: "flex", gap: 10 }}>
+          <button style={button.ghost} onClick={() => setShowForm("players")}>+ Import past players</button>
+          <button style={button.ghost} onClick={() => setShowForm("sponsors")}>+ Import past sponsors</button>
+        </div>
+      ) : (
+        <HistoricalImportForm
+          kind={showForm}
+          tournaments={tournaments}
+          imports={imports}
+          onCancel={() => setShowForm(null)}
+          onImported={() => { setShowForm(null); onImportsChanged(); }}
+        />
+      )}
+
+      {editingImport && (
+        <EditHistoricalImportModal
+          item={editingImport}
+          tournaments={tournaments}
+          imports={imports}
+          onCancel={() => setEditingImport(null)}
+          onSaved={() => { setEditingImport(null); onImportsChanged(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditHistoricalImportModal({ item, tournaments, imports, onCancel, onSaved }) {
+  const [name, setName] = useState(item.name);
+  const [previousTournamentId, setPreviousTournamentId] = useState(item.previousTournamentId || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const linkOptions = linkableTournamentOptions(tournaments, imports, item.id);
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api.updateGolfHistoricalImport(item.id, { name: name.trim(), previousTournamentId: previousTournamentId || null });
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onCancel={onCancel} width={440} title={`Edit "${item.name}"`}>
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <Field label="Label"><input style={inputStyle} required value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        {linkOptions.length > 0 && (
+          <Field label="Marketing history source (optional)">
+            <select style={inputStyle} value={previousTournamentId} onChange={(e) => setPreviousTournamentId(e.target.value)}>
+              <option value="">— None —</option>
+              {linkOptions.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+          <button type="submit" style={button.primary} disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+const HISTORICAL_IMPORT_COPY = {
+  players: {
+    title: "Import past players",
+    hint: <>The CSV needs at least a <strong>Player Name</strong> column. Team, Email, Phone, and Captain (yes/no) are optional — rows sharing the same Team name are grouped into one team; a blank Team means that row is its own one-player team.</>,
+    submit: (payload) => api.importGolfHistoricalPlayers(payload),
+    describeResult: (res) => `Imported ${res.imported} player${res.imported === 1 ? "" : "s"} across ${res.teams} team${res.teams === 1 ? "" : "s"}${res.skipped ? ` (${res.skipped} row${res.skipped === 1 ? "" : "s"} skipped — missing a player name)` : ""}.`,
+  },
+  sponsors: {
+    title: "Import past sponsors",
+    hint: <>The CSV needs at least a <strong>Company</strong> column. Contact, Email, Phone, Tier, and Amount are optional.</>,
+    submit: (payload) => api.importGolfHistoricalSponsors(payload),
+    describeResult: (res) => `Imported ${res.imported} sponsor${res.imported === 1 ? "" : "s"}${res.skipped ? ` (${res.skipped} row${res.skipped === 1 ? "" : "s"} skipped — missing a company name)` : ""}.`,
+  },
+};
+
+function HistoricalImportForm({ kind, tournaments, imports, onCancel, onImported }) {
+  const copy = HISTORICAL_IMPORT_COPY[kind];
+  const [target, setTarget] = useState("new"); // "new" | an existing import's id
+  const [year, setYear] = useState(new Date().getFullYear() - 1);
+  const [name, setName] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [csv, setCsv] = useState("");
+  const [previousTournamentId, setPreviousTournamentId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const linkOptions = linkableTournamentOptions(tournaments, imports, null);
+
+  function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError("");
+    setNotice("");
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onerror = () => setError("Couldn't read that file");
+    reader.onload = () => setCsv(String(reader.result || ""));
+    reader.readAsText(file);
+  }
+
+  async function submit() {
+    if (!csv.trim()) return setError("Choose a CSV file first");
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const payload = target === "new"
+        ? { csv, year: Number(year), name: name.trim(), previousTournamentId: previousTournamentId || null }
+        : { csv, existingTournamentId: target };
+      const res = await copy.submit(payload);
+      setNotice(copy.describeResult(res));
+      setTimeout(onImported, 1200);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 480, paddingTop: 4, borderTop: `1px solid ${colors.borderLight}` }}>
+      <div style={{ fontSize: 13, fontWeight: 700 }}>{copy.title}</div>
+      <div style={{ fontSize: 12.5, color: colors.textSecondary }}>{copy.hint}</div>
+
+      {imports.length > 0 && (
+        <Field label="Add to">
+          <select style={inputStyle} value={target} onChange={(e) => setTarget(e.target.value)}>
+            <option value="new">A new archival year</option>
+            {imports.map((imp) => (
+              <option key={imp.id} value={imp.id}>{imp.name}</option>
+            ))}
+          </select>
+        </Field>
+      )}
+
+      {target === "new" && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+            <Field label="Year"><input style={inputStyle} type="number" value={year} onChange={(e) => setYear(e.target.value)} /></Field>
+            <Field label="Label (optional)"><input style={inputStyle} placeholder={`${year} Golf Tournament (imported)`} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          </div>
+          {linkOptions.length > 0 && (
+            <Field label="Marketing history source (optional)">
+              <select style={inputStyle} value={previousTournamentId} onChange={(e) => setPreviousTournamentId(e.target.value)}>
+                <option value="">— None —</option>
+                {linkOptions.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </Field>
+          )}
+        </>
+      )}
+
+      <Field label="CSV file">
+        <input type="file" accept=".csv,text/csv" onChange={handleFile} />
+      </Field>
+      {fileName && <div style={{ fontSize: 11.5, color: colors.textSecondary }}>{fileName}</div>}
+
+      {notice && <div style={{ color: colors.success, fontSize: 12.5 }}>{notice}</div>}
+      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+      <div style={{ display: "flex", gap: 10 }}>
+        <button type="button" style={button.primary} disabled={busy} onClick={submit}>{busy ? "Importing…" : "Import"}</button>
+        <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+      </div>
     </div>
   );
 }

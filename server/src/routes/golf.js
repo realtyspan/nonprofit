@@ -2,6 +2,7 @@ const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess, requireOwner } = require("../lib/auth");
 const { normalizeEmail, findOrCreatePlayer, registerTeam, addGolfLog } = require("../lib/golfLogic");
+const { parseHistoricalPlayersCsv, parseHistoricalSponsorsCsv } = require("../lib/golfHistoricalImport");
 const { stripe, createExpressAccount, createOnboardingLink } = require("../lib/stripe");
 
 const router = express.Router();
@@ -127,8 +128,11 @@ router.delete("/stripe-connect", requireOwner, async (req, res) => {
 
 // --- Tournament management ---
 
+// Historical imports are deliberately excluded here — they're not a real,
+// selectable operational tournament, same as raffle's GET /games. See
+// /historical-imports below.
 router.get("/tournaments", requireReadAccess("golf"), async (req, res) => {
-  const tournaments = await prisma.golfTournament.findMany({ where: { orgId: req.user.orgId }, orderBy: { date: "desc" } });
+  const tournaments = await prisma.golfTournament.findMany({ where: { orgId: req.user.orgId, isHistorical: false }, orderBy: { date: "desc" } });
   res.json(tournaments);
 });
 
@@ -699,6 +703,183 @@ router.get("/sponsors", requireReadAccess("golf"), async (req, res) => {
     orderBy: { companyName: "asc" },
   });
   res.json(sponsors);
+});
+
+// --- Historical imports ---
+// Past-years player/sponsor data, uploaded once so the "email last year's
+// players/sponsors" marketing lists (see plan doc's collectGolfPlayerRecipients
+// / collectGolfSponsorRecipients) have real data to walk instead of coming up
+// empty until the org has run a few tournaments inside this app. Mirrors
+// raffle.js's historical-imports exactly, except golf has two independent
+// lists instead of one, so an import targets an isHistorical GolfTournament
+// "shell" that can receive players and/or sponsors — either created fresh by
+// the first import, or added to by a second import later (an org.js's
+// previousTournamentId is a single field shared by both marketing tracks on
+// a real tournament, so both lists for one archival year need to live on the
+// same row for a real tournament to ever link to both at once).
+
+router.get("/historical-imports", requireReadAccess("golf"), async (req, res) => {
+  const tournaments = await prisma.golfTournament.findMany({
+    where: { orgId: req.user.orgId, isHistorical: true },
+    orderBy: { date: "desc" },
+    include: { _count: { select: { teamPlayers: true, sponsorships: true } } },
+  });
+  res.json(tournaments.map((t) => ({
+    id: t.id, name: t.name, year: t.year, previousTournamentId: t.previousTournamentId,
+    playerCount: t._count.teamPlayers, sponsorshipCount: t._count.sponsorships,
+  })));
+});
+
+// Shared by both import routes below — either reuses an existing historical
+// shell (so a second CSV, of the other kind, can land on the same
+// archival-year row) or creates a fresh one.
+async function findOrCreateHistoricalTournament(orgId, { existingTournamentId, year, name, previousTournamentId }) {
+  if (existingTournamentId) {
+    const existing = await prisma.golfTournament.findFirst({ where: { id: existingTournamentId, orgId, isHistorical: true } });
+    if (!existing) throw Object.assign(new Error("That historical import wasn't found"), { status: 400 });
+    return existing;
+  }
+  const yearNum = Number(year);
+  if (!Number.isInteger(yearNum) || yearNum < 1900 || yearNum > 2200) {
+    throw Object.assign(new Error("A valid year is required"), { status: 400 });
+  }
+  const resolvedPreviousId = await resolvePreviousTournamentId(orgId, previousTournamentId, null);
+  return prisma.golfTournament.create({
+    data: {
+      orgId,
+      name: (name && name.trim()) || `${yearNum} Golf Tournament (imported)`,
+      year: yearNum,
+      date: new Date(Date.UTC(yearNum, 5, 1)),
+      costPerPlayer: 0,
+      status: "closed",
+      closedAt: new Date(Date.UTC(yearNum, 11, 31)),
+      isHistorical: true,
+      previousTournamentId: resolvedPreviousId,
+    },
+  });
+}
+
+router.post("/historical-imports/players", requirePermission("golf", "Admin"), async (req, res) => {
+  const { csv, existingTournamentId, year, name, previousTournamentId } = req.body;
+  if (!csv || !csv.trim()) return res.status(400).json({ error: "Paste or choose a CSV file first" });
+
+  let rows, skipped;
+  try {
+    ({ rows, skipped } = parseHistoricalPlayersCsv(csv));
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (rows.length === 0) {
+    return res.status(400).json({ error: "No usable rows found — each row needs at least a player name" });
+  }
+
+  let tournament;
+  try {
+    tournament = await findOrCreateHistoricalTournament(req.user.orgId, { existingTournamentId, year, name, previousTournamentId });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+
+  // Group rows into teams by (trimmed, case-insensitive) team name; a blank
+  // team name means that row is its own one-person team, not grouped with
+  // any other blank-team-name row.
+  const teamGroups = [];
+  const namedGroupIndex = new Map();
+  for (const r of rows) {
+    if (r.teamName) {
+      const key = r.teamName.toLowerCase();
+      if (!namedGroupIndex.has(key)) {
+        namedGroupIndex.set(key, teamGroups.length);
+        teamGroups.push({ teamName: r.teamName, rows: [] });
+      }
+      teamGroups[namedGroupIndex.get(key)].rows.push(r);
+    } else {
+      teamGroups.push({ teamName: null, rows: [r] });
+    }
+  }
+
+  let imported = 0;
+  for (const group of teamGroups) {
+    const team = await prisma.golfTeam.create({ data: { orgId: req.user.orgId, tournamentId: tournament.id, name: group.teamName } });
+    for (let i = 0; i < group.rows.length; i++) {
+      const r = group.rows[i];
+      const player = await findOrCreatePlayer(prisma, req.user.orgId, { name: r.name, email: r.email, phone: r.phone });
+      await prisma.golfTeamPlayer.create({
+        data: {
+          orgId: req.user.orgId, tournamentId: tournament.id, teamId: team.id, playerId: player.id,
+          isCaptain: r.isCaptain != null ? r.isCaptain : i === 0,
+          amountDue: 0,
+        },
+      });
+      imported++;
+    }
+  }
+
+  res.json({ ok: true, tournamentId: tournament.id, imported, teams: teamGroups.length, skipped });
+});
+
+router.post("/historical-imports/sponsors", requirePermission("golf", "Admin"), async (req, res) => {
+  const { csv, existingTournamentId, year, name, previousTournamentId } = req.body;
+  if (!csv || !csv.trim()) return res.status(400).json({ error: "Paste or choose a CSV file first" });
+
+  let rows, skipped;
+  try {
+    ({ rows, skipped } = parseHistoricalSponsorsCsv(csv));
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (rows.length === 0) {
+    return res.status(400).json({ error: "No usable rows found — each row needs at least a company name" });
+  }
+
+  let tournament;
+  try {
+    tournament = await findOrCreateHistoricalTournament(req.user.orgId, { existingTournamentId, year, name, previousTournamentId });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+
+  let imported = 0;
+  for (const r of rows) {
+    const sponsor = await findOrCreateSponsorContact(req.user.orgId, { companyName: r.companyName, contactName: r.contactName, email: r.email, phone: r.phone });
+    await prisma.golfSponsorship.create({
+      data: {
+        orgId: req.user.orgId, tournamentId: tournament.id, sponsorId: sponsor.id,
+        tierName: r.tierName || null, amount: r.amount, status: "confirmed", source: "manual",
+      },
+    });
+    imported++;
+  }
+
+  res.json({ ok: true, tournamentId: tournament.id, imported, skipped });
+});
+
+router.delete("/historical-imports/:id", requirePermission("golf", "Admin"), async (req, res) => {
+  const tournament = await prisma.golfTournament.findFirst({ where: { id: req.params.id, orgId: req.user.orgId, isHistorical: true } });
+  if (!tournament) return res.status(404).json({ error: "That historical import wasn't found" });
+  await prisma.golfTournament.delete({ where: { id: tournament.id } });
+  res.json({ ok: true });
+});
+
+// Lets an import's label/link be changed after the fact — same reasoning as
+// raffle.js's equivalent: a new import's "pull past players/sponsors from"
+// dropdown can only offer imports that already existed at the time it was
+// created, so an older year imported later needs this to connect to it.
+router.patch("/historical-imports/:id", requirePermission("golf", "Admin"), async (req, res) => {
+  const tournament = await prisma.golfTournament.findFirst({ where: { id: req.params.id, orgId: req.user.orgId, isHistorical: true } });
+  if (!tournament) return res.status(404).json({ error: "That historical import wasn't found" });
+  const { name, previousTournamentId } = req.body;
+  let resolvedPreviousId;
+  try {
+    resolvedPreviousId = await resolvePreviousTournamentId(req.user.orgId, previousTournamentId, tournament.id);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+  const updated = await prisma.golfTournament.update({
+    where: { id: tournament.id },
+    data: { name: (name && name.trim()) || tournament.name, previousTournamentId: resolvedPreviousId },
+  });
+  res.json(updated);
 });
 
 module.exports = router;

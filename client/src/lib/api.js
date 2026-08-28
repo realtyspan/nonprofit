@@ -256,6 +256,12 @@ export const api = {
   confirmGolfSponsorship: (tournamentId, sponsorshipId) => request(`/golf/tournaments/${tournamentId}/sponsorships/${sponsorshipId}/confirm`, { method: "POST" }),
   searchGolfSponsors: (search) => request(`/golf/sponsors?search=${encodeURIComponent(search)}`),
 
+  listGolfHistoricalImports: () => request("/golf/historical-imports"),
+  importGolfHistoricalPlayers: (payload) => request("/golf/historical-imports/players", { method: "POST", body: payload }),
+  importGolfHistoricalSponsors: (payload) => request("/golf/historical-imports/sponsors", { method: "POST", body: payload }),
+  updateGolfHistoricalImport: (id, payload) => request(`/golf/historical-imports/${id}`, { method: "PATCH", body: payload }),
+  deleteGolfHistoricalImport: (id) => request(`/golf/historical-imports/${id}`, { method: "DELETE" }),
+
   getGolfStripeConnect: () => request("/golf/stripe-connect"),
   onboardGolfStripeConnect: () => request("/golf/stripe-connect/onboard", { method: "POST" }),
   syncGolfStripeConnect: () => request("/golf/stripe-connect/sync", { method: "POST" }),
