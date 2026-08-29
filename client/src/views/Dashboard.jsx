@@ -35,7 +35,7 @@ export default function Dashboard({ deals, onOpenReports }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14 }}>
         {stats.map((s) => (
-          <div key={s.label} style={card}>
+          <div key={s.label} style={{ ...card, borderLeft: `3px solid ${colors.accent}` }}>
             <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", color: colors.textSecondary }}>{s.label}</div>
             <div style={{ fontSize: typeof s.value === "string" && s.value.includes("/") ? 19 : 26, fontWeight: 800, fontFamily: mono, marginTop: 6, whiteSpace: "nowrap" }}>{s.value}</div>
             {s.trend && (
@@ -75,7 +75,7 @@ export default function Dashboard({ deals, onOpenReports }) {
           </div>
         </div>
 
-        <div style={{ ...card, display: "flex", flexDirection: "column" }}>
+        <div style={{ ...card, display: "flex", flexDirection: "column", borderLeft: `3px solid ${colors.focus}` }}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>GC-7Q sign-off status</div>
           <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 10 }}>Q{quarter} {year}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
