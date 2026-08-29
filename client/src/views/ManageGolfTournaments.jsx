@@ -3,6 +3,7 @@ import { colors, card, pill, button, input as inputStyle, money } from "../lib/t
 import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
 import { resizeImageFile } from "../lib/imageResize";
+import { formatPhone, stripPhone } from "../lib/phone";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
 import PublicLinkBox from "../components/PublicLinkBox";
@@ -362,7 +363,7 @@ function TournamentForm({ tournament, tournaments, historicalImports = [], onCan
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
         <Field label="Contact name"><input style={inputStyle} value={form.contactName} onChange={(e) => set("contactName", e.target.value)} /></Field>
-        <Field label="Contact phone"><input style={inputStyle} value={form.contactPhone} onChange={(e) => set("contactPhone", e.target.value)} /></Field>
+        <Field label="Contact phone"><input style={inputStyle} value={formatPhone(form.contactPhone)} onChange={(e) => set("contactPhone", stripPhone(e.target.value))} /></Field>
         <Field label="Contact email"><input style={inputStyle} type="email" value={form.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} /></Field>
       </div>
 

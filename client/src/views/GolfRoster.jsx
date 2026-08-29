@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
+import { formatPhone, stripPhone } from "../lib/phone";
 
 const PAYMENT_STYLE = {
   unpaid: [colors.warningBg, colors.warning, "Unpaid"],
@@ -208,7 +209,7 @@ function AddPlayerForm({ tournament, team, onCancel, onAdded }) {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <input style={{ ...inputStyle, flex: "1 1 140px" }} required placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
         <input style={{ ...inputStyle, flex: "1 1 160px" }} type="email" placeholder="Email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input style={{ ...inputStyle, flex: "1 1 120px" }} placeholder="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <input style={{ ...inputStyle, flex: "1 1 120px" }} placeholder="Phone (optional)" value={formatPhone(phone)} onChange={(e) => setPhone(stripPhone(e.target.value))} />
       </div>
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
         <input type="checkbox" checked={isCaptain} onChange={(e) => setIsCaptain(e.target.checked)} /> Captain
@@ -300,7 +301,7 @@ function AddTeamModal({ tournament, onCancel, onCreated }) {
           <div key={i} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: 8, background: "#f7f4ec", borderRadius: 8 }}>
             <input style={{ ...inputStyle, flex: "1 1 140px" }} required placeholder="Name" value={p.name} onChange={(e) => setPlayer(i, "name", e.target.value)} />
             <input style={{ ...inputStyle, flex: "1 1 160px" }} type="email" placeholder="Email (optional)" value={p.email} onChange={(e) => setPlayer(i, "email", e.target.value)} />
-            <input style={{ ...inputStyle, flex: "1 1 120px" }} placeholder="Phone (optional)" value={p.phone} onChange={(e) => setPlayer(i, "phone", e.target.value)} />
+            <input style={{ ...inputStyle, flex: "1 1 120px" }} placeholder="Phone (optional)" value={formatPhone(p.phone)} onChange={(e) => setPlayer(i, "phone", stripPhone(e.target.value))} />
             <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
               <input type="checkbox" checked={p.isCaptain} onChange={(e) => setPlayer(i, "isCaptain", e.target.checked)} /> Captain
             </label>

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { colors, card, button, input as inputStyle, money } from "../lib/tokens";
 import { publicApi } from "../lib/api";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
+import { formatPhone, stripPhone } from "../lib/phone";
 import logo from "../assets/logo.png";
 import defaultFlyerImage from "../assets/golf-default-flyer.jpg";
 
@@ -324,7 +325,7 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
                 <PhoneIcon />
                 <span>
                   Questions?{tournament.contactName ? ` ${tournament.contactName}` : ""}
-                  {tournament.contactPhone ? <> · <a href={`tel:${tournament.contactPhone.replace(/[^\d+]/g, "")}`}>{tournament.contactPhone}</a></> : null}
+                  {tournament.contactPhone ? <> · <a href={`tel:${tournament.contactPhone.replace(/[^\d+]/g, "")}`}>{formatPhone(tournament.contactPhone)}</a></> : null}
                   {tournament.contactEmail ? <> · <a href={`mailto:${tournament.contactEmail}`}>{tournament.contactEmail}</a></> : null}
                 </span>
               </p>
@@ -422,7 +423,7 @@ function RegisterForm({ tournament, slug, onCancel }) {
         <div key={i} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <input style={{ ...inputStyle, flex: "1 1 140px" }} required placeholder={i === 0 ? "Your name" : "Player name"} value={p.name} onChange={(e) => setPlayer(i, "name", e.target.value)} />
           <input style={{ ...inputStyle, flex: "1 1 160px" }} type="email" placeholder="Email" value={p.email} onChange={(e) => setPlayer(i, "email", e.target.value)} />
-          <input style={{ ...inputStyle, flex: "1 1 120px" }} placeholder="Phone" value={p.phone} onChange={(e) => setPlayer(i, "phone", e.target.value)} />
+          <input style={{ ...inputStyle, flex: "1 1 120px" }} placeholder="Phone" value={formatPhone(p.phone)} onChange={(e) => setPlayer(i, "phone", stripPhone(e.target.value))} />
           {players.length > 1 && <button type="button" style={{ ...button.ghost, padding: "4px 8px", fontSize: 11.5, color: colors.danger }} onClick={() => removePlayerRow(i)}>Remove</button>}
         </div>
       ))}
