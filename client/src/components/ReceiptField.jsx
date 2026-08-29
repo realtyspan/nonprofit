@@ -55,7 +55,7 @@ export default function ReceiptField({ receiptFile, receiptFileName, onChange, l
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b" }}>{label}</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "#5c564c" }}>{label}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {isImage && (
           <img src={receiptFile} alt={itemLabel} style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, border: `1px solid ${colors.border}` }} />

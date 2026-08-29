@@ -43,7 +43,7 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
 
   const lifecycleLabel = selected?.status === "open" ? "Close tournament" : selected?.status === "closed" ? "Reopen tournament" : "Open for registration";
   const statusStyle = (status) =>
-    status === "open" ? [colors.successBg, colors.success] : status === "closed" ? ["#f0f0f3", colors.textSecondary] : [colors.warningBg, colors.warning];
+    status === "open" ? [colors.successBg, colors.success] : status === "closed" ? ["#f1ece0", colors.textSecondary] : [colors.warningBg, colors.warning];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -234,7 +234,7 @@ function StripeConnectCard() {
     <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
         <div style={{ fontSize: 15, fontWeight: 700 }}>Online payment settings</div>
-        <span style={pill(...(connected ? [colors.successBg, colors.success] : ["#f0f0f3", colors.textSecondary]))}>
+        <span style={pill(...(connected ? [colors.successBg, colors.success] : ["#f1ece0", colors.textSecondary]))}>
           {connected ? "Connected" : startedNotFinished ? "Setup incomplete" : "Not connected"}
         </span>
       </div>
@@ -515,7 +515,7 @@ function TournamentFlyerField({ image, position, onChange, onPositionChange }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b" }}>Tournament photo/flyer (optional)</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "#5c564c" }}>Tournament photo/flyer (optional)</div>
       <div style={{ fontSize: 11, color: colors.textSecondary }}>Shown at the top of your public registration page and website embed.</div>
       {image && (
         <img
@@ -796,7 +796,7 @@ function HistoricalImportForm({ kind, tournaments, imports, onCancel, onImported
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

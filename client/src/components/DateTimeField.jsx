@@ -24,7 +24,7 @@ export default function DateTimeField({ label, value, onChange, t }) {
   const datePart = value.slice(0, 10);
   const timePart = value.slice(11, 16);
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: t ? t.textSecondary : "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: t ? t.textSecondary : "#5c564c" }}>
       {label}
       <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 6 }}>
         <input style={{ ...inputStyle, flex: isMobile ? undefined : 1.3 }} type="date" required value={datePart} onChange={(e) => onChange(`${e.target.value}T${timePart}`)} />

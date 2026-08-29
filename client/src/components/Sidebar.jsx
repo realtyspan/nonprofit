@@ -44,10 +44,10 @@ export default function Sidebar({ module, view, setView, badges, permissions }) 
               style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 8,
                 border: "none", background: active ? "#f4f4f6" : "transparent", cursor: "pointer",
-                textAlign: "left", fontSize: 13.5, fontWeight: 500, color: active ? colors.textPrimary : "#52525b",
+                textAlign: "left", fontSize: 13.5, fontWeight: 500, color: active ? colors.textPrimary : "#5c564c",
               }}
             >
-              <span dangerouslySetInnerHTML={{ __html: item.icon }} style={{ width: 18, height: 18, flex: "none", color: active ? colors.accent : "#8b8b95", display: "flex" }} />
+              <span dangerouslySetInnerHTML={{ __html: item.icon }} style={{ width: 18, height: 18, flex: "none", color: active ? colors.accent : "#756f63", display: "flex" }} />
               <span style={{ flex: 1 }}>{item.label}</span>
               {badge > 0 && (
                 <span style={{ background: colors.warningAmber, color: "#fff", fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99 }}>{badge}</span>

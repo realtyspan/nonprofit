@@ -47,7 +47,7 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
             <div style={{ fontSize: 15, fontWeight: 700 }}>
               {selectedGame.name} — tickets #{selectedGame.startNumber}–#{selectedGame.endNumber}
             </div>
-            <span style={pill(selectedGame.status === "active" ? colors.successBg : "#f0f0f3", selectedGame.status === "active" ? colors.success : colors.textSecondary)}>
+            <span style={pill(selectedGame.status === "active" ? colors.successBg : "#f1ece0", selectedGame.status === "active" ? colors.success : colors.textSecondary)}>
               {selectedGame.status}
             </span>
           </div>
@@ -97,7 +97,7 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
             { key: "tickets", label: "Tickets", grid: "1fr", render: (g) => `#${g.startNumber}–#${g.endNumber}` },
             { key: "price", label: "Price", grid: "1fr", render: (g) => money(g.ticketPrice) },
             { key: "dates", label: "Dates", grid: "1fr", render: (g) => <span style={{ fontSize: 12, color: colors.textSecondary }}>{formatUtcDate(g.raffleStartDate)} – {formatUtcDate(g.raffleEndDate)}</span> },
-            { key: "status", label: "Status", grid: "0.6fr", render: (g) => <span style={pill(g.status === "active" ? colors.successBg : "#f0f0f3", g.status === "active" ? colors.success : colors.textSecondary)}>{g.status}</span> },
+            { key: "status", label: "Status", grid: "0.6fr", render: (g) => <span style={pill(g.status === "active" ? colors.successBg : "#f1ece0", g.status === "active" ? colors.success : colors.textSecondary)}>{g.status}</span> },
             {
               key: "actions", label: "", footerRow: true,
               render: (g) => g.status === "active" ? (
@@ -376,7 +376,7 @@ function KickoffEmailCard({ game }) {
                             { key: "phone", label: "Phone", grid: "1fr", render: (r) => formatPhone(r.phone) || "—" },
                             { key: "years", label: "Years", grid: "0.8fr", render: (r) => r.years.join(", ") },
                             { key: "seller", label: "Last seller", grid: "0.9fr", render: (r) => r.lastSellerName || "—" },
-                            { key: "status", label: "", grid: "0.9fr", render: (r) => (r.suppressed ? <span style={pill("#f0f0f3", colors.textSecondary)}>Unsubscribed</span> : null) },
+                            { key: "status", label: "", grid: "0.9fr", render: (r) => (r.suppressed ? <span style={pill("#f1ece0", colors.textSecondary)}>Unsubscribed</span> : null) },
                           ]}
                         />
                       </div>
@@ -830,7 +830,7 @@ function DeleteRaffleModal({ game, onCancel, onDeleted }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

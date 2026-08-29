@@ -298,7 +298,7 @@ function RaffleTicketModal({ gameId, ticket, permissions, onClose, onChanged }) 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {previousBuyers.length > 0 && (
               <div style={{ border: `1px solid ${colors.borderLight}`, borderRadius: 8, padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b", textTransform: "uppercase" }}>Previously purchased by</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#5c564c", textTransform: "uppercase" }}>Previously purchased by</div>
                 {previousBuyers.map((prev, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12.5 }}>
                     <div>
@@ -345,7 +345,7 @@ function RaffleTicketModal({ gameId, ticket, permissions, onClose, onChanged }) 
 
             {previousBuyers.length > 0 && (
               <div style={{ border: `1px solid ${colors.borderLight}`, borderRadius: 8, padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b", textTransform: "uppercase" }}>Past buyers</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#5c564c", textTransform: "uppercase" }}>Past buyers</div>
                 {previousBuyers.map((prev, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 12.5 }}>
                     <span style={{ color: colors.textSecondary, fontSize: 11, minWidth: 34 }}>{new Date(prev.raffleStartDate).getUTCFullYear()}</span>
@@ -413,7 +413,7 @@ function TenderFields({ tenderType, setTenderType, tenderAmount, setTenderAmount
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

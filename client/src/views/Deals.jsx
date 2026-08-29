@@ -119,7 +119,7 @@ export default function Deals({ deals, onChanged, permissions }) {
               render: (d) => d.eligibleToClose ? (
                 <span style={pill(colors.warningBg, colors.warning)}>≥{formatPct(d.closeThreshold)} eligible</span>
               ) : (
-                <span style={pill("#f0f0f3", colors.textSecondary)}>Below {formatPct(d.closeThreshold)} threshold</span>
+                <span style={pill("#f1ece0", colors.textSecondary)}>Below {formatPct(d.closeThreshold)} threshold</span>
               ),
             },
             {
@@ -261,12 +261,12 @@ function CloseDealModal({ deal, onCancel, onConfirm, error }) {
     <Modal onCancel={onCancel} width={420} title={`Close "${deal.name}"`}>
       <div style={{ fontSize: 12.5, color: colors.textSecondary, marginBottom: 16 }}>Enter the physical unsold ticket count to compute final profit.</div>
 
-      <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 600, color: "#52525b", marginBottom: 14 }}>
+      <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 600, color: "#5c564c", marginBottom: 14 }}>
         Unsold ticket count (N)
         <input style={inputStyle} type="number" min="0" max={deal.ticketCount} value={unsoldCount} onChange={(e) => setUnsoldCount(e.target.value)} autoFocus />
       </label>
 
-      <div style={{ background: "#fafafa", borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 6, fontSize: 13, fontFamily: mono, marginBottom: 16 }}>
+      <div style={{ background: "#f7f4ec", borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 6, fontSize: 13, fontFamily: mono, marginBottom: 16 }}>
         <Row label="Ideal ticket value (I)" value={money(I)} />
         <Row label="Prizes awarded (M)" value={money(M)} />
         <Row label="Unsold value (O)" value={money(O)} />
@@ -375,7 +375,7 @@ function AddGameForm({ onCancel, onCreated, onError, error }) {
   }
 
   return (
-    <form onSubmit={submit} style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}`, background: "#fafafa", display: "flex", flexDirection: "column", gap: 10 }}>
+    <form onSubmit={submit} style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}`, background: "#f7f4ec", display: "flex", flexDirection: "column", gap: 10 }}>
       <LabelPhotoField image={form.labelImage} onImageChange={(img) => set("labelImage", img)} onScanned={applyScan} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
         <Field label="Game name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
@@ -489,7 +489,7 @@ function EditGameModal({ deal, onCancel, onSaved }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

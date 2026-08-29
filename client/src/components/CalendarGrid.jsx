@@ -24,7 +24,7 @@ function addDays(d, n) {
 // optionally overrides colors (embed use, to match a host site's palette);
 // anything not overridden falls back to the app's own design tokens.
 export default function CalendarGrid({ month, events, onSelectDay, onSelectEvent, theme }) {
-  const t = { surface: "#fff", bg: "#fafafa", ...colors, ...theme };
+  const t = { surface: "#fff", bg: "#f7f4ec", ...colors, ...theme };
   const first = startOfMonth(month);
   const gridStart = addDays(first, -first.getDay());
   const days = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));

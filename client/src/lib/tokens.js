@@ -1,15 +1,26 @@
-// Design tokens ported from the design_handoff_bell_jar_manager README/prototype.
+// Design tokens — refreshed to draw from the actual logo mark (teal ring,
+// terracotta center, warm cream gear) instead of an unrelated violet+cool-gray
+// palette. One accent pairing for the whole app, deliberately not a different
+// color per module (see the design proposal thread) — accent (teal) covers
+// structural/default actions everywhere, focus (terracotta) is reserved for
+// the one action per screen that should read as the obvious next step.
+// Semantic colors (success/warning/danger) are untouched — they're a separate
+// system from brand accent and were never the complaint.
 export const colors = {
-  bg: "#f7f7f9",
+  bg: "#faf8f2",
   surface: "#ffffff",
-  border: "#ececef",
-  borderStrong: "#d4d4db",
-  borderLight: "#f2f2f4",
-  textPrimary: "#18181b",
-  textSecondary: "#8b8b95",
-  textTertiary: "#9a9aa2",
-  accent: "#6860dc",
-  accentHover: "#4a42c2",
+  border: "#ece6d9",
+  borderStrong: "#d9d2c2",
+  borderLight: "#f1ece0",
+  textPrimary: "#23302f",
+  textSecondary: "#756f63",
+  textTertiary: "#a39c8d",
+  accent: "#25555f",
+  accentHover: "#1a3f47",
+  accentSoft: "#e2ebea", // soft teal tint — secondary buttons, active nav state
+  focus: "#cd715c", // terracotta — the one loud action per screen, used sparingly
+  focusHover: "#b35943",
+  focusBg: "#fbe9e4",
   success: "#16803c",
   successBg: "#e0f2ea",
   warning: "#92400e",
@@ -17,9 +28,9 @@ export const colors = {
   warningAmber: "#d97706",
   danger: "#dc2626",
   dangerBg: "#fef2f2",
-  indigo: "#4338ca",
-  indigoBg: "#eef0ff",
-  nearBlack: "#18181b",
+  indigo: "#25555f", // "info" pills now match the brand teal rather than a leftover violet
+  indigoBg: "#e2ebea",
+  nearBlack: "#23302f",
 };
 
 export const mono = "'JetBrains Mono', monospace";
@@ -46,6 +57,19 @@ export const pill = (bg, color) => ({
 export const button = {
   primary: {
     background: colors.accent,
+    color: "#fff",
+    border: "none",
+    borderRadius: 8,
+    padding: "9px 16px",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  // Reserved for the one action per screen that should outrank every other
+  // primary button on it (e.g. a compliance deadline, a "pay now" CTA) — not
+  // a wholesale replacement for `primary`. Sparing use is what makes it work.
+  focus: {
+    background: colors.focus,
     color: "#fff",
     border: "none",
     borderRadius: 8,

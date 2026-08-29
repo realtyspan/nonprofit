@@ -30,7 +30,7 @@ const LOG_TYPE_LABEL = {
 };
 
 const LOG_TYPE_COLOR = {
-  created: ["#f0f0f3", colors.textSecondary],
+  created: ["#f1ece0", colors.textSecondary],
   edited: [colors.indigoBg, colors.indigo],
   confirmed: [colors.successBg, colors.success],
   declined: ["#fee2e2", colors.danger],
@@ -153,7 +153,7 @@ export default function RentalBookings({ spaces, onChanged, permissions }) {
               render: (b) => (
                 <>
                   {b.renterName}
-                  {b.fundsDepositedAt && <span style={{ ...pill("#f0f0f3", colors.textSecondary), marginLeft: 8 }}>🔒 Locked</span>}
+                  {b.fundsDepositedAt && <span style={{ ...pill("#f1ece0", colors.textSecondary), marginLeft: 8 }}>🔒 Locked</span>}
                 </>
               ),
             },
@@ -368,7 +368,7 @@ function ReviewModal({ booking, onCancel, onDone }) {
         )}
 
         {quote && (
-          <div style={{ background: "#fafafa", borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginBottom: 14 }}>
+          <div style={{ background: "#f7f4ec", borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginBottom: 14 }}>
             <Row label="Space" value={money(quote.spaceCost)} />
             {wantsBartender && <Row label="Bartender" value={money(quote.bartenderCost)} />}
             {wantsLinen && <Row label="Linen" value={money(quote.linenCost)} />}
@@ -396,12 +396,12 @@ function ReviewModal({ booking, onCancel, onDone }) {
           </div>
         )}
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 600, color: "#52525b", marginBottom: 14 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 600, color: "#5c564c", marginBottom: 14 }}>
           Deposit to collect
           <input style={inputStyle} type="number" step="0.01" min="0" value={deposit} onChange={(e) => setDeposit(e.target.value)} />
         </label>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 600, color: "#52525b", marginBottom: 14 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 600, color: "#5c564c", marginBottom: 14 }}>
           Decline reason (only needed if declining)
           <input style={inputStyle} value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Date already booked" />
         </label>
@@ -510,7 +510,7 @@ function PaymentModal({ booking, isRentalsAdmin, onCancel, onSaved, onBookingRef
   return (
     <Modal onCancel={onCancel} width={460} title={`Payment — ${booking.renterName}`}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ background: "#fafafa", borderRadius: 10, padding: 12, display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+        <div style={{ background: "#f7f4ec", borderRadius: 10, padding: 12, display: "flex", justifyContent: "space-between", fontSize: 13 }}>
           <div><div style={{ color: colors.textSecondary, fontSize: 11 }}>Total</div>{money(booking.quotedTotal || 0)}</div>
           <div><div style={{ color: colors.textSecondary, fontSize: 11 }}>Paid so far</div>{money(totalPaid)}</div>
           <div>
@@ -636,12 +636,12 @@ function SignModal({ booking, onCancel, onSaved }) {
           </div>
         )}
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
           Printed name
           <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} />
         </label>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
           Signature
           <SignaturePad onChange={setSignatureImage} />
         </label>
@@ -926,7 +926,7 @@ function ActivityLogList({ bookingId }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {logs.map((l) => {
-        const [bg, text] = LOG_TYPE_COLOR[l.type] || ["#f0f0f3", colors.textSecondary];
+        const [bg, text] = LOG_TYPE_COLOR[l.type] || ["#f1ece0", colors.textSecondary];
         return (
           <div key={l.id} style={{ display: "flex", flexDirection: "column", gap: 3, paddingBottom: 8, borderBottom: `1px solid ${colors.borderLight}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -1007,7 +1007,7 @@ function HistoryDetailModal({ booking, onCancel, onChanged }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{booking.renterName}</div>
-          <span style={pill("#f0f0f3", colors.textSecondary)}>{booking.status}</span>
+          <span style={pill("#f1ece0", colors.textSecondary)}>{booking.status}</span>
         </div>
         <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
           {booking.space?.name} · {new Date(booking.startAt).toLocaleString()} – {new Date(booking.endAt).toLocaleTimeString()}
@@ -1025,7 +1025,7 @@ function HistoryDetailModal({ booking, onCancel, onChanged }) {
         )}
 
         {booking.quotedTotal != null && (
-          <div style={{ background: "#fafafa", borderRadius: 10, padding: 12, fontSize: 13 }}>
+          <div style={{ background: "#f7f4ec", borderRadius: 10, padding: 12, fontSize: 13 }}>
             <Row label="Quoted total" value={money(booking.quotedTotal)} />
             <Row label="Paid" value={money(booking.totalPaid || 0)} />
             <Row label="Balance" value={money(booking.balanceDue ?? booking.quotedTotal)} />
@@ -1144,7 +1144,7 @@ function BookingForm({ spaces, onCreated, onError, error }) {
   const space = spaces.find((s) => s.id === form.spaceId);
 
   return (
-    <form onSubmit={submit} style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}`, background: "#fafafa", display: "flex", flexDirection: "column", gap: 10 }}>
+    <form onSubmit={submit} style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}`, background: "#f7f4ec", display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
         <Field label="Renter name"><input style={inputStyle} required value={form.renterName} onChange={(e) => set("renterName", e.target.value)} /></Field>
         <Field label="Email"><input style={inputStyle} type="email" required value={form.renterEmail} onChange={(e) => set("renterEmail", e.target.value)} /></Field>
@@ -1211,7 +1211,7 @@ function BookingForm({ spaces, onCreated, onError, error }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

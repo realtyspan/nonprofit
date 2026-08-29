@@ -145,7 +145,7 @@ window.addEventListener("message", function (e) {
             <ThemeField label="Text color"><input style={inputStyle} value={theme.text} onChange={(e) => setThemeField("text", e.target.value)} placeholder="18181b" /></ThemeField>
             <ThemeField label="Font (Google Fonts name)"><input style={inputStyle} value={theme.font} onChange={(e) => setThemeField("font", e.target.value)} placeholder="Poppins" /></ThemeField>
           </div>
-          <pre style={{ background: "#18181b", color: "#e5e5e5", borderRadius: 8, padding: 12, fontSize: 11.5, overflowX: "auto", margin: 0 }}>{iframeCode}</pre>
+          <pre style={{ background: "#23302f", color: "#e5e5e5", borderRadius: 8, padding: 12, fontSize: 11.5, overflowX: "auto", margin: 0 }}>{iframeCode}</pre>
           <div>
             <button style={button.primary} onClick={copyCode}>{copied ? "Copied!" : "Copy code"}</button>
           </div>
@@ -157,7 +157,7 @@ window.addEventListener("message", function (e) {
 
 function ThemeField({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

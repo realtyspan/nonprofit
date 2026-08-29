@@ -22,7 +22,7 @@ export default function SignaturePad({ onChange, height = 160 }) {
       ctx.lineWidth = 2.2;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.strokeStyle = "#18181b";
+      ctx.strokeStyle = "#23302f";
     };
     resize();
     window.addEventListener("resize", resize);

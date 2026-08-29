@@ -55,7 +55,7 @@ export default function GolfSponsors({ tournament }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <span style={pill("#f0f0f3", colors.textSecondary)}>{sponsorships.length} sponsor{sponsorships.length === 1 ? "" : "s"}</span>
+        <span style={pill("#f1ece0", colors.textSecondary)}>{sponsorships.length} sponsor{sponsorships.length === 1 ? "" : "s"}</span>
         <span style={pill(colors.successBg, colors.success)}>{money(totalRaised)} raised</span>
       </div>
 

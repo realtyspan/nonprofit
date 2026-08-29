@@ -97,7 +97,7 @@ function NavRow({ icon, label, badge, active, onClick }) {
         textAlign: "left", fontSize: 15, fontWeight: 500, color: active ? colors.textPrimary : "#3f3f46", width: "100%",
       }}
     >
-      <span dangerouslySetInnerHTML={{ __html: icon }} style={{ width: 20, height: 20, flex: "none", color: active ? colors.accent : "#8b8b95", display: "flex" }} />
+      <span dangerouslySetInnerHTML={{ __html: icon }} style={{ width: 20, height: 20, flex: "none", color: active ? colors.accent : "#756f63", display: "flex" }} />
       <span style={{ flex: 1 }}>{label}</span>
       {badge > 0 && (
         <span style={{ background: colors.warningAmber, color: "#fff", fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 99 }}>{badge}</span>

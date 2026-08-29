@@ -202,7 +202,7 @@ export default function PublicRental({ slug, embed }) {
 
 function Field({ label, children, t }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: t ? t.textSecondary : "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: t ? t.textSecondary : "#5c564c" }}>
       {label}
       {children}
     </label>

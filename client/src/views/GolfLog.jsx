@@ -43,9 +43,9 @@ const TYPE_COLOR = {
   sponsorship_payment_recorded: [colors.successBg, colors.success],
   sponsorship_comped_team: [colors.indigoBg, colors.indigo],
   kickoff_email_sent: [colors.indigoBg, colors.indigo],
-  kickoff_email_test_sent: ["#f0f0f3", colors.textSecondary],
+  kickoff_email_test_sent: ["#f1ece0", colors.textSecondary],
   sponsor_email_sent: [colors.indigoBg, colors.indigo],
-  sponsor_email_test_sent: ["#f0f0f3", colors.textSecondary],
+  sponsor_email_test_sent: ["#f1ece0", colors.textSecondary],
   stripe_connected: [colors.successBg, colors.success],
   stripe_disconnected: ["#fee2e2", colors.danger],
 };
@@ -69,7 +69,7 @@ export default function GolfLog({ tournament }) {
         <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>Every registration, payment, and check-in, in order.</div>
       </div>
       {logs.map((l) => {
-        const [bg, text] = TYPE_COLOR[l.type] || ["#f0f0f3", colors.textSecondary];
+        const [bg, text] = TYPE_COLOR[l.type] || ["#f1ece0", colors.textSecondary];
         return (
           <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13 }}>
             <span style={pill(bg, text)}>{TYPE_LABEL[l.type] || l.type}</span>

@@ -8,7 +8,7 @@ import { icons } from "../lib/icons";
 // event") on the right. `theme` lets the public embed recolor it to match a
 // host site, same pattern as CalendarGrid/CalendarWeekGrid.
 export default function CalendarToolbar({ periodLabel, onPrev, onNext, onToday, viewMode, onChangeViewMode, theme, right }) {
-  const t = { surface: "#fff", bg: "#fafafa", ...colors, ...theme };
+  const t = { surface: "#fff", bg: "#f7f4ec", ...colors, ...theme };
 
   const navBtnStyle = {
     width: 28, height: 28, borderRadius: 8, border: `1px solid ${t.border}`, background: t.surface,

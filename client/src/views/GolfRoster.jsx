@@ -37,7 +37,7 @@ export default function GolfRoster({ tournament }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {stats && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <span style={pill("#f0f0f3", colors.textSecondary)}>
+          <span style={pill("#f1ece0", colors.textSecondary)}>
             {stats.registeredTeams}{stats.capacity ? `/${stats.capacity}` : ""} teams
           </span>
           <span style={pill(...PAYMENT_STYLE.unpaid.slice(0, 2))}>{stats.unpaid} unpaid</span>
@@ -204,7 +204,7 @@ function AddPlayerForm({ tournament, team, onCancel, onAdded }) {
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, background: "#fafafa", borderRadius: 8 }}>
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, background: "#f7f4ec", borderRadius: 8 }}>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <input style={{ ...inputStyle, flex: "1 1 140px" }} required placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
         <input style={{ ...inputStyle, flex: "1 1 160px" }} type="email" placeholder="Email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -243,7 +243,7 @@ function CompTeamForm({ tournament, team, sponsorships, onCancel, onComped }) {
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, background: "#fafafa", borderRadius: 8 }}>
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, background: "#f7f4ec", borderRadius: 8 }}>
       <div style={{ fontSize: 12, color: colors.textSecondary }}>Every unpaid player on this team will be marked paid, covered by the sponsorship. Already-paid players are left alone.</div>
       <select style={inputStyle} value={sponsorshipId} onChange={(e) => setSponsorshipId(e.target.value)}>
         {sponsorships.map((s) => (
@@ -297,7 +297,7 @@ function AddTeamModal({ tournament, onCancel, onCreated }) {
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <input style={inputStyle} placeholder="Team name (optional)" value={teamName} onChange={(e) => setTeamName(e.target.value)} />
         {players.map((p, i) => (
-          <div key={i} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: 8, background: "#fafafa", borderRadius: 8 }}>
+          <div key={i} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: 8, background: "#f7f4ec", borderRadius: 8 }}>
             <input style={{ ...inputStyle, flex: "1 1 140px" }} required placeholder="Name" value={p.name} onChange={(e) => setPlayer(i, "name", e.target.value)} />
             <input style={{ ...inputStyle, flex: "1 1 160px" }} type="email" placeholder="Email (optional)" value={p.email} onChange={(e) => setPlayer(i, "email", e.target.value)} />
             <input style={{ ...inputStyle, flex: "1 1 120px" }} placeholder="Phone (optional)" value={p.phone} onChange={(e) => setPlayer(i, "phone", e.target.value)} />

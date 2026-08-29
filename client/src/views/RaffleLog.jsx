@@ -28,8 +28,8 @@ const TYPE_COLOR = {
   sold: [colors.indigoBg, colors.indigo],
   reserved: [colors.warningBg, colors.warning],
   funds_received: [colors.successBg, colors.success],
-  released: ["#f0f0f3", colors.textSecondary],
-  reassigned: ["#f0f0f3", colors.textSecondary],
+  released: ["#f1ece0", colors.textSecondary],
+  reassigned: ["#f1ece0", colors.textSecondary],
   drawing: ["#fdeee0", "#b45309"],
   checkin: [colors.successBg, colors.success],
   reminder_sent: [colors.warningBg, colors.warning],
@@ -43,7 +43,7 @@ const TYPE_COLOR = {
   estimated_expenses_updated: [colors.warningBg, colors.warning],
   renewal_call_logged: [colors.warningBg, colors.warning],
   kickoff_email_sent: [colors.indigoBg, colors.indigo],
-  kickoff_email_test_sent: ["#f0f0f3", colors.textSecondary],
+  kickoff_email_test_sent: ["#f1ece0", colors.textSecondary],
 };
 
 export default function RaffleLog({ gameId }) {
@@ -65,7 +65,7 @@ export default function RaffleLog({ gameId }) {
         <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>Every ticket state change, in order.</div>
       </div>
       {logs.map((l) => {
-        const [bg, text] = TYPE_COLOR[l.type] || ["#f0f0f3", colors.textSecondary];
+        const [bg, text] = TYPE_COLOR[l.type] || ["#f1ece0", colors.textSecondary];
         return (
           <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13 }}>
             <span style={pill(bg, text)}>{TYPE_LABEL[l.type] || l.type}</span>

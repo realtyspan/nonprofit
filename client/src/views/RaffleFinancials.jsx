@@ -170,7 +170,7 @@ function GameFinancialCard({ game, onChanged }) {
       </div>
 
       <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "flex-end", flexDirection: isMobile ? "column" : "row", gap: 10 }}>
-        <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b", width: isMobile ? "100%" : undefined }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c", width: isMobile ? "100%" : undefined }}>
           Estimated non-prize expenses (planning only)
           <input style={{ ...inputStyle, width: isMobile ? "100%" : 140 }} type="number" step="0.01" min="0" value={estimate} onChange={(e) => setEstimate(e.target.value)} />
         </label>
@@ -211,7 +211,7 @@ function GameFinancialCard({ game, onChanged }) {
             { key: "payee", label: "Payee", grid: "1.6fr", primary: true, render: (e) => e.payee },
             { key: "check", label: "Check #", grid: "1fr", render: (e) => <span style={{ fontFamily: mono }}>{e.checkNum}</span> },
             { key: "amount", label: "Amount", grid: "1fr", render: (e) => <span style={{ fontFamily: mono }}>{money(e.amount)}</span> },
-            { key: "category", label: "Category", grid: "1.3fr", render: (e) => <span style={pill("#f0f0f3", colors.textSecondary)}>{CATEGORY_LABEL[e.category] || e.category}</span> },
+            { key: "category", label: "Category", grid: "1.3fr", render: (e) => <span style={pill("#f1ece0", colors.textSecondary)}>{CATEGORY_LABEL[e.category] || e.category}</span> },
             {
               key: "receipt", label: "Receipt", grid: "0.7fr",
               render: (e) => e.receiptFile ? (
@@ -245,7 +245,7 @@ function SummaryCard({ label, value, sub }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11.5, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11.5, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

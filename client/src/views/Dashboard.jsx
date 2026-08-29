@@ -63,7 +63,7 @@ export default function Dashboard({ deals, onOpenReports }) {
                     {d.eligibleToClose && <span style={pill(colors.warningBg, colors.warning)}>Eligible to close</span>}
                   </div>
                 </div>
-                <div style={{ height: 7, borderRadius: 99, background: "#f0f0f3", overflow: "hidden" }}>
+                <div style={{ height: 7, borderRadius: 99, background: "#f1ece0", overflow: "hidden" }}>
                   <div style={{ height: "100%", width: `${Math.min(d.prizePercent * 100, 100)}%`, background: d.eligibleToClose ? colors.warningAmber : colors.accent, borderRadius: 99 }} />
                 </div>
                 <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 4, fontFamily: mono }}>
@@ -82,9 +82,9 @@ export default function Dashboard({ deals, onOpenReports }) {
             {signOffRoles.map((r) => {
               const signed = signedRoles.has(r);
               return (
-                <div key={r} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", borderRadius: 8, background: "#fafafa" }}>
+                <div key={r} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", borderRadius: 8, background: "#f7f4ec" }}>
                   <span style={{ fontSize: 13, fontWeight: 500 }}>{roleLabel(r)}</span>
-                  <span style={pill(signed ? colors.successBg : "#f0f0f3", signed ? colors.success : colors.textSecondary)}>{signed ? "Signed" : "Pending"}</span>
+                  <span style={pill(signed ? colors.successBg : "#f1ece0", signed ? colors.success : colors.textSecondary)}>{signed ? "Signed" : "Pending"}</span>
                 </div>
               );
             })}

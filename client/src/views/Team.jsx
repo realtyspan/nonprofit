@@ -109,7 +109,7 @@ export default function Team({ permissions, onPermissionsChanged }) {
                     const canEdit = isOwner || adminModules.includes(m.key);
                     if (!canEdit) {
                       return tier ? (
-                        <span key={m.key} style={pill("#f0f0f3", colors.textSecondary)}>{m.label}: {tier}</span>
+                        <span key={m.key} style={pill("#f1ece0", colors.textSecondary)}>{m.label}: {tier}</span>
                       ) : null;
                     }
                     // An org-wide Owner or Viewer sees every module read-only
@@ -198,7 +198,7 @@ function InviteForm({ isOwner, adminModules, onInvited, onError, error }) {
   const editableModules = isOwner ? MODULES : MODULES.filter((m) => adminModules.includes(m.key));
 
   return (
-    <form onSubmit={submit} style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}`, background: "#fafafa", display: "flex", flexDirection: "column", gap: 10 }}>
+    <form onSubmit={submit} style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}`, background: "#f7f4ec", display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
         <Field label="Name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
         <Field label="Email"><input style={inputStyle} type="email" required value={form.email} onChange={(e) => set("email", e.target.value)} /></Field>
@@ -452,7 +452,7 @@ function SignersCard({ title, description, users, getSigners, assignSigner }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

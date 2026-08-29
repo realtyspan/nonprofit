@@ -65,7 +65,7 @@ export default function PlatformAdmins({ myRole }) {
               {
                 key: "role", label: "Role", grid: "0.9fr",
                 render: (a) => {
-                  const [bg, text] = ROLE_STYLE[a.platformRole] || ["#f0f0f3", colors.textSecondary];
+                  const [bg, text] = ROLE_STYLE[a.platformRole] || ["#f1ece0", colors.textSecondary];
                   return <span style={pill(bg, text)}>{a.platformRole}</span>;
                 },
               },
@@ -153,7 +153,7 @@ function AddAdminForm({ onCancel, onAdded }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

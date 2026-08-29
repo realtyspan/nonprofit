@@ -164,8 +164,8 @@ export default function Reports({ permissions }) {
         <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ border: `1px solid ${colors.border}`, borderRadius: 7, padding: "6px 10px", fontSize: 13 }}>
           {Array.from({ length: 8 }, (_, i) => cq.year - 6 + i).map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
-        {v.zeroFiling && <span style={pill("#f0f0f3", colors.textSecondary)}>Zero-filing (no deals closed)</span>}
-        <span style={pill(report.status === "filed" ? colors.successBg : "#f0f0f3", report.status === "filed" ? colors.success : colors.textSecondary)}>{report.status === "filed" ? "Filed" : "Draft"}</span>
+        {v.zeroFiling && <span style={pill("#f1ece0", colors.textSecondary)}>Zero-filing (no deals closed)</span>}
+        <span style={pill(report.status === "filed" ? colors.successBg : "#f1ece0", report.status === "filed" ? colors.success : colors.textSecondary)}>{report.status === "filed" ? "Filed" : "Draft"}</span>
         {report.status === "filed" && isBellJarAdmin && !confirmingUnlock && (
           <button style={button.ghost} onClick={() => setConfirmingUnlock(true)}>Unlock for correction</button>
         )}
@@ -240,7 +240,7 @@ export default function Reports({ permissions }) {
                 const signed = signedRoles.has(r);
                 const allowed = !!permissions?.gc7qSignerSlots?.includes(r);
                 return (
-                  <div key={r} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", borderRadius: 8, background: "#fafafa" }}>
+                  <div key={r} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", borderRadius: 8, background: "#f7f4ec" }}>
                     <span style={{ fontSize: 13, fontWeight: 500 }}>{roleLabel(r)}</span>
                     {signed ? (
                       <span style={pill(colors.successBg, colors.success)}>Signed</span>
@@ -400,7 +400,7 @@ function Row2({ label, value }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11.5, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11.5, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

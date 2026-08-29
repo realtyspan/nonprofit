@@ -404,7 +404,7 @@ function EventFormModal({ state, rentalSpaces, canManageRentals, isCalendarAdmin
         )}
         {showRentalSpaceOption && rentalSpaceIds.length > 0 && (
           <div style={{ border: `1px solid ${colors.borderLight}`, borderRadius: 10, padding: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b", marginBottom: 8 }}>Which space(s)? Shown as unavailable to renters for this time.</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#5c564c", marginBottom: 8 }}>Which space(s)? Shown as unavailable to renters for this time.</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {rentalSpaces.map((s) => (
                 <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
@@ -458,7 +458,7 @@ function EventFormModal({ state, rentalSpaces, canManageRentals, isCalendarAdmin
             </div>
             {freq === "weekly" && (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b", marginBottom: 6 }}>On these days</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#5c564c", marginBottom: 6 }}>On these days</div>
                 <div style={{ display: "flex", gap: 6 }}>
                   {WEEKDAYS.map((w) => (
                     <button
@@ -519,7 +519,7 @@ function MonthlyRecurrenceFields({ startAt, monthlyMode, setMonthlyMode, monthly
             </select>
           </Field>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b", marginBottom: 6 }}>Which occurrence(s)</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#5c564c", marginBottom: 6 }}>Which occurrence(s)</div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {ORDINALS.map((o) => (
                 <button
@@ -544,7 +544,7 @@ function MonthlyRecurrenceFields({ startAt, monthlyMode, setMonthlyMode, monthly
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

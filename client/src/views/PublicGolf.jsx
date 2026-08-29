@@ -412,7 +412,7 @@ function RegisterForm({ tournament, slug, onCancel }) {
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10, padding: 14, background: "#fafafa", borderRadius: 8, fontFamily: "sans-serif" }}>
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10, padding: 14, background: "#f7f4ec", borderRadius: 8, fontFamily: "sans-serif" }}>
       <input
         type="text" value={website} onChange={(e) => setWebsite(e.target.value)} tabIndex={-1} autoComplete="off"
         style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} aria-hidden="true"

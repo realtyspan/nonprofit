@@ -26,7 +26,7 @@ function formatTime(date) {
 // day showing every event's time in full, since a week only needs 7 columns
 // instead of 42 cells to lay out. Navigation lives in CalendarToolbar above.
 export default function CalendarWeekGrid({ anchorDate, events, onSelectDay, onSelectEvent, theme }) {
-  const t = { surface: "#fff", bg: "#fafafa", ...colors, ...theme };
+  const t = { surface: "#fff", bg: "#f7f4ec", ...colors, ...theme };
   const weekStart = startOfWeek(anchorDate);
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const today = new Date();

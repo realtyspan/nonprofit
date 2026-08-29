@@ -31,8 +31,8 @@ export default defineConfig({
         name: "Charity Pulse",
         short_name: "Charity Pulse",
         description: "Compliance and operations app for lodge Bell Jar, rentals, calendar, and raffle management.",
-        theme_color: "#6860dc",
-        background_color: "#f7f7f9",
+        theme_color: "#25555f",
+        background_color: "#faf8f2",
         display: "standalone",
         start_url: "/",
         icons: [

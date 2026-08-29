@@ -53,9 +53,9 @@ export default function RentalBlocks({ spaces }) {
             key: "flags", label: "", footerRow: true,
             render: (b) => (
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {b.recurrenceId && <span style={pill("#f0f0f3", colors.textSecondary)}>Repeats</span>}
+                {b.recurrenceId && <span style={pill("#f1ece0", colors.textSecondary)}>Repeats</span>}
                 {b.calendarEventId && <span style={pill(colors.indigoBg, colors.indigo)}>From Calendar</span>}
-                <span style={pill(b.visibleOnPublicCalendar ? colors.indigoBg : "#f0f0f3", b.visibleOnPublicCalendar ? colors.indigo : colors.textSecondary)}>
+                <span style={pill(b.visibleOnPublicCalendar ? colors.indigoBg : "#f1ece0", b.visibleOnPublicCalendar ? colors.indigo : colors.textSecondary)}>
                   {b.visibleOnPublicCalendar ? "Public" : "Internal only"}
                 </span>
               </div>
@@ -305,7 +305,7 @@ function BlockFormModal({ state, spaces, onCancel, onSaved }) {
             </div>
             {freq === "weekly" && (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b", marginBottom: 6 }}>On these days</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#5c564c", marginBottom: 6 }}>On these days</div>
                 <div style={{ display: "flex", gap: 6 }}>
                   {WEEKDAYS.map((w) => (
                     <button
@@ -343,7 +343,7 @@ function BlockFormModal({ state, spaces, onCancel, onSaved }) {
                       </select>
                     </Field>
                     <div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "#52525b", marginBottom: 6 }}>Which occurrence(s)</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "#5c564c", marginBottom: 6 }}>Which occurrence(s)</div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         {ORDINALS.map((o) => (
                           <button
@@ -393,7 +393,7 @@ function hhmm(datetimeLocal) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

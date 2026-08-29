@@ -17,7 +17,7 @@ const STATUS_PILL_COLOR = {
   trial: [colors.warningBg, colors.warning],
   active: [colors.successBg, colors.success],
   past_due: ["#fee2e2", colors.danger],
-  canceled: ["#f0f0f3", colors.textSecondary],
+  canceled: ["#f1ece0", colors.textSecondary],
 };
 
 function toDateInput(value) {
@@ -182,7 +182,7 @@ function StripeSyncedBilling({ orgId, billing }) {
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
       <div><button style={button.ghost} disabled={busy} onClick={generatePortalLink}>{busy ? "Generating…" : "Generate billing portal link"}</button></div>
       {portalUrl && (
-        <div style={{ fontSize: 12.5, wordBreak: "break-all", background: "#fafafa", border: `1px solid ${colors.borderLight}`, borderRadius: 6, padding: 10 }}>{portalUrl}</div>
+        <div style={{ fontSize: 12.5, wordBreak: "break-all", background: "#f7f4ec", border: `1px solid ${colors.borderLight}`, borderRadius: 6, padding: 10 }}>{portalUrl}</div>
       )}
     </div>
   );
@@ -225,7 +225,7 @@ function StartStripeSubscription({ orgId, onStarted }) {
       </div>
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
       {checkoutUrl && (
-        <div style={{ fontSize: 12.5, wordBreak: "break-all", background: "#fafafa", border: `1px solid ${colors.borderLight}`, borderRadius: 6, padding: 10 }}>{checkoutUrl}</div>
+        <div style={{ fontSize: 12.5, wordBreak: "break-all", background: "#f7f4ec", border: `1px solid ${colors.borderLight}`, borderRadius: 6, padding: 10 }}>{checkoutUrl}</div>
       )}
     </div>
   );
@@ -375,7 +375,7 @@ function SupportNotes({ orgId, notes, onChanged }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#52525b" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: "#5c564c" }}>
       {label}
       {children}
     </label>

@@ -9,7 +9,7 @@ const STATUS_STYLE = {
   trial: [colors.warningBg, colors.warning, "Trial"],
   active: [colors.successBg, colors.success, "Active"],
   past_due: ["#fee2e2", colors.danger, "Past due"],
-  canceled: ["#f0f0f3", colors.textSecondary, "Canceled"],
+  canceled: ["#f1ece0", colors.textSecondary, "Canceled"],
 };
 
 export default function OrganizationsList() {
