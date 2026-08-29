@@ -78,6 +78,20 @@ export const button = {
     fontWeight: 600,
     cursor: "pointer",
   },
+  // A real middle tier — a soft-tinted fill, quieter than primary/focus but
+  // more visible than ghost's outline. For a busy row of actions, this is
+  // where the "common enough to want as its own button" ones land, once the
+  // single most important one has been promoted to primary or focus.
+  secondary: {
+    background: colors.accentSoft,
+    color: colors.accentHover,
+    border: "none",
+    borderRadius: 8,
+    padding: "9px 16px",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
   ghost: {
     background: "transparent",
     color: colors.textSecondary,

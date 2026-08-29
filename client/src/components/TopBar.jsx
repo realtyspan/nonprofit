@@ -80,7 +80,7 @@ export default function TopBar({ modules, activeModuleKey, onSwitchModule, modul
         <button
           onClick={onOpenProfile}
           title="My Profile"
-          style={{ width: 30, height: 30, borderRadius: 99, background: "#efeaff", color: colors.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 700, border: "none", cursor: "pointer" }}
+          style={{ width: 30, height: 30, borderRadius: 99, background: colors.accentSoft, color: colors.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 700, border: "none", cursor: "pointer" }}
         >
           {initials(user?.name)}
         </button>

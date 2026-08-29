@@ -89,13 +89,20 @@ export default function Dashboard({ deals, onOpenReports }) {
               );
             })}
           </div>
-          <button
-            type="button"
-            onClick={onOpenReports}
-            style={{ marginTop: "auto", textAlign: "center", background: colors.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-          >
-            Open GC-7Q report →
-          </button>
+          <div style={{ marginTop: "auto" }}>
+            <button
+              type="button"
+              onClick={onOpenReports}
+              style={{ width: "100%", textAlign: "center", background: colors.focus, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+            >
+              Open GC-7Q report →
+            </button>
+            {signOffRoles.length - signedRoles.size > 0 && (
+              <div style={{ fontSize: 11, color: colors.textTertiary, marginTop: 8 }}>
+                {signOffRoles.length - signedRoles.size} of {signOffRoles.length} sign-offs still needed this quarter
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

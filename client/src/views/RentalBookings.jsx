@@ -6,6 +6,7 @@ import SignaturePad from "../components/SignaturePad";
 import ReceiptField from "../components/ReceiptField";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
+import MoreActions from "../components/MoreActions";
 import { useIsMobile } from "../lib/viewport";
 import { formatPhone, stripPhone } from "../lib/phone";
 
@@ -174,33 +175,42 @@ export default function RentalBookings({ spaces, onChanged, permissions }) {
               ),
             },
             {
+              // Button-hierarchy pass: one loud (focus/terracotta) action per
+              // row — Payment while money's still owed, Lock booking once it
+              // isn't — Complete/Payment-when-paid sit one notch down as
+              // secondary, Edit/Cancel/Unlock stay ghost, and the rarely-used
+              // ones (Activity, Sign, Upload contract, download the PDF) move
+              // behind the ⋯ instead of competing for attention on every row.
               key: "actions", label: "", footerRow: true,
-              render: (b) => (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-start" }}>
-                  {!b.fundsDepositedAt && <button style={button.ghost} onClick={() => setEditingBooking(b)}>Edit</button>}
-                  <button style={button.ghost} onClick={() => setViewingLogs(b)}>Activity</button>
-                  <button style={button.ghost} onClick={() => setPaying(b)}>Payment</button>
-                  <button style={button.ghost} onClick={() => setSigning(b)}>{b.contractSignatureImage ? "Signed" : "Sign"}</button>
-                  <button style={button.ghost} onClick={() => setUploadingContract(b)}>{b.uploadedContractFile ? "Contract uploaded" : "Upload contract"}</button>
-                  <button style={button.ghost} onClick={() => api.downloadRentalContractPdf(b.id, b.renterName)}>Contract</button>
-                  <button style={button.ghost} onClick={() => act(() => api.completeRentalBooking(b.id))}>Complete</button>
-                  <button style={button.ghost} onClick={() => { if (confirm("Cancel this booking?")) act(() => api.cancelRentalBooking(b.id)); }}>Cancel</button>
-                  {isRentalsAdmin && (b.fundsDepositedAt ? (
-                    <button style={button.ghost} onClick={() => setUnlocking(b)}>Unlock</button>
-                  ) : (
-                    (() => {
-                      const outstandingCount = (b.payments || []).filter((p) => p.type === "payment" && !p.turnedOverAt).length;
-                      return outstandingCount > 0 ? (
-                        <span style={pill(colors.warningBg, colors.warning)} title="Every payment must be turned over (see Payment) before this booking can be locked">
-                          {outstandingCount} payment{outstandingCount === 1 ? "" : "s"} pending turnover
-                        </span>
-                      ) : (
-                        <button style={button.ghost} onClick={() => setLockingBooking(b)}>Lock booking</button>
-                      );
-                    })()
-                  ))}
-                </div>
-              ),
+              render: (b) => {
+                const outstandingCount = (b.payments || []).filter((p) => p.type === "payment" && !p.turnedOverAt).length;
+                const owesMoney = b.balanceDue > 0;
+                const readyToLock = isRentalsAdmin && !b.fundsDepositedAt && !owesMoney && outstandingCount === 0;
+
+                const moreItems = [
+                  { label: "Activity", onClick: () => setViewingLogs(b) },
+                  { label: b.contractSignatureImage ? "Signed — re-sign" : "Sign", onClick: () => setSigning(b) },
+                  { label: b.uploadedContractFile ? "Replace uploaded contract" : "Upload contract", onClick: () => setUploadingContract(b) },
+                  { label: "Download contract PDF", onClick: () => api.downloadRentalContractPdf(b.id, b.renterName) },
+                ];
+
+                return (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-start" }}>
+                    <button style={owesMoney ? button.focus : button.secondary} onClick={() => setPaying(b)}>Payment</button>
+                    {readyToLock && <button style={button.focus} onClick={() => setLockingBooking(b)}>Lock booking</button>}
+                    {isRentalsAdmin && !b.fundsDepositedAt && !readyToLock && outstandingCount > 0 && (
+                      <span style={pill(colors.warningBg, colors.warning)} title="Every payment must be turned over (see Payment) before this booking can be locked">
+                        {outstandingCount} payment{outstandingCount === 1 ? "" : "s"} pending turnover
+                      </span>
+                    )}
+                    <button style={button.secondary} onClick={() => act(() => api.completeRentalBooking(b.id))}>Complete</button>
+                    {!b.fundsDepositedAt && <button style={button.ghost} onClick={() => setEditingBooking(b)}>Edit</button>}
+                    <button style={button.ghost} onClick={() => { if (confirm("Cancel this booking?")) act(() => api.cancelRentalBooking(b.id)); }}>Cancel</button>
+                    {isRentalsAdmin && b.fundsDepositedAt && <button style={button.ghost} onClick={() => setUnlocking(b)}>Unlock</button>}
+                    <MoreActions items={moreItems} />
+                  </div>
+                );
+              },
             },
           ]}
         />
