@@ -9,7 +9,7 @@ import Modal from "../components/Modal";
 const STATUS_STYLE = {
   available: { bg: "#ffffff", border: colors.border, text: colors.textSecondary, label: "Available" },
   reserved: { bg: colors.warningBg, border: "#f0e4a6", text: colors.warning, label: "Reserved" },
-  sold: { bg: colors.indigoBg, border: "#d8d4fb", text: colors.indigo, label: "Sold" },
+  sold: { bg: colors.indigoBg, border: "#b9d3d1", text: colors.indigo, label: "Sold" },
   funds_received: { bg: colors.successBg, border: "#bfe6d1", text: colors.success, label: "Funds received" },
 };
 
@@ -174,7 +174,7 @@ function RaffleStatsBars({ game, tickets, stats }) {
       {rows.map((r) => (
         <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{ width: 150, flex: "none", fontSize: 12.5, fontWeight: 600, color: r.color }}>{r.label}</div>
-          <div style={{ flex: 1, height: 20, borderRadius: 6, background: "#f4f4f6", border: `1px solid ${colors.border}`, overflow: "hidden" }}>
+          <div style={{ flex: 1, height: 20, borderRadius: 6, background: colors.borderLight, border: `1px solid ${colors.border}`, overflow: "hidden" }}>
             <div style={{ width: `${Math.min(100, Math.round(r.fraction * 100))}%`, height: "100%", background: r.color, borderRadius: 6 }} />
           </div>
           <div style={{ width: 90, flex: "none", textAlign: "right", fontSize: 13, fontWeight: 700, color: r.color }}>{r.display}</div>

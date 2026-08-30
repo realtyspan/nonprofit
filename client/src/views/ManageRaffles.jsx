@@ -90,7 +90,7 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
         </div>
         <DataList
           rows={games}
-          rowStyle={(g) => (g.id === gameId ? { background: "#faf9ff" } : undefined)}
+          rowStyle={(g) => (g.id === gameId ? { background: colors.accentSoft } : undefined)}
           emptyMessage="No raffles yet."
           columns={[
             { key: "name", label: "Name", grid: "1.4fr", primary: true, render: (g) => g.name },

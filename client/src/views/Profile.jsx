@@ -89,7 +89,7 @@ function ProfileCard({ me, labels, onSaved }) {
         <Field label="Name"><input style={inputStyle} required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
         <Field label="Email"><input style={inputStyle} type="email" required value={form.email} onChange={(e) => set("email", e.target.value)} /></Field>
         <Field label="Role">
-          <input style={{ ...inputStyle, background: "#f4f4f6", color: colors.textSecondary }} value={accessSummary(me, labels)} disabled />
+          <input style={{ ...inputStyle, background: colors.borderLight, color: colors.textSecondary }} value={accessSummary(me, labels)} disabled />
         </Field>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
           <Field label="Title"><input style={inputStyle} placeholder="Chairperson" value={form.title} onChange={(e) => set("title", e.target.value)} /></Field>

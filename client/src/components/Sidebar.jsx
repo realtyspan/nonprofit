@@ -27,7 +27,7 @@ export default function Sidebar({ module, view, setView, badges, permissions }) 
   return (
     <div style={{ width: 232, flex: "none", background: "#ffffff", borderRight: `1px solid ${colors.border}`, display: "flex", flexDirection: "column", padding: "18px 14px", gap: 18, position: "sticky", top: 0, height: "calc(100vh - 53px)" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "0 6px" }}>
-        <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".05em", color: "#a3a3ac", textTransform: "uppercase" }}>{module.label}</div>
+        <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".05em", color: colors.textTertiary, textTransform: "uppercase" }}>{module.label}</div>
         <div style={{ fontSize: 11, color: colors.textSecondary }}>
           {user?.name} <span style={{ color: colors.textTertiary }}>· {effectiveLabel(permissions, labels, module.key)}</span>
         </div>
@@ -43,8 +43,8 @@ export default function Sidebar({ module, view, setView, badges, permissions }) 
               onClick={() => setView(item.key)}
               style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 8,
-                border: "none", background: active ? "#f4f4f6" : "transparent", cursor: "pointer",
-                textAlign: "left", fontSize: 13.5, fontWeight: 500, color: active ? colors.textPrimary : "#5c564c",
+                border: "none", background: active ? colors.accentSoft : "transparent", cursor: "pointer",
+                textAlign: "left", fontSize: 13.5, fontWeight: active ? 700 : 500, color: active ? colors.accentHover : "#5c564c",
               }}
             >
               <span dangerouslySetInnerHTML={{ __html: item.icon }} style={{ width: 18, height: 18, flex: "none", color: active ? colors.accent : "#756f63", display: "flex" }} />

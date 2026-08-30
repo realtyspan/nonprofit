@@ -100,7 +100,7 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
         </div>
         <DataList
           rows={tournaments}
-          rowStyle={(t) => (t.id === tournamentId ? { background: "#faf9ff" } : undefined)}
+          rowStyle={(t) => (t.id === tournamentId ? { background: colors.accentSoft } : undefined)}
           emptyMessage="No tournaments yet."
           columns={[
             { key: "name", label: "Name", grid: "1.4fr", primary: true, render: (t) => t.name },

@@ -81,7 +81,7 @@ export default function MobileNavDrawer({
 function NavSection({ label, children }) {
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".05em", color: "#a3a3ac", textTransform: "uppercase", padding: "8px 10px 4px" }}>{label}</div>
+      <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".05em", color: colors.textTertiary, textTransform: "uppercase", padding: "8px 10px 4px" }}>{label}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>{children}</div>
     </div>
   );
@@ -93,8 +93,8 @@ function NavRow({ icon, label, badge, active, onClick }) {
       onClick={onClick}
       style={{
         display: "flex", alignItems: "center", gap: 12, padding: "12px 10px", borderRadius: 10,
-        border: "none", background: active ? "#f4f4f6" : "transparent", cursor: "pointer",
-        textAlign: "left", fontSize: 15, fontWeight: 500, color: active ? colors.textPrimary : "#3f3f46", width: "100%",
+        border: "none", background: active ? colors.accentSoft : "transparent", cursor: "pointer",
+        textAlign: "left", fontSize: 15, fontWeight: active ? 700 : 500, color: active ? colors.accentHover : "#3f3f46", width: "100%",
       }}
     >
       <span dangerouslySetInnerHTML={{ __html: icon }} style={{ width: 20, height: 20, flex: "none", color: active ? colors.accent : "#756f63", display: "flex" }} />
