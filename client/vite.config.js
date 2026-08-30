@@ -30,7 +30,7 @@ export default defineConfig({
       manifest: {
         name: "Charity Pulse",
         short_name: "Charity Pulse",
-        description: "Compliance and operations app for lodge Bell Jar, rentals, calendar, and raffle management.",
+        description: "Compliance and operations app for lodge Bell Jar, rentals, calendar, raffle, and golf tournament management.",
         theme_color: "#25555f",
         background_color: "#faf8f2",
         display: "standalone",

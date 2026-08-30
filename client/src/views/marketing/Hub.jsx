@@ -17,7 +17,7 @@ export default function Hub({ onGetStarted, onLogin }) {
           Run your lodge's compliance and operations in one place
         </h1>
         <p style={{ fontSize: 16.5, color: colors.textSecondary, lineHeight: 1.6, maxWidth: 600, margin: "0 auto" }}>
-          Bell Jar, facility rentals, your annual raffle, and one shared calendar — pick the modules your lodge needs, each priced on its own.
+          Bell Jar, facility rentals, your annual raffle and golf tournament, and one shared calendar — pick the modules your lodge needs, each priced on its own.
         </p>
       </section>
 

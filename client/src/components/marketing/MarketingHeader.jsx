@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { slug: "bell-jar", label: "Bell Jar", href: "/bell-jar" },
   { slug: "rentals", label: "Rental Space", href: "/rentals" },
   { slug: "raffle", label: "Raffle", href: "/raffle" },
+  { slug: "golf", label: "Golf Tournament", href: "/golf" },
   { slug: "calendar", label: "Calendar", href: "/calendar" },
 ];
 

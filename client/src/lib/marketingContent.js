@@ -75,6 +75,30 @@ export const MARKETING_MODULES = {
     pricing: { amount: 25, period: "month", placeholder: true, bullets: ["Unlimited tickets and drawings", "Live NYS compliance dashboard", "Door check-in and renewal tracking", "30-day free trial, no card required"] },
   },
 
+  golf: {
+    slug: "golf",
+    name: "Golf Tournament",
+    tagline: "Registration, roster, and sponsorships for your annual golf outing",
+    icon: icons.flag,
+    badge: "For lodges running an annual golf tournament fundraiser",
+    heroHeadline: "Your golf tournament, from registration to the trophy",
+    heroSubhead: "A public signup page for your website, a real roster instead of a spreadsheet, and sponsorship tracking for the part of the tournament that actually raises the money.",
+    features: [
+      { icon: icons.inbox, title: "Public Team Registration", body: "A link for your website where a captain registers a team and adds players — no separate third-party form, no manual re-entry into a spreadsheet afterward." },
+      { icon: icons.users, title: "Roster & Player History", body: "Every player's name, email, and phone carries over year to year, so \"who played last year\" is a real list you can email, not a memory." },
+      { icon: icons.bank, title: "Sponsorships", body: "Track sponsor contacts, tiers, and payment status separately from player entries — built for the fundraiser that usually raises more than the entry fees do." },
+      { icon: icons.checkCircle, title: "Tournament-Day Check-In", body: "Search by name, team, or phone to check players in as they arrive, with full roster visibility regardless of who registered the team." },
+      { icon: icons.link, title: "Comp a Team via Sponsorship", body: "When a sponsorship package includes a comped team's entry, link it in one step instead of tracking a separate manual payment." },
+      { icon: icons.fileCheck, title: "Activity Log", body: "Every registration, payment, and check-in, in order — a full record for whoever's reconciling after the tournament wraps up." },
+    ],
+    steps: [
+      { n: "1", title: "Set up this year's tournament", body: "Format, cost per player, capacity, and payment options — pull forward last year's players and sponsors as a starting list." },
+      { n: "2", title: "Teams and sponsors sign up", body: "Players register publicly from your website; sponsors get tracked and confirmed the same way, on their own list." },
+      { n: "3", title: "Check in and close it out", body: "Check players in on tournament day, then close the tournament with a full activity record intact for next year." },
+    ],
+    pricing: { amount: 19, period: "month", placeholder: true, bullets: ["Unlimited teams, players, and sponsors", "Public registration page for your website", "Player and sponsor history across years", "30-day free trial, no card required"] },
+  },
+
   calendar: {
     slug: "calendar",
     name: "Calendar",
@@ -98,4 +122,4 @@ export const MARKETING_MODULES = {
   },
 };
 
-export const MARKETING_MODULE_ORDER = ["bell-jar", "rentals", "raffle", "calendar"];
+export const MARKETING_MODULE_ORDER = ["bell-jar", "rentals", "raffle", "golf", "calendar"];
