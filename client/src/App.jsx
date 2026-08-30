@@ -10,6 +10,7 @@ import MobileNavDrawer from "./components/MobileNavDrawer";
 import { useIsMobile } from "./lib/viewport";
 import Hub from "./views/marketing/Hub";
 import ModulePage from "./views/marketing/ModulePage";
+import StandaloneNudgeBanner from "./components/marketing/StandaloneNudgeBanner";
 import { MARKETING_MODULES } from "./lib/marketingContent";
 import Login from "./views/Login";
 import ResetPassword from "./views/ResetPassword";
@@ -366,8 +367,14 @@ function MarketingSite() {
   const onLogin = () => { window.location.href = `${APP_URL}/?view=login`; };
 
   const slug = window.location.pathname.replace(/^\//, "").replace(/\/$/, "");
-  if (MARKETING_MODULES[slug]) return <ModulePage slug={slug} onGetStarted={onGetStarted} onLogin={onLogin} />;
-  return <Hub onGetStarted={onGetStarted} onLogin={onLogin} />;
+  return (
+    <>
+      <StandaloneNudgeBanner />
+      {MARKETING_MODULES[slug]
+        ? <ModulePage slug={slug} onGetStarted={onGetStarted} onLogin={onLogin} />
+        : <Hub onGetStarted={onGetStarted} onLogin={onLogin} />}
+    </>
+  );
 }
 
 export default function App() {
