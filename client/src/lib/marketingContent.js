@@ -120,6 +120,27 @@ export const MARKETING_MODULES = {
     ],
     pricing: { free: true, blurb: "Calendar comes included the moment you're on any paid module — Bell Jar, Rental Space, or Raffle. Nothing extra to set up." },
   },
+
+  "elks-tools": {
+    slug: "elks-tools",
+    name: "Elks Tools",
+    tagline: "Elks Lodge-specific utilities, included free",
+    icon: icons.fileCheck,
+    badge: "Exclusively for Elks Lodges — included free",
+    heroHeadline: "Your monthly Grand Lodge report, done in minutes",
+    heroSubhead: "Elks Tools is a small set of utilities built specifically for Elks Lodge operations, included free for any Elks Lodge on Charity Pulse — starting with the FRS Actuals Report every lodge already has to file each month.",
+    features: [
+      { icon: icons.fileCheck, title: "FRS Actuals Report", body: "Upload your QuickBooks Transaction Detail by Account export and get back the exact 4-column CSV format — LodgeNumber, LodgeGLAccount, Date, Amount — that Adaptive@elks.cloud requires." },
+      { icon: icons.checkCircle, title: "Balance Verified Automatically", body: "Every generated file is checked to confirm debits and credits net to zero before you see it, so a bad export gets caught before it's submitted, not after." },
+      { icon: icons.bank, title: "Formatted for the Deadline", body: "Named and formatted for the 3rd-Friday-of-the-following-month submission window, every month, without reformatting anything by hand." },
+    ],
+    steps: [
+      { n: "1", title: "Export from QuickBooks", body: "Run the Transaction Detail by Account report for the month, in Excel format, right from QuickBooks Online." },
+      { n: "2", title: "Upload it to Elks Tools", body: "The FRS Report reads the export directly — no manual reformatting, no copying numbers between spreadsheets." },
+      { n: "3", title: "Download and submit", body: "Get back a balanced, correctly named CSV, ready to email to Adaptive@elks.cloud." },
+    ],
+    pricing: { free: true, blurb: "Elks Tools comes included free for any Elks Lodge on Charity Pulse, alongside whichever paid modules — Bell Jar, Rental Space, Raffle, Golf Tournament — your lodge uses. Not available to other organization types." },
+  },
 };
 
-export const MARKETING_MODULE_ORDER = ["bell-jar", "rentals", "raffle", "golf", "calendar"];
+export const MARKETING_MODULE_ORDER = ["bell-jar", "rentals", "raffle", "golf", "calendar", "elks-tools"];

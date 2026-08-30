@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { slug: "raffle", label: "Raffle", href: "/raffle" },
   { slug: "golf", label: "Golf Tournament", href: "/golf" },
   { slug: "calendar", label: "Calendar", href: "/calendar" },
+  { slug: "elks-tools", label: "Elks Tools", href: "/elks-tools" },
 ];
 
 // Shared header for every marketing page (the hub and each module page) —
