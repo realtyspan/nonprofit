@@ -340,7 +340,7 @@ function Shell() {
             {activeModuleKey === "golf" && view === "sponsors" && <GolfSponsors tournament={selectedGolfTournament} />}
             {activeModuleKey === "golf" && view === "checkin" && <GolfCheckIn tournament={selectedGolfTournament} />}
             {activeModuleKey === "golf" && view === "log" && <GolfLog tournament={selectedGolfTournament} />}
-            {activeModuleKey === "elks-tools" && view === "frs" && <FrsReport />}
+            {activeModuleKey === "elks-tools" && view === "frs" && <FrsReport permissions={permissions} />}
             {view === "team" && canSeeTeam && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}
             {view === "profile" && <Profile />}
           </div>

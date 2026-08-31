@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { colors, card, button, money } from "../../lib/tokens";
 import { api, downloadTextFile } from "../../lib/api";
 import DataList from "../../components/DataList";
+import { hasModuleTier } from "../../lib/modules";
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -12,7 +13,13 @@ function readFileAsDataUrl(file) {
   });
 }
 
-export default function FrsReport() {
+export default function FrsReport({ permissions }) {
+  // Matches the server's requirePermission("elks-tools", "Admin") on the
+  // delete route exactly — no org-wide Owner passthrough, since Owner
+  // administers but doesn't auto-inherit module edit rights here (see
+  // server/src/lib/auth.js's requirePermission). Anything looser would show
+  // a Delete button a Helper can't actually use.
+  const canDelete = hasModuleTier(permissions, "elks-tools", "Admin");
   const [fileName, setFileName] = useState("");
   const [fileData, setFileData] = useState("");
   const [busy, setBusy] = useState(false);
@@ -127,7 +134,9 @@ export default function FrsReport() {
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5 }} onClick={() => api.downloadFrsReportSource(r.id, r.sourceFileName)}>📄 Source</button>
                   <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5 }} onClick={() => api.downloadFrsReportCsv(r.id, r.csvFileName)}>⬇ CSV</button>
-                  <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5, color: colors.danger }} onClick={() => deleteRun(r)}>Delete</button>
+                  {canDelete && (
+                    <button style={{ ...button.ghost, padding: "6px 10px", fontSize: 12.5, color: colors.danger }} onClick={() => deleteRun(r)}>Delete</button>
+                  )}
                 </div>
               ),
             },
