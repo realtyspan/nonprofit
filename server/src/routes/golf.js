@@ -534,19 +534,48 @@ router.get("/tournaments/:tournamentId/stats", requireReadAccess("golf"), async 
   });
 });
 
-// Org-wide player directory for admin autocomplete when manually adding a
-// player to a team. No existing "search a directory" pattern elsewhere in
-// this app to mirror (checked) — real server-side filtering via Prisma's
-// case-insensitive `contains`.
+// Org-wide player directory — every player ever recorded, whether from a
+// live tournament registration or a historical CSV import (both paths
+// funnel through findOrCreatePlayer into this same table, so there's no
+// separate "archival" list to reconcile). Doubles as admin autocomplete
+// (via ?search=) when manually adding a player to a team, and as the
+// standing "who do we email" list the Players screen shows — no query
+// means "list everyone," a query means "filter," same endpoint either way.
 router.get("/players", requireReadAccess("golf"), async (req, res) => {
   const q = (req.query.search || "").trim();
-  if (!q) return res.json([]);
   const players = await prisma.golfPlayer.findMany({
-    where: { orgId: req.user.orgId, OR: [{ name: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] },
-    take: 20,
+    where: {
+      orgId: req.user.orgId,
+      ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] } : {}),
+    },
+    take: q ? 20 : 500,
     orderBy: { name: "asc" },
+    include: { teamPlayers: { select: { tournament: { select: { year: true, name: true } } } } },
   });
-  res.json(players);
+  res.json(players.map(({ teamPlayers, ...player }) => {
+    const years = teamPlayers.map((tp) => tp.tournament.year);
+    return {
+      ...player,
+      tournamentCount: teamPlayers.length,
+      lastYear: years.length ? Math.max(...years) : null,
+    };
+  }));
+});
+
+router.patch("/players/:playerId", requirePermission("golf", "Helper"), async (req, res) => {
+  const player = await prisma.golfPlayer.findFirst({ where: { id: req.params.playerId, orgId: req.user.orgId } });
+  if (!player) return res.status(404).json({ error: "Player not found" });
+  const { name, email, phone } = req.body;
+  if (name !== undefined && !(name || "").trim()) return res.status(400).json({ error: "Name is required" });
+  const updated = await prisma.golfPlayer.update({
+    where: { id: player.id },
+    data: {
+      ...(name !== undefined ? { name: name.trim() } : {}),
+      ...(email !== undefined ? { email: normalizeEmail(email) } : {}),
+      ...(phone !== undefined ? { phone: (phone || "").trim() } : {}),
+    },
+  });
+  res.json(updated);
 });
 
 // --- Check-in ---
@@ -694,15 +723,47 @@ router.post("/tournaments/:tournamentId/sponsorships/:sponsorshipId/confirm", re
   res.json(updated);
 });
 
+// Org-wide sponsor directory — same shape as /players above: every sponsor
+// ever recorded, live or historically imported, one shared table. No query
+// means "list everyone" (the Sponsor Directory screen); a query filters
+// (admin autocomplete when manually adding a sponsorship).
 router.get("/sponsors", requireReadAccess("golf"), async (req, res) => {
   const q = (req.query.search || "").trim();
-  if (!q) return res.json([]);
   const sponsors = await prisma.golfSponsorContact.findMany({
-    where: { orgId: req.user.orgId, OR: [{ companyName: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] },
-    take: 20,
+    where: {
+      orgId: req.user.orgId,
+      ...(q ? { OR: [{ companyName: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] } : {}),
+    },
+    take: q ? 20 : 500,
     orderBy: { companyName: "asc" },
+    include: { sponsorships: { select: { amount: true, paid: true, tournament: { select: { year: true } } } } },
   });
-  res.json(sponsors);
+  res.json(sponsors.map(({ sponsorships, ...sponsor }) => {
+    const years = sponsorships.map((s) => s.tournament.year);
+    return {
+      ...sponsor,
+      sponsorshipCount: sponsorships.length,
+      totalRaised: sponsorships.filter((s) => s.paid).reduce((sum, s) => sum + (s.amount || 0), 0),
+      lastYear: years.length ? Math.max(...years) : null,
+    };
+  }));
+});
+
+router.patch("/sponsors/:sponsorId", requirePermission("golf", "Helper"), async (req, res) => {
+  const sponsor = await prisma.golfSponsorContact.findFirst({ where: { id: req.params.sponsorId, orgId: req.user.orgId } });
+  if (!sponsor) return res.status(404).json({ error: "Sponsor not found" });
+  const { companyName, contactName, email, phone } = req.body;
+  if (companyName !== undefined && !(companyName || "").trim()) return res.status(400).json({ error: "Company name is required" });
+  const updated = await prisma.golfSponsorContact.update({
+    where: { id: sponsor.id },
+    data: {
+      ...(companyName !== undefined ? { companyName: companyName.trim() } : {}),
+      ...(contactName !== undefined ? { contactName: (contactName || "").trim() } : {}),
+      ...(email !== undefined ? { email: normalizeEmail(email) } : {}),
+      ...(phone !== undefined ? { phone: (phone || "").trim() } : {}),
+    },
+  });
+  res.json(updated);
 });
 
 // --- Historical imports ---

@@ -45,6 +45,8 @@ import RaffleDrawings from "./views/RaffleDrawings";
 import RaffleFinancials from "./views/RaffleFinancials";
 import RaffleCheckIn from "./views/RaffleCheckIn";
 import ManageGolfTournaments from "./views/ManageGolfTournaments";
+import GolfPlayerDirectory from "./views/GolfPlayerDirectory";
+import GolfSponsorDirectory from "./views/GolfSponsorDirectory";
 import GolfRoster from "./views/GolfRoster";
 import GolfSponsors from "./views/GolfSponsors";
 import GolfCheckIn from "./views/GolfCheckIn";
@@ -337,6 +339,8 @@ function Shell() {
             {activeModuleKey === "raffle" && view === "financials" && <RaffleFinancials />}
             {activeModuleKey === "raffle" && view === "checkin" && <RaffleCheckIn gameId={selectedRaffleGameId} />}
             {activeModuleKey === "golf" && view === "manage" && <ManageGolfTournaments tournaments={golfTournaments} tournamentId={selectedGolfTournamentId} onTournamentsChanged={refreshGolfTournaments} />}
+            {activeModuleKey === "golf" && view === "players" && <GolfPlayerDirectory />}
+            {activeModuleKey === "golf" && view === "sponsor-directory" && <GolfSponsorDirectory />}
             {activeModuleKey === "golf" && view === "roster" && <GolfRoster tournament={selectedGolfTournament} />}
             {activeModuleKey === "golf" && view === "sponsors" && <GolfSponsors tournament={selectedGolfTournament} />}
             {activeModuleKey === "golf" && view === "checkin" && <GolfCheckIn tournament={selectedGolfTournament} />}

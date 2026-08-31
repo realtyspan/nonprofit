@@ -249,6 +249,8 @@ export const api = {
   markGolfTeamPaid: (tournamentId, teamId, payload) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}/mark-paid`, { method: "POST", body: payload }),
   getGolfStats: (tournamentId) => request(`/golf/tournaments/${tournamentId}/stats`),
   searchGolfPlayers: (search) => request(`/golf/players?search=${encodeURIComponent(search)}`),
+  listGolfPlayers: () => request("/golf/players"),
+  updateGolfPlayer: (playerId, payload) => request(`/golf/players/${playerId}`, { method: "PATCH", body: payload }),
 
   searchGolfCheckIn: (tournamentId) => request(`/golf/tournaments/${tournamentId}/checkin-search`),
   listGolfCheckIns: (tournamentId) => request(`/golf/tournaments/${tournamentId}/checkins`),
@@ -260,6 +262,8 @@ export const api = {
   deleteGolfSponsorship: (tournamentId, sponsorshipId) => request(`/golf/tournaments/${tournamentId}/sponsorships/${sponsorshipId}`, { method: "DELETE" }),
   confirmGolfSponsorship: (tournamentId, sponsorshipId) => request(`/golf/tournaments/${tournamentId}/sponsorships/${sponsorshipId}/confirm`, { method: "POST" }),
   searchGolfSponsors: (search) => request(`/golf/sponsors?search=${encodeURIComponent(search)}`),
+  listGolfSponsorDirectory: () => request("/golf/sponsors"),
+  updateGolfSponsorContact: (sponsorId, payload) => request(`/golf/sponsors/${sponsorId}`, { method: "PATCH", body: payload }),
 
   listGolfHistoricalImports: () => request("/golf/historical-imports"),
   importGolfHistoricalPlayers: (payload) => request("/golf/historical-imports/players", { method: "POST", body: payload }),
