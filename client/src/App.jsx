@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
+import { ConfirmProvider } from "./lib/ConfirmContext";
 import { api } from "./lib/api";
 import { APP_URL, MARKETING_HOSTNAMES } from "./lib/env";
 import { colors } from "./lib/tokens";
@@ -404,7 +405,9 @@ export default function App() {
   // renders, which is always scoped to the logged-in user's one org.
   return (
     <AuthProvider>
-      {window.location.pathname === "/platform-admin" ? <PlatformAdminApp /> : <Shell />}
+      <ConfirmProvider>
+        {window.location.pathname === "/platform-admin" ? <PlatformAdminApp /> : <Shell />}
+      </ConfirmProvider>
     </AuthProvider>
   );
 }

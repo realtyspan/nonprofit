@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
+import { useConfirm } from "../lib/ConfirmContext";
 
 function isOverdue(drawingDate) {
   const d = new Date(drawingDate);
@@ -97,9 +98,10 @@ export default function RaffleDrawings({ gameId }) {
 function ScheduledCard({ drawing, onConduct, onEdit, onDeleted, onError }) {
   const [busy, setBusy] = useState(false);
   const overdue = isOverdue(drawing.drawingDate);
+  const confirm = useConfirm();
 
   async function deleteDrawing() {
-    if (!window.confirm(`Delete the "${drawing.name}" drawing? This can't be undone.`)) return;
+    if (!(await confirm(`Delete the "${drawing.name}" drawing? This can't be undone.`))) return;
     setBusy(true);
     onError("");
     try {
@@ -201,9 +203,10 @@ function ConductDrawingModal({ gameId, drawing, onCancel, onDrawn, onError }) {
 
 function WinnersTable({ winners, gameId, onChanged, onError }) {
   const [busyId, setBusyId] = useState(null);
+  const confirm = useConfirm();
 
   async function redraw(drawing) {
-    if (!window.confirm(`Clear the winner for "${drawing.name}" so it can be redrawn?`)) return;
+    if (!(await confirm(`Clear the winner for "${drawing.name}" so it can be redrawn?`, { confirmLabel: "Clear winner", danger: false }))) return;
     setBusyId(drawing.id);
     onError("");
     try {

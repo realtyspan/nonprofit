@@ -5,6 +5,7 @@ import { formatUtcDate } from "../lib/dates";
 import { formatPhone } from "../lib/phone";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
+import { useConfirm } from "../lib/ConfirmContext";
 
 // Game management (start a raffle, correct its details, open/close it) — kept
 // separate from Report, which is pure reporting (stats, payment reminders).
@@ -455,9 +456,10 @@ function SendKickoffEmailModal({ game, recipientCount, onCancel, onSent }) {
 function HistoricalImports({ games, imports, onImportsChanged }) {
   const [showForm, setShowForm] = useState(false);
   const [editingImport, setEditingImport] = useState(null);
+  const confirm = useConfirm();
 
   async function remove(item) {
-    if (!window.confirm(`Remove the imported ${item.name} data? This only deletes the archived record used for "past buyers" lookups — it has no effect on any live raffle.`)) return;
+    if (!(await confirm(`Remove the imported ${item.name} data? This only deletes the archived record used for "past buyers" lookups — it has no effect on any live raffle.`, { confirmLabel: "Remove" }))) return;
     await api.deleteHistoricalRaffleImport(item.id);
     onImportsChanged();
   }

@@ -3,6 +3,7 @@ import { colors, card, button, input as inputStyle } from "../../lib/tokens";
 import { api } from "../../lib/api";
 import DataList from "../../components/DataList";
 import Modal from "../../components/Modal";
+import { useConfirm } from "../../lib/ConfirmContext";
 
 // The signup dropdown's source list (and what an org's detail screen offers
 // when setting/changing an org's type after the fact). Deliberately just a
@@ -13,6 +14,7 @@ export default function OrgCategories() {
   const [error, setError] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState(null);
+  const confirm = useConfirm();
 
   function refresh() {
     api.listPlatformOrgCategories().then(setCategories).catch((err) => setError(err.message));
@@ -23,7 +25,7 @@ export default function OrgCategories() {
     const warning = category.orgCount > 0
       ? `Remove "${category.name}"? ${category.orgCount} organization${category.orgCount === 1 ? "" : "s"} currently set to this type will revert to "not set" — they won't be deleted or lose data, but any module restricted to this category will disappear for them until it's reassigned.`
       : `Remove "${category.name}"?`;
-    if (!window.confirm(warning)) return;
+    if (!(await confirm(warning, { confirmLabel: "Remove" }))) return;
     setError("");
     try {
       await api.deletePlatformOrgCategory(category.id);

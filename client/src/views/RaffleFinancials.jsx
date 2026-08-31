@@ -5,6 +5,7 @@ import { formatUtcDate } from "../lib/dates";
 import ReceiptField from "../components/ReceiptField";
 import DataList from "../components/DataList";
 import { useIsMobile } from "../lib/viewport";
+import { useConfirm } from "../lib/ConfirmContext";
 
 const EXPENSE_CATEGORIES = [
   { value: "tickets", label: "Tickets" },
@@ -108,6 +109,7 @@ function GameFinancialCard({ game, onChanged }) {
   const [estimate, setEstimate] = useState(String(game.estimatedExpenses));
   const [savingEstimate, setSavingEstimate] = useState(false);
   const [error, setError] = useState("");
+  const confirm = useConfirm();
 
   function refreshExpenses() {
     api.listRaffleExpenses(game.gameId).then(setExpenses).catch(() => {});
@@ -134,7 +136,7 @@ function GameFinancialCard({ game, onChanged }) {
   }
 
   async function deleteExpense(id) {
-    if (!window.confirm("Delete this expense?")) return;
+    if (!(await confirm("Delete this expense?"))) return;
     try {
       await api.deleteRaffleExpense(game.gameId, id);
       refreshExpenses();

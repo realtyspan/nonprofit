@@ -3,6 +3,7 @@ import { colors, card, button, money } from "../../lib/tokens";
 import { api, downloadTextFile } from "../../lib/api";
 import DataList from "../../components/DataList";
 import { hasModuleTier } from "../../lib/modules";
+import { useConfirm } from "../../lib/ConfirmContext";
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -20,6 +21,7 @@ export default function FrsReport({ permissions }) {
   // server/src/lib/auth.js's requirePermission). Anything looser would show
   // a Delete button a Helper can't actually use.
   const canDelete = hasModuleTier(permissions, "elks-tools", "Admin");
+  const confirm = useConfirm();
   const [fileName, setFileName] = useState("");
   const [fileData, setFileData] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,7 +49,7 @@ export default function FrsReport({ permissions }) {
   }
 
   async function deleteRun(run) {
-    if (!window.confirm(`Delete the saved ${run.monthLabel} report? This removes both the source file and the CSV — you'd need to re-upload and regenerate to get them back.`)) return;
+    if (!(await confirm(`Delete the saved ${run.monthLabel} report? This removes both the source file and the CSV — you'd need to re-upload and regenerate to get them back.`))) return;
     try {
       await api.deleteFrsReportRun(run.id);
       refreshRuns();

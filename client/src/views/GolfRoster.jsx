@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
 import { formatPhone, stripPhone } from "../lib/phone";
+import { useConfirm } from "../lib/ConfirmContext";
 
 const PAYMENT_STYLE = {
   unpaid: [colors.warningBg, colors.warning, "Unpaid"],
@@ -75,6 +76,7 @@ function TeamCard({ team, tournament, confirmedSponsorships, onChanged }) {
   const [showComp, setShowComp] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const confirm = useConfirm();
 
   async function markPaid(teamPlayerId, paymentMethod) {
     setBusy(true);
@@ -103,7 +105,7 @@ function TeamCard({ team, tournament, confirmedSponsorships, onChanged }) {
   }
 
   async function removeTeam() {
-    if (!window.confirm(`Remove team${team.name ? ` "${team.name}"` : ""}? This can't be undone.`)) return;
+    if (!(await confirm(`Remove team${team.name ? ` "${team.name}"` : ""}? This can't be undone.`, { confirmLabel: "Remove" }))) return;
     setBusy(true);
     setError("");
     try {

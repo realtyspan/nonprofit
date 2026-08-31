@@ -3,6 +3,7 @@ import { colors, card, pill, button, input as inputStyle, money } from "../lib/t
 import { api } from "../lib/api";
 import { formatPhone, stripPhone } from "../lib/phone";
 import DataList from "../components/DataList";
+import { useConfirm } from "../lib/ConfirmContext";
 
 // Sponsorship management — the parallel fundraising track alongside player
 // registration. Admin-entered only in this pass; a public sponsor-inquiry
@@ -11,6 +12,7 @@ export default function GolfSponsors({ tournament }) {
   const [sponsorships, setSponsorships] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState("");
+  const confirm = useConfirm();
 
   function refresh() {
     if (!tournament) return;
@@ -35,7 +37,7 @@ export default function GolfSponsors({ tournament }) {
   }
 
   async function deleteSponsorship(s) {
-    if (!window.confirm(`Remove ${s.sponsor.companyName} as a sponsor? This can't be undone.`)) return;
+    if (!(await confirm(`Remove ${s.sponsor.companyName} as a sponsor? This can't be undone.`, { confirmLabel: "Remove" }))) return;
     try {
       await api.deleteGolfSponsorship(tournament.id, s.id);
       refresh();

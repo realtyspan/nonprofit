@@ -7,6 +7,7 @@ import { formatPhone, stripPhone } from "../lib/phone";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
 import PublicLinkBox from "../components/PublicLinkBox";
+import { useConfirm } from "../lib/ConfirmContext";
 
 // Tournament management (start a tournament, correct its details, open/close
 // it) — mirrors ManageRaffles.jsx's game-management pattern. Roster, sponsors,
@@ -181,6 +182,7 @@ function StripeConnectCard() {
   const [connect, setConnect] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const confirm = useConfirm();
 
   function reload() {
     api.getGolfStripeConnect().then(setConnect).catch((err) => setError(err.message));
@@ -213,7 +215,7 @@ function StripeConnectCard() {
   }
 
   async function disconnect() {
-    if (!window.confirm("Disconnect Stripe? Online payment will stop appearing as an option until it's reconnected.")) return;
+    if (!(await confirm("Disconnect Stripe? Online payment will stop appearing as an option until it's reconnected.", { confirmLabel: "Disconnect" }))) return;
     setBusy(true);
     setError("");
     try {
@@ -570,9 +572,10 @@ function TournamentFlyerField({ image, position, onChange, onPositionChange }) {
 function HistoricalImports({ tournaments, imports, onImportsChanged }) {
   const [showForm, setShowForm] = useState(null); // null | "players" | "sponsors"
   const [editingImport, setEditingImport] = useState(null);
+  const confirm = useConfirm();
 
   async function remove(item) {
-    if (!window.confirm(`Remove the imported "${item.name}" data? This deletes its ${item.playerCount} imported player(s) and ${item.sponsorshipCount} imported sponsorship(s) — archival only, no effect on any live tournament.`)) return;
+    if (!(await confirm(`Remove the imported "${item.name}" data? This deletes its ${item.playerCount} imported player(s) and ${item.sponsorshipCount} imported sponsorship(s) — archival only, no effect on any live tournament.`, { confirmLabel: "Remove" }))) return;
     await api.deleteGolfHistoricalImport(item.id);
     onImportsChanged();
   }

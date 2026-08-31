@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle } from "../../lib/tokens";
 import { api } from "../../lib/api";
 import DataList from "../../components/DataList";
+import { useConfirm } from "../../lib/ConfirmContext";
 
 const ROLE_STYLE = {
   Owner: [colors.indigoBg, colors.indigo],
@@ -13,6 +14,7 @@ export default function PlatformAdmins({ myRole }) {
   const [error, setError] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const isOwner = myRole === "Owner";
+  const confirm = useConfirm();
 
   function refresh() {
     api.listPlatformAdmins().then(setAdmins).catch((err) => setError(err.message));
@@ -30,7 +32,7 @@ export default function PlatformAdmins({ myRole }) {
   }
 
   async function revoke(admin) {
-    if (!window.confirm(`Revoke platform-admin access for ${admin.name}? They'll keep their account and login, just lose access to this dashboard.`)) return;
+    if (!(await confirm(`Revoke platform-admin access for ${admin.name}? They'll keep their account and login, just lose access to this dashboard.`, { confirmLabel: "Revoke" }))) return;
     setError("");
     try {
       await api.revokePlatformAdmin(admin.id);

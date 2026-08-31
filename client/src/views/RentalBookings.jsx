@@ -9,6 +9,7 @@ import Modal from "../components/Modal";
 import MoreActions from "../components/MoreActions";
 import { useIsMobile } from "../lib/viewport";
 import { formatPhone, stripPhone } from "../lib/phone";
+import { useConfirm } from "../lib/ConfirmContext";
 
 const HISTORY_STATUSES = ["completed", "declined", "cancelled"];
 
@@ -443,6 +444,7 @@ function PaymentModal({ booking, isRentalsAdmin, onCancel, onSaved, onBookingRef
   const [error, setError] = useState("");
   const [markingTurnoverId, setMarkingTurnoverId] = useState(null);
   const [turnoverName, setTurnoverName] = useState("");
+  const confirm = useConfirm();
 
   function refresh() {
     api.listRentalPayments(booking.id).then(setPayments).catch(() => {});
@@ -480,7 +482,7 @@ function PaymentModal({ booking, isRentalsAdmin, onCancel, onSaved, onBookingRef
   }
 
   async function removeEntry(id) {
-    if (!window.confirm("Delete this entry?")) return;
+    if (!(await confirm("Delete this entry?"))) return;
     try {
       await api.deleteRentalPayment(booking.id, id);
       refresh();
@@ -491,7 +493,7 @@ function PaymentModal({ booking, isRentalsAdmin, onCancel, onSaved, onBookingRef
   }
 
   async function undoTurnover(payment) {
-    if (!window.confirm(`Undo turnover for this $${payment.amount.toFixed(2)} payment?`)) return;
+    if (!(await confirm(`Undo turnover for this $${payment.amount.toFixed(2)} payment?`, { confirmLabel: "Undo", danger: false }))) return;
     try {
       await api.toggleRentalPaymentTurnedOver(booking.id, payment.id, {});
       refresh();
