@@ -60,6 +60,26 @@ function generateFrsReport(buffer) {
     throw new Error("This doesn't look like a Transaction Detail by Account export — too few rows");
   }
 
+  // The month/year header appears somewhere in the file's first few rows —
+  // its own position isn't fixed (this lodge's real exports put the lodge
+  // name and "FRS Report Template" in swapped order from month to month), so
+  // scan for it rather than trusting a specific row index. Checked early,
+  // before any transaction parsing: this also doubles as which month/year
+  // the saved report gets filed under (FrsReportRun is keyed by org + year +
+  // month, one save slot per month), so silently guessing here — as this
+  // used to do, falling back to "Unknown" and today's real date — risked a
+  // broken upload quietly overwriting an already-saved, legitimate report
+  // for whatever month "today" happened to be.
+  const monthMatch = rows.slice(0, 4)
+    .map((r) => /^([A-Za-z]+)\s+(\d{4})$/.exec(String(r?.[0] || "").trim()))
+    .find(Boolean);
+  if (!monthMatch || !MONTH_NAMES.includes(monthMatch[1])) {
+    throw new Error("Couldn't find the month/year header in this file (e.g. \"April 2026\") — make sure you're uploading the unedited Transaction Detail by Account export from QuickBooks.");
+  }
+  const monthName = monthMatch[1];
+  const year = Number(monthMatch[2]);
+  const month = MONTH_NAMES.indexOf(monthName) + 1;
+
   const totalRowIndex = rows.findIndex((r) => typeof r[0] === "string" && r[0].trim().startsWith("Total for"));
   const lastDataRow = totalRowIndex >= 0 ? totalRowIndex : rows.length - 6;
 
@@ -106,16 +126,6 @@ function generateFrsReport(buffer) {
     throw new Error(`This file does not balance — the transactions sum to ${sum.toFixed(2)} instead of 0.00. Double-check the export before submitting.`);
   }
 
-  // The month/year header appears somewhere in the file's first few rows —
-  // its own position isn't fixed (this lodge's real exports put the lodge
-  // name and "FRS Report Template" in swapped order from month to month), so
-  // scan for it rather than trusting a specific row index.
-  const monthMatch = rows.slice(0, 4)
-    .map((r) => /^([A-Za-z]+)\s+(\d{4})$/.exec(String(r?.[0] || "").trim()))
-    .find(Boolean);
-  const monthName = monthMatch ? monthMatch[1] : "Unknown";
-  const year = monthMatch ? Number(monthMatch[2]) : new Date().getFullYear();
-  const month = monthMatch ? MONTH_NAMES.indexOf(monthMatch[1]) + 1 : new Date().getMonth() + 1;
   const filename = `${LODGE_NUMBER}_${monthName}_${year}_Actual.csv`;
 
   const header = "LodgeNumber,LodgeGLAccount,Date,Amount";
