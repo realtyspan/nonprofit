@@ -868,7 +868,7 @@ router.post("/historical-imports/players/interpret", requirePermission("golf", "
   }
 
   try {
-    const rows = await extractPlayersFromRows(rawRows);
+    const rows = await extractPlayersFromRows(rawRows, req.user.orgId);
     if (rows.length === 0) return res.status(400).json({ error: `Couldn't find any players in that file. Try the recommended format: ${RECOMMENDED_PLAYER_FORMAT}` });
     res.json({ method: "ai", rows, skipped: 0 });
   } catch (err) {
@@ -894,7 +894,7 @@ router.post("/historical-imports/sponsors/interpret", requirePermission("golf", 
   }
 
   try {
-    const rows = await extractSponsorsFromRows(rawRows);
+    const rows = await extractSponsorsFromRows(rawRows, req.user.orgId);
     if (rows.length === 0) return res.status(400).json({ error: `Couldn't find any sponsors in that file. Try the recommended format: ${RECOMMENDED_SPONSOR_FORMAT}` });
     res.json({ method: "ai", rows, skipped: 0 });
   } catch (err) {

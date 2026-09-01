@@ -6,7 +6,10 @@
 // any field before saving, so an imperfect read here is not a data-integrity
 // risk the way a wrong hand-typed number silently would be.
 
+const { logAiUsage } = require("./aiUsage");
+
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const MODEL = "claude-haiku-4-5";
 
 const EXTRACTION_PROMPT = `This is a photo of a NYS "Bell Jar" / Games of Chance game label — either the game's printed flare, or the manufacturer's case/carton label (which is dense with barcodes and abbreviated codes rather than plain-English field names). Read the following fields:
 
@@ -42,7 +45,7 @@ function extractJson(text) {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-async function scanGameLabel(imageDataUrl) {
+async function scanGameLabel(imageDataUrl, orgId) {
   if (!ANTHROPIC_API_KEY) {
     throw new Error("AI label scanning isn't configured for this deployment (missing ANTHROPIC_API_KEY)");
   }
@@ -56,7 +59,7 @@ async function scanGameLabel(imageDataUrl) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5",
+      model: MODEL,
       max_tokens: 500,
       messages: [
         {
@@ -76,6 +79,12 @@ async function scanGameLabel(imageDataUrl) {
   }
 
   const data = await response.json();
+  // Logged as soon as we know tokens were actually spent — even if the JSON
+  // extraction below then fails, the org still incurred this call's cost.
+  await logAiUsage({
+    orgId, feature: "bell-jar-label-scan", model: MODEL,
+    inputTokens: data.usage?.input_tokens, outputTokens: data.usage?.output_tokens,
+  });
   const textBlock = (data.content || []).find((b) => b.type === "text");
   if (!textBlock) throw new Error("Label scan returned no text content");
   return extractJson(textBlock.text);

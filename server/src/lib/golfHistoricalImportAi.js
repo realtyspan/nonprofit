@@ -5,7 +5,10 @@
 // before anything saves, so an imperfect read here is a UX cost, not a
 // data-integrity risk the way a silent misimport would be.
 
+const { logAiUsage } = require("./aiUsage");
+
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const MODEL = "claude-haiku-4-5";
 
 // Generous but bounded — a lodge-scale tournament roster or sponsor list is
 // realistically a few hundred rows at most; well past that, something is
@@ -30,7 +33,7 @@ function extractJson(text) {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-async function callClaude(prompt, maxTokens) {
+async function callClaude(prompt, maxTokens, { orgId, feature }) {
   if (!ANTHROPIC_API_KEY) {
     throw new Error("AI-assisted import isn't configured for this deployment (missing ANTHROPIC_API_KEY)");
   }
@@ -42,7 +45,7 @@ async function callClaude(prompt, maxTokens) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5",
+      model: MODEL,
       max_tokens: maxTokens,
       messages: [{ role: "user", content: prompt }],
     }),
@@ -52,6 +55,12 @@ async function callClaude(prompt, maxTokens) {
     throw new Error(`AI-assisted import failed (${response.status}): ${text}`);
   }
   const data = await response.json();
+  // Logged as soon as we know tokens were actually spent — even if the JSON
+  // extraction below then fails, the org still incurred this call's cost.
+  await logAiUsage({
+    orgId, feature, model: MODEL,
+    inputTokens: data.usage?.input_tokens, outputTokens: data.usage?.output_tokens,
+  });
   const textBlock = (data.content || []).find((b) => b.type === "text");
   if (!textBlock) throw new Error("AI-assisted import returned no text content");
   return extractJson(textBlock.text);
@@ -93,11 +102,11 @@ Respond with ONLY a JSON array of objects with exactly these keys: companyName, 
 Spreadsheet:
 `;
 
-async function extractPlayersFromRows(rawRows) {
+async function extractPlayersFromRows(rawRows, orgId) {
   if (rawRows.length > MAX_ROWS) {
     throw Object.assign(new Error(`This file has ${rawRows.length} rows — AI-assisted reading is limited to ${MAX_ROWS} at a time. Try splitting it into smaller files.`), { status: 400 });
   }
-  const rows = await callClaude(PLAYER_PROMPT_HEADER + rowsToText(rawRows), 8000);
+  const rows = await callClaude(PLAYER_PROMPT_HEADER + rowsToText(rawRows), 8000, { orgId, feature: "golf-historical-import-players" });
   return rows
     .filter((r) => r && typeof r.name === "string" && r.name.trim())
     .map((r) => ({
@@ -109,11 +118,11 @@ async function extractPlayersFromRows(rawRows) {
     }));
 }
 
-async function extractSponsorsFromRows(rawRows) {
+async function extractSponsorsFromRows(rawRows, orgId) {
   if (rawRows.length > MAX_ROWS) {
     throw Object.assign(new Error(`This file has ${rawRows.length} rows — AI-assisted reading is limited to ${MAX_ROWS} at a time. Try splitting it into smaller files.`), { status: 400 });
   }
-  const rows = await callClaude(SPONSOR_PROMPT_HEADER + rowsToText(rawRows), 8000);
+  const rows = await callClaude(SPONSOR_PROMPT_HEADER + rowsToText(rawRows), 8000, { orgId, feature: "golf-historical-import-sponsors" });
   return rows
     .filter((r) => r && typeof r.companyName === "string" && r.companyName.trim())
     .map((r) => ({

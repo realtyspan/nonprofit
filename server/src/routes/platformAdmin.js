@@ -343,4 +343,39 @@ router.delete("/admins/:userId", requirePlatformOwner, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Cross-org AI usage/cost, for deciding whether a heavy user of an
+// AI-assisted feature (the golf historical-import reader, the Bell Jar
+// label scanner) needs a billing conversation. Aggregated in JS from the
+// raw log rather than a SQL group-by — this app's usual "simple until
+// volume says otherwise" approach, matching every other stats computation
+// here (computeRaffleStats, golf's /stats, etc.).
+router.get("/ai-usage", async (req, res) => {
+  const [logs, orgs] = await Promise.all([
+    prisma.aiUsageLog.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.organization.findMany({ select: { id: true, name: true } }),
+  ]);
+  const orgNames = Object.fromEntries(orgs.map((o) => [o.id, o.name]));
+
+  const now = new Date();
+  const last30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const byOrg = new Map();
+  for (const log of logs) {
+    if (!byOrg.has(log.orgId)) {
+      byOrg.set(log.orgId, { orgId: log.orgId, orgName: orgNames[log.orgId] || "(deleted org)", totalCalls: 0, totalCostUsd: 0, last30DaysCostUsd: 0, byFeature: {} });
+    }
+    const entry = byOrg.get(log.orgId);
+    entry.totalCalls += 1;
+    entry.totalCostUsd += log.costUsd;
+    if (log.createdAt >= last30) entry.last30DaysCostUsd += log.costUsd;
+    entry.byFeature[log.feature] = (entry.byFeature[log.feature] || 0) + log.costUsd;
+  }
+
+  const rows = Array.from(byOrg.values()).sort((a, b) => b.totalCostUsd - a.totalCostUsd);
+  const platformTotalCostUsd = rows.reduce((sum, r) => sum + r.totalCostUsd, 0);
+  const platformLast30DaysCostUsd = rows.reduce((sum, r) => sum + r.last30DaysCostUsd, 0);
+
+  res.json({ rows, platformTotalCostUsd, platformLast30DaysCostUsd, totalCalls: logs.length });
+});
+
 module.exports = router;

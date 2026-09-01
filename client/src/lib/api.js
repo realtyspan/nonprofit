@@ -123,6 +123,7 @@ export const api = {
   getOrg: () => request("/org"),
   updateOrg: (payload) => request("/org", { method: "PATCH", body: payload }),
   updateOrgIdentity: (payload) => request("/org/identity", { method: "PATCH", body: payload }),
+  getAiUsage: () => request("/org/ai-usage"),
 
   listRentalSpaces: () => request("/rentals/spaces"),
   createRentalSpace: (payload) => request("/rentals/spaces", { method: "POST", body: payload }),
@@ -286,6 +287,7 @@ export const api = {
 
   getPlatformSummary: () => request("/platform-admin/summary"),
   listPlatformOrganizations: () => request("/platform-admin/organizations"),
+  getPlatformAiUsage: () => request("/platform-admin/ai-usage"),
   getPlatformOrganization: (id) => request(`/platform-admin/organizations/${id}`),
   updatePlatformOrgBilling: (id, payload) => request(`/platform-admin/organizations/${id}/billing`, { method: "PATCH", body: payload }),
   createStripeCheckoutLink: (id, cadence) => request(`/platform-admin/organizations/${id}/stripe/checkout-link`, { method: "POST", body: { cadence } }),

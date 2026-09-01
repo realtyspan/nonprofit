@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { colors, card, pill, button, input as inputStyle } from "../lib/tokens";
+import { colors, card, pill, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import { MODULES } from "../lib/modules";
@@ -37,6 +37,8 @@ export default function Team({ permissions, onPermissionsChanged }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <OrganizationInfoCard isOwner={isOwner} />
+
+      {isOwner && <AiUsageCard />}
 
       {isOwner && <LabelsCard labels={labels} onSaved={refresh} />}
 
@@ -329,6 +331,46 @@ function OrganizationInfoCard({ isOwner }) {
           <div><button style={button.primary} type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</button></div>
         </form>
       )}
+    </div>
+  );
+}
+
+const AI_FEATURE_LABEL = {
+  "golf-historical-import-players": "Golf: reading a historical player file",
+  "golf-historical-import-sponsors": "Golf: reading a historical sponsor file",
+  "bell-jar-label-scan": "Bell Jar: scanning a game label photo",
+};
+
+// What your own AI-assisted feature usage has cost so far — the org-scoped
+// counterpart to platform-admin's cross-org AiUsage.jsx. Owner-only, same
+// reasoning as the Organization card above: a billing/cost concern, not a
+// day-to-day operational one.
+function AiUsageCard() {
+  const [usage, setUsage] = useState(null);
+
+  useEffect(() => {
+    api.getAiUsage().then(setUsage).catch(() => {});
+  }, []);
+
+  if (!usage || usage.totalCalls === 0) return null;
+
+  return (
+    <div style={card}>
+      <div style={{ fontSize: 15, fontWeight: 700 }}>AI-assisted feature usage</div>
+      <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>What features like the golf historical-import reader and the Bell Jar label scanner have cost so far — for your own visibility, not something you're billed for separately today.</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+        <span style={pill(colors.successBg, colors.success)}>{money(usage.totalCostUsd)} all-time</span>
+        <span style={pill(colors.indigoBg, colors.indigo)}>{money(usage.last30DaysCostUsd)} last 30 days</span>
+        <span style={pill("#f1ece0", colors.textSecondary)}>{usage.totalCalls} use{usage.totalCalls === 1 ? "" : "s"}</span>
+      </div>
+      <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6, fontSize: 12.5 }}>
+        {Object.entries(usage.byFeature).map(([feature, cost]) => (
+          <div key={feature} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+            <span style={{ color: colors.textSecondary }}>{AI_FEATURE_LABEL[feature] || feature}</span>
+            <span>{money(cost)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

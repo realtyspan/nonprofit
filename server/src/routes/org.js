@@ -57,4 +57,26 @@ router.patch("/identity", requireOwner, async (req, res) => {
   res.json(org);
 });
 
+// An org's own AI-assisted feature usage (the golf historical-import
+// reader, the Bell Jar label scanner) — Owner-only, same reasoning as
+// org identity above: this reads like a billing/cost concern, not a
+// per-module operational detail any module Admin needs day to day.
+router.get("/ai-usage", requireOwner, async (req, res) => {
+  const logs = await prisma.aiUsageLog.findMany({ where: { orgId: req.user.orgId }, orderBy: { createdAt: "desc" } });
+
+  const now = new Date();
+  const last30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  let totalCostUsd = 0;
+  let last30DaysCostUsd = 0;
+  const byFeature = {};
+  for (const log of logs) {
+    totalCostUsd += log.costUsd;
+    if (log.createdAt >= last30) last30DaysCostUsd += log.costUsd;
+    byFeature[log.feature] = (byFeature[log.feature] || 0) + log.costUsd;
+  }
+
+  res.json({ totalCalls: logs.length, totalCostUsd, last30DaysCostUsd, byFeature });
+});
+
 module.exports = router;

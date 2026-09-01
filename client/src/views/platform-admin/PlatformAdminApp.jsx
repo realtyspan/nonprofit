@@ -6,6 +6,7 @@ import logo from "../../assets/logo.png";
 import OrganizationsList from "./OrganizationsList";
 import PlatformAdmins from "./PlatformAdmins";
 import OrgCategories from "./OrgCategories";
+import AiUsage from "./AiUsage";
 
 // Top-level app, not a module inside any org's Shell — this is cross-tenant
 // and single-person, structurally unlike everything else in the client,
@@ -52,7 +53,7 @@ export default function PlatformAdminApp() {
       </div>
       <div style={{ padding: "28px 32px 60px", maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
         <div style={{ display: "flex", gap: 4, background: "#fff", borderRadius: 10, padding: 3, width: "fit-content", border: `1px solid ${colors.border}` }}>
-          {[{ key: "organizations", label: "Organizations" }, { key: "categories", label: "Org Types" }, { key: "admins", label: "Admins" }].map((t) => (
+          {[{ key: "organizations", label: "Organizations" }, { key: "categories", label: "Org Types" }, { key: "admins", label: "Admins" }, { key: "ai-usage", label: "AI Usage" }].map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
@@ -71,6 +72,7 @@ export default function PlatformAdminApp() {
         {tab === "organizations" && <OrganizationsList />}
         {tab === "categories" && <OrgCategories />}
         {tab === "admins" && <PlatformAdmins myRole={permissions.platformRole} />}
+        {tab === "ai-usage" && <AiUsage />}
       </div>
     </div>
   );

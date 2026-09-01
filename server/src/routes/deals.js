@@ -42,7 +42,7 @@ router.post("/scan-label", requirePermission("bell-jar", "Helper"), async (req, 
   const { image } = req.body;
   if (!image) return res.status(400).json({ error: "An image is required" });
   try {
-    const fields = await scanGameLabel(image);
+    const fields = await scanGameLabel(image, req.user.orgId);
     res.json(fields);
   } catch (err) {
     res.status(502).json({ error: err.message });

@@ -70,6 +70,7 @@ model Organization {
   golfLogs                 GolfLog[]
   golfEmailSuppressions    GolfEmailSuppression[]
   orgStripeConnect         OrgStripeConnect?
+  aiUsageLogs              AiUsageLog[]
 }
 
 // Platform-admin-managed list (e.g. "Elks Lodge", "VFW Post", "Fire
@@ -1095,4 +1096,26 @@ model OrgStripeConnect {
   disconnectedAt    DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+}
+
+// One row per AI-assisted API call, across every feature that uses one (the
+// Bell Jar label scanner, the golf historical-import reader) — a single
+// shared ledger so a new AI feature later only needs to call lib/aiUsage.js,
+// not invent its own tracking. costUsd is computed and stored at write time
+// from that call's actual token usage and the model's rate then, so a rate
+// change later never rewrites the cost of a call that already happened.
+model AiUsageLog {
+  id           String   @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  feature      String   // e.g. "golf-historical-import-players", "bell-jar-label-scan"
+  model        String   // e.g. "claude-haiku-4-5"
+  inputTokens  Int
+  outputTokens Int
+  costUsd      Float
+  success      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([feature, createdAt])
 }
