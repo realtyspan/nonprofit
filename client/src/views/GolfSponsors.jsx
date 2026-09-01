@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { formatPhone, stripPhone } from "../lib/phone";
 import DataList from "../components/DataList";
 import { useConfirm } from "../lib/ConfirmContext";
+import DirectorySearchField from "../components/DirectorySearchField";
 
 // Sponsorship management — the parallel fundraising track alongside player
 // registration. Admin-entered only in this pass; a public sponsor-inquiry
@@ -138,6 +139,22 @@ function AddSponsorForm({ tournament, onCancel, onAdded }) {
     <div style={{ ...card, display: "flex", flexDirection: "column", gap: 12, maxWidth: 480 }}>
       <div style={{ fontSize: 15, fontWeight: 700 }}>Add sponsor</div>
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <DirectorySearchField
+          placeholder="Search existing sponsors by company or email…"
+          searchFn={api.searchGolfSponsors}
+          renderResult={(s) => (
+            <div>
+              <strong>{s.companyName}</strong>{s.contactName ? ` — ${s.contactName}` : ""}{s.email ? ` · ${s.email}` : ""}
+              {s.sponsorshipCount > 0 && <span style={{ color: colors.textSecondary }}> · sponsored {s.sponsorshipCount}x, last {s.lastYear}</span>}
+            </div>
+          )}
+          onSelect={(s) => {
+            set("companyName", s.companyName);
+            set("contactName", s.contactName || "");
+            set("email", s.email);
+            set("phone", s.phone);
+          }}
+        />
         <input style={inputStyle} required placeholder="Company name" value={form.companyName} onChange={(e) => set("companyName", e.target.value)} />
         <input style={inputStyle} placeholder="Contact name (optional)" value={form.contactName} onChange={(e) => set("contactName", e.target.value)} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>

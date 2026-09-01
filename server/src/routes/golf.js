@@ -422,13 +422,23 @@ router.post("/tournaments/:tournamentId/teams/:teamId/players", requirePermissio
   }
 
   const player = await findOrCreatePlayer(prisma, req.user.orgId, { name, email, phone });
-  const teamPlayer = await prisma.golfTeamPlayer.create({
-    data: {
-      orgId: req.user.orgId, tournamentId: req.golfTournament.id, teamId: req.golfTeam.id, playerId: player.id,
-      isCaptain: !!isCaptain, amountDue: req.golfTournament.costPerPlayer,
-    },
-    include: { player: true, checkIn: true },
-  });
+  let teamPlayer;
+  try {
+    teamPlayer = await prisma.golfTeamPlayer.create({
+      data: {
+        orgId: req.user.orgId, tournamentId: req.golfTournament.id, teamId: req.golfTeam.id, playerId: player.id,
+        isCaptain: !!isCaptain, amountDue: req.golfTournament.costPerPlayer,
+      },
+      include: { player: true, checkIn: true },
+    });
+  } catch (err) {
+    // Most likely hit via the directory search now surfacing someone who's
+    // already on this exact team (the search doesn't exclude them, since
+    // "already here" is still a legitimate result to see) — a friendly
+    // reject beats letting a raw unique-constraint error hang the request.
+    if (err.code === "P2002") return res.status(400).json({ error: `${player.name} is already on this team` });
+    throw err;
+  }
   await addGolfLog(req.user.orgId, req.golfTournament.id, {
     type: "player_added",
     text: `${player.name} added to team${req.golfTeam.name ? ` "${req.golfTeam.name}"` : ""}`,

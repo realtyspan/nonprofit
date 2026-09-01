@@ -3,6 +3,7 @@ import { colors, card, pill, button, input as inputStyle, money } from "../lib/t
 import { api } from "../lib/api";
 import { formatPhone, stripPhone } from "../lib/phone";
 import { useConfirm } from "../lib/ConfirmContext";
+import DirectorySearchField from "../components/DirectorySearchField";
 
 const PAYMENT_STYLE = {
   unpaid: [colors.warningBg, colors.warning, "Unpaid"],
@@ -208,6 +209,17 @@ function AddPlayerForm({ tournament, team, onCancel, onAdded }) {
 
   return (
     <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, background: "#f7f4ec", borderRadius: 8 }}>
+      <DirectorySearchField
+        placeholder="Search existing players by name or email…"
+        searchFn={api.searchGolfPlayers}
+        renderResult={(p) => (
+          <div>
+            <strong>{p.name}</strong>{p.email ? ` — ${p.email}` : ""}{p.phone ? ` · ${formatPhone(p.phone)}` : ""}
+            {p.tournamentCount > 0 && <span style={{ color: colors.textSecondary }}> · played {p.tournamentCount}x, last {p.lastYear}</span>}
+          </div>
+        )}
+        onSelect={(p) => { setName(p.name); setEmail(p.email); setPhone(p.phone); }}
+      />
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <input style={{ ...inputStyle, flex: "1 1 140px" }} required placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
         <input style={{ ...inputStyle, flex: "1 1 160px" }} type="email" placeholder="Email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -300,14 +312,27 @@ function AddTeamModal({ tournament, onCancel, onCreated }) {
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <input style={inputStyle} placeholder="Team name (optional)" value={teamName} onChange={(e) => setTeamName(e.target.value)} />
         {players.map((p, i) => (
-          <div key={i} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: 8, background: "#f7f4ec", borderRadius: 8 }}>
-            <input style={{ ...inputStyle, flex: "1 1 140px" }} required placeholder="Name" value={p.name} onChange={(e) => setPlayer(i, "name", e.target.value)} />
-            <input style={{ ...inputStyle, flex: "1 1 160px" }} type="email" placeholder="Email (optional)" value={p.email} onChange={(e) => setPlayer(i, "email", e.target.value)} />
-            <input style={{ ...inputStyle, flex: "1 1 120px" }} placeholder="Phone (optional)" value={formatPhone(p.phone)} onChange={(e) => setPlayer(i, "phone", stripPhone(e.target.value))} />
-            <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
-              <input type="checkbox" checked={p.isCaptain} onChange={(e) => setPlayer(i, "isCaptain", e.target.checked)} /> Captain
-            </label>
-            {players.length > 1 && <button type="button" style={{ ...button.ghost, padding: "4px 8px", fontSize: 11.5, color: colors.danger }} onClick={() => removePlayerRow(i)}>Remove</button>}
+          <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6, padding: 8, background: "#f7f4ec", borderRadius: 8 }}>
+            <DirectorySearchField
+              placeholder="Search existing players by name or email…"
+              searchFn={api.searchGolfPlayers}
+              renderResult={(m) => (
+                <div>
+                  <strong>{m.name}</strong>{m.email ? ` — ${m.email}` : ""}{m.phone ? ` · ${formatPhone(m.phone)}` : ""}
+                  {m.tournamentCount > 0 && <span style={{ color: colors.textSecondary }}> · played {m.tournamentCount}x, last {m.lastYear}</span>}
+                </div>
+              )}
+              onSelect={(m) => { setPlayer(i, "name", m.name); setPlayer(i, "email", m.email); setPlayer(i, "phone", m.phone); }}
+            />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <input style={{ ...inputStyle, flex: "1 1 140px" }} required placeholder="Name" value={p.name} onChange={(e) => setPlayer(i, "name", e.target.value)} />
+              <input style={{ ...inputStyle, flex: "1 1 160px" }} type="email" placeholder="Email (optional)" value={p.email} onChange={(e) => setPlayer(i, "email", e.target.value)} />
+              <input style={{ ...inputStyle, flex: "1 1 120px" }} placeholder="Phone (optional)" value={formatPhone(p.phone)} onChange={(e) => setPlayer(i, "phone", stripPhone(e.target.value))} />
+              <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
+                <input type="checkbox" checked={p.isCaptain} onChange={(e) => setPlayer(i, "isCaptain", e.target.checked)} /> Captain
+              </label>
+              {players.length > 1 && <button type="button" style={{ ...button.ghost, padding: "4px 8px", fontSize: 11.5, color: colors.danger }} onClick={() => removePlayerRow(i)}>Remove</button>}
+            </div>
           </div>
         ))}
         {players.length < tournament.maxTeamSize && (
