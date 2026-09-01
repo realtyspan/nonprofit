@@ -1,7 +1,8 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
 const { rateLimit } = require("../lib/rateLimit");
-const { registerTeam, addGolfLog } = require("../lib/golfLogic");
+const { registerTeam, addGolfLog, normalizeEmail } = require("../lib/golfLogic");
+const { stripPhone } = require("../lib/phone");
 
 const router = express.Router();
 
@@ -59,6 +60,42 @@ router.get("/:slug", async (req, res) => {
     })),
   });
 });
+
+// "Have you played with us before?" — lets a visitor pre-fill their name by
+// giving the exact email or phone they registered with previously, without
+// ever exposing a searchable directory publicly. Two things keep this from
+// becoming the "pulling up someone else's info" problem a fuzzy/partial
+// search would be: (1) it's an exact match only, never `contains` — no
+// fishing by typing a partial name; (2) only the matched name comes back,
+// never the phone/email on file, so even someone who already knows a real
+// person's exact email/phone (which, unlike a password, isn't inherently
+// secret) only ever gets a name back, not more contact detail than they
+// already had. Same response shape and 200 status whether it matched or
+// not, and no "not found" message — so the response itself never confirms
+// or denies that a given email/phone is on file. Rate-limited like every
+// other public golf route so it can't be used to machine-guess a list.
+router.post(
+  "/:slug/lookup-player",
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 10 }),
+  async (req, res) => {
+    const org = await prisma.organization.findUnique({ where: { slug: req.params.slug } });
+    if (!org) return res.status(404).json({ error: "Not found" });
+
+    if (req.body.website) return res.json({ name: "" }); // suspected bot — same shape as a no-match
+
+    const email = normalizeEmail(req.body.email);
+    const phone = stripPhone(req.body.phone);
+    if (!email && !phone) return res.json({ name: "" });
+
+    const player = await prisma.golfPlayer.findFirst({
+      where: {
+        orgId: org.id,
+        OR: [email ? { email } : null, phone ? { phone } : null].filter(Boolean),
+      },
+    });
+    res.json({ name: player?.name || "" });
+  }
+);
 
 // Registers a team with no payment info at all — payment is a separate,
 // later step (see plan doc's two-step register-then-pay design). `website`

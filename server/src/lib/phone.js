@@ -1,14 +1,20 @@
 // Mirrors client/src/lib/phone.js — phone numbers are stored as plain digits
-// and only formatted at the edges. This side only needs formatting (for PDF
-// output); the client side also needs stripPhone for its input masks.
-function formatPhone(value) {
+// and only formatted at the edges. This side originally only needed
+// formatting (for PDF output); stripPhone was added alongside it so an
+// exact-match lookup (see publicGolf.js) can normalize a visitor-typed
+// phone number the same way the client does before it was ever stored.
+function stripPhone(value) {
   const digits = (value || "").replace(/\D/g, "");
-  const d = digits.length === 11 && digits[0] === "1" ? digits.slice(1) : digits;
-  const trimmed = d.slice(0, 10);
+  const trimmed = digits.length === 11 && digits[0] === "1" ? digits.slice(1) : digits;
+  return trimmed.slice(0, 10);
+}
+
+function formatPhone(value) {
+  const trimmed = stripPhone(value);
   if (trimmed.length === 0) return "";
   if (trimmed.length <= 3) return `(${trimmed}`;
   if (trimmed.length <= 6) return `(${trimmed.slice(0, 3)}) ${trimmed.slice(3)}`;
   return `(${trimmed.slice(0, 3)}) ${trimmed.slice(3, 6)}-${trimmed.slice(6, 10)}`;
 }
 
-module.exports = { formatPhone };
+module.exports = { formatPhone, stripPhone };

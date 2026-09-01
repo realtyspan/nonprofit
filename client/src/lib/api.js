@@ -335,6 +335,21 @@ export const publicApi = {
     if (!res.ok) throw new Error(data.error || "Not found");
     return data;
   },
+  // Always resolves (never throws) — a failed lookup should feel identical
+  // to a plain no-match on the registration form, not surface as an error.
+  async lookupGolfPlayer(slug, payload) {
+    try {
+      const res = await fetch(`/api/public/golf/${slug}/lookup-player`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      return { name: data.name || "" };
+    } catch {
+      return { name: "" };
+    }
+  },
   async registerGolfTeam(slug, tournamentId, payload) {
     const res = await fetch(`/api/public/golf/${slug}/tournaments/${tournamentId}/register`, {
       method: "POST",
