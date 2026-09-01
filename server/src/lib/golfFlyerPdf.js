@@ -213,7 +213,12 @@ async function buildEventFlyerPdf(content) {
   page.drawText(String(year), { x: tabX + (tabW - interSemiBold.widthOfTextAtSize(String(year), 9.5)) / 2, y: tabY + 10, size: 9.5, font: interSemiBold, color: COLOR.white });
 
   // ---- Stat row ----
-  let y2 = heroBottom - 26;
+  // Must clear the date tab's bottom edge (tabY), not just heroBottom — the
+  // tab intentionally overlaps the hero/body seam, and a fixed heroBottom-26
+  // offset here left only an 11pt gap to the tab's actual bottom (37pt below
+  // the seam), so the stat row's white box was silently painting over the
+  // last few points of the tab (including the year label) on every flyer.
+  let y2 = tabY - 14;
   const stats = (content.stats || []).filter((s) => s.value);
   if (stats.length) {
     const rowH = 44;
@@ -241,32 +246,36 @@ async function buildEventFlyerPdf(content) {
   const leftX = MARGIN;
   const rightX = MARGIN + colW + gap;
 
+  // Gap between a section heading's baseline and the first row below it —
+  // 10-12pt looked reasonable on screen but was too tight in an actual PDF
+  // viewer at these font sizes: the heading's descender and the first row's
+  // ascender (plus, for included items, the checkmark badge's own height)
+  // landed close enough to visibly touch. 20pt gives real daylight.
+  const SECTION_HEADING_GAP = 20;
+
   if (content.includedItems && content.includedItems.length) {
     let ly = y2;
     ly = drawSectionHeading(page, "What's Included", leftX, ly, colW, interBold);
-    ly -= 12;
-    const itemColW = (colW - 12) / 2;
+    ly -= SECTION_HEADING_GAP;
+    // Single column (not a 2-up grid) — matches the approved flyer rendering.
     content.includedItems.forEach((item, i) => {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      const ix = leftX + col * (itemColW + 12);
-      const iy = ly - row * 20;
+      const iy = ly - i * 20;
+      const cx = leftX + 8, cy = iy + 3;
       // A hand-drawn vector check, not the ✓ glyph — several of this flyer's
       // fonts don't carry that character in their subset, and a check that
       // silently disappears is worse than one drawn with two line segments.
-      const cx = ix + 8, cy = iy + 3;
       page.drawCircle({ x: cx, y: cy, size: 8, color: COLOR.tealTint });
       page.drawLine({ start: { x: cx - 4, y: cy - 0.5 }, end: { x: cx - 1, y: cy - 3.5 }, thickness: 1.4, color: COLOR.tealDeep, lineCap: LineCapStyle.Round });
       page.drawLine({ start: { x: cx - 1, y: cy - 3.5 }, end: { x: cx + 4.5, y: cy + 3.5 }, thickness: 1.4, color: COLOR.tealDeep, lineCap: LineCapStyle.Round });
-      const fit = fitWrapped(interSemiBold, item, itemColW - 22, [10.5], 1).lines[0];
-      page.drawText(fit, { x: ix + 20, y: iy, size: 10.5, font: interSemiBold, color: COLOR.ink });
+      const fit = fitWrapped(interSemiBold, item, colW - 30, [10.5], 1).lines[0];
+      page.drawText(fit, { x: leftX + 20, y: iy, size: 10.5, font: interSemiBold, color: COLOR.ink });
     });
   }
 
   let ry = y2;
   if (content.scheduleItems && content.scheduleItems.length) {
     ry = drawSectionHeading(page, "Schedule", rightX, ry, colW, interBold);
-    ry -= 10;
+    ry -= SECTION_HEADING_GAP;
     for (const item of content.scheduleItems) {
       page.drawText(item.time || "", { x: rightX, y: ry, size: 11.5, font: displayBold, color: COLOR.terracottaDeep });
       const label = fitWrapped(interMedium, item.label || "", colW - 78, [10.5], 1).lines[0];
