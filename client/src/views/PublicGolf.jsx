@@ -389,12 +389,26 @@ function RegisterForm({ tournament, slug, onCancel }) {
   function setPlayer(i, k, v) {
     setPlayers((ps) => ps.map((p, idx) => (idx === i ? { ...p, [k]: v } : p)));
   }
+  // Radio-button semantics, not independent checkboxes — exactly one
+  // captain, never zero or several by accident.
+  function setCaptain(i) {
+    setPlayers((ps) => ps.map((p, idx) => ({ ...p, isCaptain: idx === i })));
+  }
   function addPlayerRow() {
     if (players.length >= tournament.maxTeamSize) return;
     setPlayers((ps) => [...ps, emptyPlayer(false)]);
   }
   function removePlayerRow(i) {
-    setPlayers((ps) => ps.filter((_, idx) => idx !== i));
+    setPlayers((ps) => {
+      const removingCaptain = ps[i]?.isCaptain;
+      const rest = ps.filter((_, idx) => idx !== i);
+      // Removing the captain shouldn't leave the team with none — promote
+      // whoever's now first rather than surface that as an error.
+      if (removingCaptain && rest.length > 0 && !rest.some((p) => p.isCaptain)) {
+        rest[0] = { ...rest[0], isCaptain: true };
+      }
+      return rest;
+    });
   }
 
   async function submit(e) {
@@ -462,6 +476,11 @@ function RegisterForm({ tournament, slug, onCancel }) {
           <input style={{ ...inputStyle, flex: "1 1 140px" }} required placeholder={i === 0 ? "Your name" : "Player name"} value={p.name} onChange={(e) => setPlayer(i, "name", e.target.value)} />
           <input style={{ ...inputStyle, flex: "1 1 160px" }} type="email" placeholder="Email" value={p.email} onChange={(e) => setPlayer(i, "email", e.target.value)} />
           <input style={{ ...inputStyle, flex: "1 1 120px" }} placeholder="Phone" value={formatPhone(p.phone)} onChange={(e) => setPlayer(i, "phone", stripPhone(e.target.value))} />
+          {players.length > 1 && (
+            <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: colors.textSecondary, whiteSpace: "nowrap" }}>
+              <input type="radio" name="golf-team-captain" checked={p.isCaptain} onChange={() => setCaptain(i)} /> Team captain
+            </label>
+          )}
           {players.length > 1 && <button type="button" style={{ ...button.ghost, padding: "4px 8px", fontSize: 11.5, color: colors.danger }} onClick={() => removePlayerRow(i)}>Remove</button>}
         </div>
       ))}
