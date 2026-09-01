@@ -35,7 +35,7 @@ router.patch("/", requireOwnerOrBellJarAdmin, async (req, res) => {
 // operational detail — see Team.jsx's "Organization" section, the one place
 // this is editable regardless of which modules an org even has.
 router.patch("/identity", requireOwner, async (req, res) => {
-  const { name, contactEmail, address, mailingAddress, slug } = req.body;
+  const { name, contactEmail, phone, address, mailingAddress, slug } = req.body;
   if (name !== undefined && !name.trim()) {
     return res.status(400).json({ error: "Organization name can't be blank" });
   }
@@ -52,7 +52,34 @@ router.patch("/identity", requireOwner, async (req, res) => {
 
   const org = await prisma.organization.update({
     where: { id: req.user.orgId },
-    data: { name: name !== undefined ? name.trim() : undefined, contactEmail, address, mailingAddress, slug: slug || undefined },
+    data: { name: name !== undefined ? name.trim() : undefined, contactEmail, phone, address, mailingAddress, slug: slug || undefined },
+  });
+  res.json(org);
+});
+
+// The actual external webpage where an org has pasted a module's embed code
+// (see PublicLinkBox.jsx) — merged into the existing map by module key so
+// setting golf's URL never touches any other module's. Owner-only, same as
+// the rest of org identity above and matching PublicLinkBox's own edit gate
+// (this field lives in that same "Public link" card).
+router.patch("/identity/embed-page", requireOwner, async (req, res) => {
+  const { module, url } = req.body;
+  if (!module || typeof module !== "string") {
+    return res.status(400).json({ error: "module is required" });
+  }
+  const trimmed = (url || "").trim();
+  if (trimmed && !/^https?:\/\/.+/i.test(trimmed)) {
+    return res.status(400).json({ error: "Enter a full web address starting with http:// or https://" });
+  }
+
+  const existing = await prisma.organization.findUnique({ where: { id: req.user.orgId }, select: { embedPageUrls: true } });
+  const embedPageUrls = { ...(existing.embedPageUrls || {}) };
+  if (trimmed) embedPageUrls[module] = trimmed;
+  else delete embedPageUrls[module];
+
+  const org = await prisma.organization.update({
+    where: { id: req.user.orgId },
+    data: { embedPageUrls },
   });
   res.json(org);
 });

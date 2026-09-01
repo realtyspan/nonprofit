@@ -123,6 +123,7 @@ export const api = {
   getOrg: () => request("/org"),
   updateOrg: (payload) => request("/org", { method: "PATCH", body: payload }),
   updateOrgIdentity: (payload) => request("/org/identity", { method: "PATCH", body: payload }),
+  updateOrgEmbedPageUrl: (module, url) => request("/org/identity/embed-page", { method: "PATCH", body: { module, url } }),
   getAiUsage: () => request("/org/ai-usage"),
 
   listRentalSpaces: () => request("/rentals/spaces"),

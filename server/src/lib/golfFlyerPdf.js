@@ -364,7 +364,7 @@ async function buildGolfFlyerPdf({ org, tournament, registerUrl }) {
 
   return buildEventFlyerPdf({
     orgName: org.name,
-    orgPhone: tournament.contactPhone, // no distinct org-level phone field yet — the tournament's own public contact number is reused here, same one shown in the contact card
+    orgPhone: org.phone || tournament.contactPhone, // prefer the org's own number; fall back to the tournament's contact if the org hasn't set one yet
     eventName: tournament.name,
     subLine: subParts.join(" · "),
     date: tournament.date,

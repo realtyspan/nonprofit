@@ -262,19 +262,21 @@ router.get("/tournaments/:tournamentId", requireReadAccess("golf"), async (req, 
   res.json(req.golfTournament);
 });
 
-// Print-ready flyer PDF — QR code points at the org's public golf page, the
-// same /golf/:slug URL PublicLinkBox already surfaces for the web embed. A
-// flyer whose QR leads nowhere is worse than no flyer, so this requires the
-// org to have already set that slug up (Team screen's "Public Links" card)
+// Print-ready flyer PDF — QR code points at wherever the org has actually
+// told us this registers a team: their own external webpage (PublicLinkBox's
+// "Where did you put this?" field, org.embedPageUrls.golf) if they've set
+// one, else our own /golf/:slug page. A flyer whose QR leads nowhere is
+// worse than no flyer, so this requires at least one of the two to exist
 // rather than generating a broken code.
 router.get("/tournaments/:tournamentId/flyer", requireReadAccess("golf"), async (req, res) => {
   const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
-  if (!org.slug) {
-    return res.status(400).json({ error: "Set up your organization's public link first (Team → Public Links), then download the flyer." });
+  const ownSiteUrl = org.embedPageUrls?.golf;
+  if (!ownSiteUrl && !org.slug) {
+    return res.status(400).json({ error: "Set up your organization's public link first (Golf → Public link), then download the flyer." });
   }
 
   const appUrl = process.env.APP_URL || "http://localhost:5173";
-  const registerUrl = `${appUrl}/golf/${org.slug}`;
+  const registerUrl = ownSiteUrl || `${appUrl}/golf/${org.slug}`;
 
   let bytes;
   try {

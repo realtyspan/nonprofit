@@ -12,6 +12,7 @@ model Organization {
   name            String
   slug            String?  @unique // public-facing URL segment, shared across modules' public pages (rentals, calendar)
   contactEmail    String?  // used as the Reply-To on buyer-facing emails (e.g. Raffle) sent from the platform's shared sender address
+  phone           String?  // org's own main contact number — shown on flyers (see golfFlyerPdf.js) and anywhere else the org's identity, not one module's contact person, is what belongs
   licenseId       String?
   address         String?  // physical address — used on buyer-facing raffle emails, and as the GC-7Q PDF header's fallback when no mailing address is set (see gc7q.js)
   mailingAddress  String?  // preferred over `address` on the GC-7Q PDF header (gc7q.js) — a filing should show where mail reaches the org, not necessarily the premises address
@@ -31,6 +32,18 @@ model Organization {
   // automatically via resolveRentalAlertRecipients — this field is for
   // reaching someone who isn't a grant holder (or isn't a user at all).
   rentalsFundsContactEmail String?
+
+  // The actual external webpage where an org has pasted a module's embed
+  // code (see PublicLinkBox.jsx's "Embed on your website" panel) — keyed by
+  // module (e.g. { "golf": "https://redhooklodge.org/golf-tournament" }).
+  // Only golf uses this today (its flyer/QR code prefers it over our own
+  // hosted public page, so a printed flyer sends visitors to the org's own
+  // branded site if that's where they actually embedded the widget), but any
+  // module with an embed could use the same map later. A real join table
+  // would be pure overhead for something this small, bounded, and edited
+  // only through this one settings panel — same reasoning as
+  // GolfTournament.includedItems/scheduleItems below.
+  embedPageUrls Json?
 
   users          User[]
   deals          Deal[]

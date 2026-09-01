@@ -21,9 +21,13 @@ export default function PublicLinkBox({ basePath, description, embedBasePath, em
   const [showEmbed, setShowEmbed] = useState(false);
   const [theme, setTheme] = useState({ accent: "5b52d6", bg: "ffffff", text: "18181b", font: "" });
   const [copied, setCopied] = useState(false);
+  const [pageUrl, setPageUrl] = useState("");
+  const [pageUrlEditing, setPageUrlEditing] = useState(false);
+  const [pageUrlBusy, setPageUrlBusy] = useState(false);
+  const [pageUrlError, setPageUrlError] = useState("");
 
   useEffect(() => {
-    api.getOrg().then((o) => { setOrg(o); setSlug(o.slug || ""); }).catch(() => {});
+    api.getOrg().then((o) => { setOrg(o); setSlug(o.slug || ""); setPageUrl(o.embedPageUrls?.[basePath] || ""); }).catch(() => {});
     // Changing the org's public link is Owner-only (see org.js's PATCH
     // /identity) — the slug isn't scoped to any one module, so this checks
     // org-wide tier directly rather than taking it as a prop from every
@@ -45,6 +49,20 @@ export default function PublicLinkBox({ basePath, description, embedBasePath, em
       setError(err.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function savePageUrl() {
+    setPageUrlError("");
+    setPageUrlBusy(true);
+    try {
+      const updated = await api.updateOrgEmbedPageUrl(basePath, pageUrl.trim());
+      setOrg(updated);
+      setPageUrlEditing(false);
+    } catch (err) {
+      setPageUrlError(err.message);
+    } finally {
+      setPageUrlBusy(false);
     }
   }
 
@@ -148,6 +166,30 @@ window.addEventListener("message", function (e) {
           <pre style={{ background: "#23302f", color: "#e5e5e5", borderRadius: 8, padding: 12, fontSize: 11.5, overflowX: "auto", margin: 0 }}>{iframeCode}</pre>
           <div>
             <button style={button.primary} onClick={copyCode}>{copied ? "Copied!" : "Copy code"}</button>
+          </div>
+
+          <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 12, marginTop: 2, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 700 }}>Where did you put this?</div>
+              <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>
+                Once it's live, tell us the actual page on your website — anything with a QR code (like a printed flyer) will send people there instead of our page.
+              </div>
+            </div>
+            {pageUrlEditing ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <input style={{ ...inputStyle, flex: "1 1 260px" }} value={pageUrl} onChange={(e) => setPageUrl(e.target.value)} placeholder="https://yourlodge.org/golf-tournament" />
+                <button style={button.primary} disabled={pageUrlBusy} onClick={savePageUrl}>{pageUrlBusy ? "Saving…" : "Save"}</button>
+                <button style={button.ghost} onClick={() => { setPageUrlEditing(false); setPageUrl(org?.embedPageUrls?.[basePath] || ""); }}>Cancel</button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12.5, color: pageUrl ? colors.textPrimary : colors.textSecondary, fontFamily: pageUrl ? "monospace" : undefined }}>
+                  {pageUrl || "Not set — QR codes will use our page above instead"}
+                </span>
+                {isOwner && <button style={button.ghost} onClick={() => setPageUrlEditing(true)}>{pageUrl ? "Edit" : "Set it"}</button>}
+              </div>
+            )}
+            {pageUrlError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{pageUrlError}</div>}
           </div>
         </div>
       )}

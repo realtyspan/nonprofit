@@ -3,6 +3,7 @@ import { colors, card, pill, button, input as inputStyle, money } from "../lib/t
 import { api } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import { MODULES } from "../lib/modules";
+import { formatPhone, stripPhone } from "../lib/phone";
 import DataList from "../components/DataList";
 
 const GC7Q_SLOTS = ["Head", "Preparer", "Member"];
@@ -254,14 +255,14 @@ function InviteForm({ isOwner, adminModules, onInvited, onError, error }) {
 function OrganizationInfoCard({ isOwner }) {
   const [org, setOrg] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: "", contactEmail: "", address: "", mailingAddress: "", slug: "" });
+  const [form, setForm] = useState({ name: "", contactEmail: "", phone: "", address: "", mailingAddress: "", slug: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   function refresh() {
     api.getOrg().then((o) => {
       setOrg(o);
-      setForm({ name: o.name || "", contactEmail: o.contactEmail || "", address: o.address || "", mailingAddress: o.mailingAddress || "", slug: o.slug || "" });
+      setForm({ name: o.name || "", contactEmail: o.contactEmail || "", phone: o.phone || "", address: o.address || "", mailingAddress: o.mailingAddress || "", slug: o.slug || "" });
     }).catch(() => {});
   }
   useEffect(refresh, []);
@@ -301,6 +302,7 @@ function OrganizationInfoCard({ isOwner }) {
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6, fontSize: 12.5 }}>
           <OrgInfoRow label="Name" value={org.name} />
           <OrgInfoRow label="Contact email" value={org.contactEmail} />
+          <OrgInfoRow label="Phone" value={org.phone ? formatPhone(org.phone) : null} />
           <OrgInfoRow label="Physical address" value={org.address} />
           <OrgInfoRow label="Mailing address" value={org.mailingAddress} />
           <OrgInfoRow label="Public link" value={org.slug ? `/${org.slug}` : null} />
@@ -312,6 +314,10 @@ function OrganizationInfoCard({ isOwner }) {
           <Field label="Contact email">
             <input style={inputStyle} type="email" value={form.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} placeholder="lodge@example.org" />
           </Field>
+          <Field label="Phone">
+            <input style={inputStyle} value={formatPhone(form.phone)} onChange={(e) => set("phone", stripPhone(e.target.value))} placeholder="(845) 555-0100" />
+          </Field>
+          <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: -6 }}>The org's own main number — shown on flyers and other org-branded materials, separate from any one module's own contact person.</div>
           <Field label="Physical address">
             <input style={inputStyle} value={form.address} onChange={(e) => set("address", e.target.value)} />
           </Field>
