@@ -272,7 +272,7 @@ function Shell() {
             <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>{subtitle}</div>
           </div>
 
-          {activeModuleKey === "raffle" && (
+          {activeModuleKey === "raffle" && view !== "team" && view !== "profile" && (
             <div style={{ padding: isMobile ? "10px 16px" : "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#f7f4ec", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Raffle</span>
               {selectedRaffleGame && (
@@ -294,7 +294,7 @@ function Shell() {
             </div>
           )}
 
-          {activeModuleKey === "golf" && (
+          {activeModuleKey === "golf" && view !== "team" && view !== "profile" && (
             <div style={{ padding: isMobile ? "10px 16px" : "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#f7f4ec", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Golf</span>
               {selectedGolfTournament && (
