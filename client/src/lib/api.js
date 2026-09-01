@@ -266,6 +266,8 @@ export const api = {
   updateGolfSponsorContact: (sponsorId, payload) => request(`/golf/sponsors/${sponsorId}`, { method: "PATCH", body: payload }),
 
   listGolfHistoricalImports: () => request("/golf/historical-imports"),
+  interpretGolfHistoricalPlayers: (payload) => request("/golf/historical-imports/players/interpret", { method: "POST", body: payload }),
+  interpretGolfHistoricalSponsors: (payload) => request("/golf/historical-imports/sponsors/interpret", { method: "POST", body: payload }),
   importGolfHistoricalPlayers: (payload) => request("/golf/historical-imports/players", { method: "POST", body: payload }),
   importGolfHistoricalSponsors: (payload) => request("/golf/historical-imports/sponsors", { method: "POST", body: payload }),
   updateGolfHistoricalImport: (id, payload) => request(`/golf/historical-imports/${id}`, { method: "PATCH", body: payload }),

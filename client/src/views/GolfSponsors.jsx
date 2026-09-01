@@ -123,6 +123,7 @@ function AddSponsorForm({ tournament, onCancel, onAdded }) {
   async function submit(e) {
     e.preventDefault();
     if (!form.companyName.trim()) return setError("A company name is required");
+    if (!form.phone.trim()) return setError("A phone number is required");
     setBusy(true);
     setError("");
     try {
@@ -159,7 +160,7 @@ function AddSponsorForm({ tournament, onCancel, onAdded }) {
         <input style={inputStyle} placeholder="Contact name (optional)" value={form.contactName} onChange={(e) => set("contactName", e.target.value)} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
           <input style={inputStyle} type="email" placeholder="Contact email" value={form.email} onChange={(e) => set("email", e.target.value)} />
-          <input style={inputStyle} placeholder="Contact phone" value={formatPhone(form.phone)} onChange={(e) => set("phone", stripPhone(e.target.value))} />
+          <input style={inputStyle} required placeholder="Contact phone" value={formatPhone(form.phone)} onChange={(e) => set("phone", stripPhone(e.target.value))} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
           <input style={inputStyle} placeholder="Tier (e.g. Gold)" value={form.tierName} onChange={(e) => set("tierName", e.target.value)} />

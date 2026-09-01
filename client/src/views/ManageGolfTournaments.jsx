@@ -691,53 +691,104 @@ function EditHistoricalImportModal({ item, tournaments, imports, onCancel, onSav
 const HISTORICAL_IMPORT_COPY = {
   players: {
     title: "Import past players",
-    hint: <>The CSV needs at least a <strong>Player Name</strong> column. Team, Email, Phone, and Captain (yes/no) are optional — rows sharing the same Team name are grouped into one team; a blank Team means that row is its own one-player team.</>,
+    format: "Name, Phone, Email, Captain (yes/no), Team",
+    hint: <>Recommended columns: <strong>Name, Phone, Email, Captain (yes/no), Team</strong> — Name is required, everything else optional. Rows sharing the same Team are grouped into one team; a blank Team means that row is its own one-player team. Doesn't match that shape? Upload it anyway — an AI-assisted reader takes a pass at it, and you'll review what it found before anything is saved.</>,
+    interpret: (payload) => api.interpretGolfHistoricalPlayers(payload),
     submit: (payload) => api.importGolfHistoricalPlayers(payload),
-    describeResult: (res) => `Imported ${res.imported} player${res.imported === 1 ? "" : "s"} across ${res.teams} team${res.teams === 1 ? "" : "s"}${res.skipped ? ` (${res.skipped} row${res.skipped === 1 ? "" : "s"} skipped — missing a player name)` : ""}.`,
+    describeResult: (res) => `Imported ${res.imported} player${res.imported === 1 ? "" : "s"} across ${res.teams} team${res.teams === 1 ? "" : "s"}.`,
+    emptyRow: () => ({ name: "", phone: "", email: "", isCaptain: false, teamKey: "" }),
   },
   sponsors: {
     title: "Import past sponsors",
-    hint: <>The CSV needs at least a <strong>Company</strong> column. Contact, Email, Phone, Tier, and Amount are optional.</>,
+    format: "Company, Contact, Phone, Email, Tier, Amount",
+    hint: <>Recommended columns: <strong>Company, Contact, Phone, Email, Tier, Amount</strong> — Company is required, everything else optional. Doesn't match that shape? Upload it anyway — an AI-assisted reader takes a pass at it, and you'll review what it found before anything is saved.</>,
+    interpret: (payload) => api.interpretGolfHistoricalSponsors(payload),
     submit: (payload) => api.importGolfHistoricalSponsors(payload),
-    describeResult: (res) => `Imported ${res.imported} sponsor${res.imported === 1 ? "" : "s"}${res.skipped ? ` (${res.skipped} row${res.skipped === 1 ? "" : "s"} skipped — missing a company name)` : ""}.`,
+    describeResult: (res) => `Imported ${res.imported} sponsor${res.imported === 1 ? "" : "s"}.`,
+    emptyRow: () => ({ companyName: "", contactName: "", phone: "", email: "", tierName: "", amount: "" }),
   },
 };
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Couldn't read that file"));
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+}
 
 function HistoricalImportForm({ kind, tournaments, imports, onCancel, onImported }) {
   const copy = HISTORICAL_IMPORT_COPY[kind];
   const [target, setTarget] = useState("new"); // "new" | an existing import's id
   const [year, setYear] = useState(new Date().getFullYear() - 1);
   const [name, setName] = useState("");
-  const [fileName, setFileName] = useState("");
-  const [csv, setCsv] = useState("");
   const [previousTournamentId, setPreviousTournamentId] = useState("");
+
+  const [fileName, setFileName] = useState("");
+  const [fileDataUrl, setFileDataUrl] = useState("");
+  const [interpretBusy, setInterpretBusy] = useState(false);
+  const [method, setMethod] = useState(""); // "rules" | "ai", once interpreted
+  const [rows, setRows] = useState(null); // null until interpreted; then the editable review list
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   const linkOptions = linkableTournamentOptions(tournaments, imports, null);
 
-  function handleFile(e) {
+  async function runInterpret(dataUrl, force) {
+    setInterpretBusy(true);
+    setError("");
+    setRows(null);
+    try {
+      const res = await copy.interpret({ file: dataUrl, force });
+      setMethod(res.method);
+      setRows(res.rows);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setInterpretBusy(false);
+    }
+  }
+
+  async function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError("");
     setNotice("");
     setFileName(file.name);
-    const reader = new FileReader();
-    reader.onerror = () => setError("Couldn't read that file");
-    reader.onload = () => setCsv(String(reader.result || ""));
-    reader.readAsText(file);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setFileDataUrl(dataUrl);
+      await runInterpret(dataUrl, undefined);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  function setRow(i, k, v) {
+    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)));
+  }
+  function removeRow(i) {
+    setRows((rs) => rs.filter((_, idx) => idx !== i));
+  }
+  function addRow() {
+    setRows((rs) => [...rs, copy.emptyRow()]);
   }
 
   async function submit() {
-    if (!csv.trim()) return setError("Choose a CSV file first");
+    if (!rows || rows.length === 0) return setError("Nothing to import");
     setBusy(true);
     setError("");
     setNotice("");
     try {
+      const cleanedRows = kind === "sponsors"
+        ? rows.map((r) => ({ ...r, amount: r.amount === "" || r.amount == null ? null : Number(r.amount) }))
+        : rows;
       const payload = target === "new"
-        ? { csv, year: Number(year), name: name.trim(), previousTournamentId: previousTournamentId || null }
-        : { csv, existingTournamentId: target };
+        ? { rows: cleanedRows, year: Number(year), name: name.trim(), previousTournamentId: previousTournamentId || null }
+        : { rows: cleanedRows, existingTournamentId: target };
       const res = await copy.submit(payload);
       setNotice(copy.describeResult(res));
       setTimeout(onImported, 1200);
@@ -749,7 +800,7 @@ function HistoricalImportForm({ kind, tournaments, imports, onCancel, onImported
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 480, paddingTop: 4, borderTop: `1px solid ${colors.borderLight}` }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: rows ? 720 : 480, paddingTop: 4, borderTop: `1px solid ${colors.borderLight}` }}>
       <div style={{ fontSize: 13, fontWeight: 700 }}>{copy.title}</div>
       <div style={{ fontSize: 12.5, color: colors.textSecondary }}>{copy.hint}</div>
 
@@ -783,17 +834,88 @@ function HistoricalImportForm({ kind, tournaments, imports, onCancel, onImported
         </>
       )}
 
-      <Field label="CSV file">
-        <input type="file" accept=".csv,text/csv" onChange={handleFile} />
+      <Field label="File (.xlsx or .csv)">
+        <input type="file" accept=".xlsx,.csv,text/csv" onChange={handleFile} />
       </Field>
       {fileName && <div style={{ fontSize: 11.5, color: colors.textSecondary }}>{fileName}</div>}
+      {interpretBusy && <div style={{ fontSize: 12.5, color: colors.textSecondary }}>Reading the file…</div>}
+
+      {rows && (
+        <>
+          {method === "ai" ? (
+            <div style={{ fontSize: 12, color: colors.warning, background: colors.warningBg, padding: "8px 10px", borderRadius: 7 }}>
+              This file didn't match the recommended format, so an AI-assisted reader took a pass at it. Please review every row below before importing — fix anything it got wrong, or remove a row entirely.
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: colors.textSecondary }}>
+              Found {rows.length} row{rows.length === 1 ? "" : "s"}. Review below, then import.{" "}
+              <button type="button" style={{ ...button.ghost, padding: "3px 8px", fontSize: 11.5 }} onClick={() => runInterpret(fileDataUrl, "ai")} disabled={interpretBusy}>This doesn't look right — try AI reading instead</button>
+            </div>
+          )}
+
+          <ReviewTable kind={kind} rows={rows} setRow={setRow} removeRow={removeRow} />
+          <div><button type="button" style={button.ghost} onClick={addRow}>+ Add a row</button></div>
+        </>
+      )}
 
       {notice && <div style={{ color: colors.success, fontSize: 12.5 }}>{notice}</div>}
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
       <div style={{ display: "flex", gap: 10 }}>
-        <button type="button" style={button.primary} disabled={busy} onClick={submit}>{busy ? "Importing…" : "Import"}</button>
+        <button type="button" style={button.primary} disabled={busy || !rows || rows.length === 0} onClick={submit}>{busy ? "Importing…" : "Import"}</button>
         <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
       </div>
+    </div>
+  );
+}
+
+// Editable review grid shown after a file is interpreted — every field is
+// a plain input, since this is a bulk-cleanup screen: nothing commits until
+// "Import" is clicked, so mistakes here are cheap to fix before they matter.
+// Player rows are visually grouped by teamKey (a header whenever it changes
+// from the row above) purely for readability; editing stays per-row.
+function ReviewTable({ kind, rows, setRow, removeRow }) {
+  if (kind === "sponsors") {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 360, overflowY: "auto", padding: 2 }}>
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", padding: 8, background: "#f7f4ec", borderRadius: 8 }}>
+            <input style={{ ...inputStyle, flex: "1 1 130px" }} placeholder="Company" value={r.companyName} onChange={(e) => setRow(i, "companyName", e.target.value)} />
+            <input style={{ ...inputStyle, flex: "1 1 110px" }} placeholder="Contact" value={r.contactName} onChange={(e) => setRow(i, "contactName", e.target.value)} />
+            <input style={{ ...inputStyle, flex: "1 1 110px" }} placeholder="Phone" value={formatPhone(r.phone)} onChange={(e) => setRow(i, "phone", stripPhone(e.target.value))} />
+            <input style={{ ...inputStyle, flex: "1 1 140px" }} type="email" placeholder="Email" value={r.email} onChange={(e) => setRow(i, "email", e.target.value)} />
+            <input style={{ ...inputStyle, flex: "1 1 90px" }} placeholder="Tier" value={r.tierName} onChange={(e) => setRow(i, "tierName", e.target.value)} />
+            <input style={{ ...inputStyle, flex: "1 1 90px" }} type="number" step="0.01" placeholder="Amount" value={r.amount ?? ""} onChange={(e) => setRow(i, "amount", e.target.value)} />
+            <button type="button" style={{ ...button.ghost, padding: "5px 8px", fontSize: 11.5, color: colors.danger }} onClick={() => removeRow(i)}>Remove</button>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 360, overflowY: "auto", padding: 2 }}>
+      {rows.map((r, i) => {
+        const newGroup = i === 0 || (rows[i - 1].teamKey || "") !== (r.teamKey || "");
+        return (
+          <React.Fragment key={i}>
+            {newGroup && (
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: colors.textSecondary, marginTop: i === 0 ? 0 : 4 }}>
+                {r.teamKey ? r.teamKey : "No team"}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", padding: 8, background: "#f7f4ec", borderRadius: 8 }}>
+              <input style={{ ...inputStyle, flex: "1 1 130px" }} placeholder="Name" value={r.name} onChange={(e) => setRow(i, "name", e.target.value)} />
+              <input style={{ ...inputStyle, flex: "1 1 110px" }} placeholder="Phone" value={formatPhone(r.phone)} onChange={(e) => setRow(i, "phone", stripPhone(e.target.value))} />
+              <input style={{ ...inputStyle, flex: "1 1 140px" }} type="email" placeholder="Email" value={r.email} onChange={(e) => setRow(i, "email", e.target.value)} />
+              <input style={{ ...inputStyle, flex: "1 1 100px" }} placeholder="Team" value={r.teamKey || ""} onChange={(e) => setRow(i, "teamKey", e.target.value)} />
+              <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+                <input type="checkbox" checked={!!r.isCaptain} onChange={(e) => setRow(i, "isCaptain", e.target.checked)} /> Captain
+              </label>
+              <button type="button" style={{ ...button.ghost, padding: "5px 8px", fontSize: 11.5, color: colors.danger }} onClick={() => removeRow(i)}>Remove</button>
+            </div>
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }

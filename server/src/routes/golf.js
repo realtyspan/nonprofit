@@ -2,7 +2,8 @@ const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess, requireOwner } = require("../lib/auth");
 const { normalizeEmail, findOrCreatePlayer, registerTeam, addGolfLog } = require("../lib/golfLogic");
-const { parseHistoricalPlayersCsv, parseHistoricalSponsorsCsv } = require("../lib/golfHistoricalImport");
+const { readWorkbookRows, interpretPlayerRows, interpretSponsorRows, RECOMMENDED_PLAYER_FORMAT, RECOMMENDED_SPONSOR_FORMAT } = require("../lib/golfHistoricalImport");
+const { extractPlayersFromRows, extractSponsorsFromRows } = require("../lib/golfHistoricalImportAi");
 const { stripe, createExpressAccount, createOnboardingLink } = require("../lib/stripe");
 
 const router = express.Router();
@@ -415,6 +416,7 @@ router.delete("/tournaments/:tournamentId/teams/:teamId", requirePermission("gol
 router.post("/tournaments/:tournamentId/teams/:teamId/players", requirePermission("golf", "Helper"), requireActiveGolfTournament, async (req, res) => {
   const { name, email, phone, isCaptain } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: "name is required" });
+  if (!phone || !phone.trim()) return res.status(400).json({ error: "phone is required" });
 
   const currentCount = await prisma.golfTeamPlayer.count({ where: { teamId: req.golfTeam.id } });
   if (currentCount >= req.golfTournament.maxTeamSize) {
@@ -670,6 +672,11 @@ router.get("/tournaments/:tournamentId/sponsorships", requireReadAccess("golf"),
 
 router.post("/tournaments/:tournamentId/sponsorships", requirePermission("golf", "Helper"), requireActiveGolfTournament, async (req, res) => {
   const { companyName, contactName, email, phone, tierName, amount, benefitsText } = req.body;
+  // Required for a live-entered sponsor, but deliberately not enforced
+  // inside findOrCreateSponsorContact itself — that helper is shared with
+  // the historical import, where a real past sponsor legitimately has no
+  // phone on record and shouldn't be dropped for it.
+  if (!phone || !phone.trim()) return res.status(400).json({ error: "phone is required" });
   let sponsor;
   try {
     sponsor = await findOrCreateSponsorContact(req.user.orgId, { companyName, contactName, email, phone });
@@ -830,18 +837,80 @@ async function findOrCreateHistoricalTournament(orgId, { existingTournamentId, y
   });
 }
 
-router.post("/historical-imports/players", requirePermission("golf", "Admin"), async (req, res) => {
-  const { csv, existingTournamentId, year, name, previousTournamentId } = req.body;
-  if (!csv || !csv.trim()) return res.status(400).json({ error: "Paste or choose a CSV file first" });
+function decodeDataUrl(dataUrl) {
+  const match = /^data:[^;]+;base64,(.+)$/.exec(dataUrl || "");
+  if (!match) return null;
+  return Buffer.from(match[1], "base64");
+}
 
-  let rows, skipped;
+// Reads an uploaded file (xlsx or csv, as a data URL) into raw rows, then
+// tries the free deterministic reader first; falls back to the AI-assisted
+// one only when the rules-based pass can't find a usable name/company
+// column at all, or when the caller explicitly asks for it (a "this doesn't
+// look right" retry after reviewing a bad rules-based read). Either path
+// returns the exact same shape — nothing is saved here, this only powers
+// the review screen the org confirms or corrects before anything commits.
+router.post("/historical-imports/players/interpret", requirePermission("golf", "Admin"), async (req, res) => {
+  const buffer = decodeDataUrl(req.body.file);
+  if (!buffer) return res.status(400).json({ error: "Choose a file first" });
+  let rawRows;
   try {
-    ({ rows, skipped } = parseHistoricalPlayersCsv(csv));
+    rawRows = readWorkbookRows(buffer);
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
-  if (rows.length === 0) {
-    return res.status(400).json({ error: "No usable rows found — each row needs at least a player name" });
+
+  if (req.body.force !== "ai") {
+    const { rows, skipped, confident } = interpretPlayerRows(rawRows);
+    if (confident && rows.length > 0) {
+      return res.json({ method: "rules", rows, skipped });
+    }
+  }
+
+  try {
+    const rows = await extractPlayersFromRows(rawRows);
+    if (rows.length === 0) return res.status(400).json({ error: `Couldn't find any players in that file. Try the recommended format: ${RECOMMENDED_PLAYER_FORMAT}` });
+    res.json({ method: "ai", rows, skipped: 0 });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message });
+  }
+});
+
+router.post("/historical-imports/sponsors/interpret", requirePermission("golf", "Admin"), async (req, res) => {
+  const buffer = decodeDataUrl(req.body.file);
+  if (!buffer) return res.status(400).json({ error: "Choose a file first" });
+  let rawRows;
+  try {
+    rawRows = readWorkbookRows(buffer);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (req.body.force !== "ai") {
+    const { rows, skipped, confident } = interpretSponsorRows(rawRows);
+    if (confident && rows.length > 0) {
+      return res.json({ method: "rules", rows, skipped });
+    }
+  }
+
+  try {
+    const rows = await extractSponsorsFromRows(rawRows);
+    if (rows.length === 0) return res.status(400).json({ error: `Couldn't find any sponsors in that file. Try the recommended format: ${RECOMMENDED_SPONSOR_FORMAT}` });
+    res.json({ method: "ai", rows, skipped: 0 });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message });
+  }
+});
+
+// Commits an already-reviewed row list (from the interpret step above,
+// possibly hand-edited) — no parsing happens here, just the actual writes.
+router.post("/historical-imports/players", requirePermission("golf", "Admin"), async (req, res) => {
+  const { rows, existingTournamentId, year, name, previousTournamentId } = req.body;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ error: "No players to import" });
+  }
+  for (const r of rows) {
+    if (!r || !r.name || !String(r.name).trim()) return res.status(400).json({ error: "Every player needs a name" });
   }
 
   let tournament;
@@ -851,17 +920,18 @@ router.post("/historical-imports/players", requirePermission("golf", "Admin"), a
     return res.status(err.status || 400).json({ error: err.message });
   }
 
-  // Group rows into teams by (trimmed, case-insensitive) team name; a blank
-  // team name means that row is its own one-person team, not grouped with
-  // any other blank-team-name row.
+  // Group rows into teams by (trimmed, case-insensitive) team key; no key
+  // means that row is its own one-person team, not grouped with any other
+  // keyless row.
   const teamGroups = [];
   const namedGroupIndex = new Map();
   for (const r of rows) {
-    if (r.teamName) {
-      const key = r.teamName.toLowerCase();
+    const teamKey = r.teamKey ? String(r.teamKey).trim() : "";
+    if (teamKey) {
+      const key = teamKey.toLowerCase();
       if (!namedGroupIndex.has(key)) {
         namedGroupIndex.set(key, teamGroups.length);
-        teamGroups.push({ teamName: r.teamName, rows: [] });
+        teamGroups.push({ teamName: teamKey, rows: [] });
       }
       teamGroups[namedGroupIndex.get(key)].rows.push(r);
     } else {
@@ -878,7 +948,7 @@ router.post("/historical-imports/players", requirePermission("golf", "Admin"), a
       await prisma.golfTeamPlayer.create({
         data: {
           orgId: req.user.orgId, tournamentId: tournament.id, teamId: team.id, playerId: player.id,
-          isCaptain: r.isCaptain != null ? r.isCaptain : i === 0,
+          isCaptain: r.isCaptain != null ? !!r.isCaptain : i === 0,
           amountDue: 0,
         },
       });
@@ -886,21 +956,16 @@ router.post("/historical-imports/players", requirePermission("golf", "Admin"), a
     }
   }
 
-  res.json({ ok: true, tournamentId: tournament.id, imported, teams: teamGroups.length, skipped });
+  res.json({ ok: true, tournamentId: tournament.id, imported, teams: teamGroups.length });
 });
 
 router.post("/historical-imports/sponsors", requirePermission("golf", "Admin"), async (req, res) => {
-  const { csv, existingTournamentId, year, name, previousTournamentId } = req.body;
-  if (!csv || !csv.trim()) return res.status(400).json({ error: "Paste or choose a CSV file first" });
-
-  let rows, skipped;
-  try {
-    ({ rows, skipped } = parseHistoricalSponsorsCsv(csv));
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
+  const { rows, existingTournamentId, year, name, previousTournamentId } = req.body;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ error: "No sponsors to import" });
   }
-  if (rows.length === 0) {
-    return res.status(400).json({ error: "No usable rows found — each row needs at least a company name" });
+  for (const r of rows) {
+    if (!r || !r.companyName || !String(r.companyName).trim()) return res.status(400).json({ error: "Every sponsor needs a company name" });
   }
 
   let tournament;
@@ -916,13 +981,13 @@ router.post("/historical-imports/sponsors", requirePermission("golf", "Admin"), 
     await prisma.golfSponsorship.create({
       data: {
         orgId: req.user.orgId, tournamentId: tournament.id, sponsorId: sponsor.id,
-        tierName: r.tierName || null, amount: r.amount, status: "confirmed", source: "manual",
+        tierName: r.tierName || null, amount: r.amount || null, status: "confirmed", source: "manual",
       },
     });
     imported++;
   }
 
-  res.json({ ok: true, tournamentId: tournament.id, imported, skipped });
+  res.json({ ok: true, tournamentId: tournament.id, imported });
 });
 
 router.delete("/historical-imports/:id", requirePermission("golf", "Admin"), async (req, res) => {

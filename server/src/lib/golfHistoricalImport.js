@@ -1,11 +1,32 @@
-// Parses pasted/uploaded CSVs of past-years golf data into rows ready to
-// insert — same XLSX-based approach as raffleHistoricalImport.js (handles
-// quoted fields correctly rather than hand-rolling a splitter), split into
-// two parsers since golf has two distinct historical lists: players (grouped
-// into teams) and sponsors.
+// Parses uploaded historical golf spreadsheets (xlsx or csv) into rows ready
+// to insert. Two independent lists — players (grouped into teams) and
+// sponsors — same split as raffleHistoricalImport.js's single-list
+// equivalent, doubled.
+//
+// Two parse paths feed the same target shape:
+//  - interpretPlayerRows/interpretSponsorRows: fast, free, deterministic —
+//    recognizes the documented format (see RECOMMENDED_PLAYER_FORMAT below)
+//    and a couple of real-world variants (see the "Captain column holds a
+//    repeated name" note). Returns `confident: false` when it can't find a
+//    usable name/company column at all, so the caller knows to offer the AI
+//    fallback instead of silently importing nothing.
+//  - golfHistoricalImportAi.js's extractPlayersFromRows/extractSponsorsFromRows
+//    handle everything else, for a file that doesn't match any recognized
+//    shape — always reviewed before anything commits, same as this app's
+//    other AI-assisted feature (the Bell Jar label scanner).
 const XLSX = require("xlsx");
 
+const RECOMMENDED_PLAYER_FORMAT = "Name, Phone, Email, Captain (yes/no), Team";
+const RECOMMENDED_SPONSOR_FORMAT = "Company, Contact, Phone, Email, Tier, Amount";
+
 function normalizeKey(key) {
+  // Keeps "#" (unlike stripping every non-alphanumeric) specifically so a
+  // "Team#" column — a team NUMBER, seen in real lodge spreadsheets — never
+  // accidentally collides with the "team"/"teamname" aliases below, which
+  // mean a team NAME. Confirmed against a real file: without this, a
+  // captain's own row (the only one with Team# filled in) got grouped by
+  // that number instead of the shared captain-name key their teammates use,
+  // splitting them into two mismatched groups.
   return String(key || "").trim().toLowerCase().replace(/[^a-z0-9#]/g, "");
 }
 
@@ -20,10 +41,15 @@ function buildFieldMap(headerRow, aliasTable) {
   return map;
 }
 
-function readRows(csvText) {
-  const workbook = XLSX.read(csvText, { type: "string" });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+// Reads an uploaded file's raw bytes into header-less rows (array of
+// arrays) — works for .xlsx and .csv alike, since XLSX.read auto-detects
+// the format. First sheet only, matching every other xlsx upload in this
+// app (FRS report, this same import previously).
+function readWorkbookRows(buffer) {
+  const workbook = XLSX.read(buffer, { type: "buffer" });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) throw new Error("That file has no sheets");
+  return XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
 }
 
 const PLAYER_HEADER_ALIASES = {
@@ -34,26 +60,24 @@ const PLAYER_HEADER_ALIASES = {
   isCaptain: ["captain", "iscaptain"],
 };
 
-// Returns { rows, skipped } where rows are { teamName, name, email, phone, isCaptain }
-// — teamName is optional (blank means "this player is their own one-person
-// team" rather than being grouped with anyone); name is required. Rows
-// sharing the same (trimmed, case-insensitive) team name are grouped into one
-// team by the caller, same "skip the bad row, keep going" tolerance as
-// raffle's parser — real historical spreadsheets are rarely perfectly clean.
-function parseHistoricalPlayersCsv(csvText) {
-  const raw = readRows(csvText);
-  if (raw.length === 0) return { rows: [], skipped: 0 };
+// rawRows: array of arrays, first row is headers (e.g. from readWorkbookRows,
+// or XLSX.read of a pasted CSV string). Returns { rows, skipped, confident } —
+// rows are { teamKey, name, email, phone, isCaptain }; confident is false
+// when no recognizable name column was found at all, signaling the caller to
+// offer the AI fallback instead of reporting "0 players imported."
+function interpretPlayerRows(rawRows) {
+  if (rawRows.length === 0) return { rows: [], skipped: 0, confident: false };
 
-  const fieldMap = buildFieldMap(raw[0], PLAYER_HEADER_ALIASES);
+  const fieldMap = buildFieldMap(rawRows[0], PLAYER_HEADER_ALIASES);
   if (!Object.values(fieldMap).includes("name")) {
-    throw new Error('The file needs at least a "Player Name" column');
+    return { rows: [], skipped: 0, confident: false };
   }
 
   const rows = [];
   let skipped = 0;
-  for (const line of raw.slice(1)) {
+  for (const line of rawRows.slice(1)) {
     const record = {};
-    raw[0].forEach((header, i) => {
+    rawRows[0].forEach((header, i) => {
       const field = fieldMap[header];
       if (field) record[field] = line[i];
     });
@@ -64,16 +88,36 @@ function parseHistoricalPlayersCsv(csvText) {
       continue;
     }
 
-    const captainRaw = String(record.isCaptain || "").trim().toLowerCase();
+    // The Captain column is normally a yes/no flag, but some lodges instead
+    // repeat the captain's own name down the column for every row in that
+    // person's group (their real historical spreadsheets look like this —
+    // no separate Team column at all). When it's not a recognized yes/no
+    // token, treat it as "this row's captain is named X" AND, when there's
+    // no explicit Team value already, use that same name as the grouping
+    // key — it's already unique per team and repeated on every member's row,
+    // exactly like a Team column would be.
+    const captainRaw = String(record.isCaptain || "").trim();
+    const captainLower = captainRaw.toLowerCase();
+    let isCaptain = null;
+    let impliedTeamKey = null;
+    if (["yes", "y", "true", "1"].includes(captainLower)) {
+      isCaptain = true;
+    } else if (["no", "n", "false", "0"].includes(captainLower)) {
+      isCaptain = false;
+    } else if (captainRaw) {
+      isCaptain = name.toLowerCase() === captainLower;
+      impliedTeamKey = captainRaw;
+    }
+
     rows.push({
-      teamName: String(record.teamName || "").trim() || null,
+      teamKey: String(record.teamName || "").trim() || impliedTeamKey || null,
       name,
       email: String(record.email || "").trim(),
       phone: String(record.phone || "").trim(),
-      isCaptain: ["yes", "y", "true", "1"].includes(captainRaw) ? true : ["no", "n", "false", "0"].includes(captainRaw) ? false : null,
+      isCaptain,
     });
   }
-  return { rows, skipped };
+  return { rows, skipped, confident: true };
 }
 
 const SPONSOR_HEADER_ALIASES = {
@@ -85,22 +129,19 @@ const SPONSOR_HEADER_ALIASES = {
   amount: ["amount", "sponsorshipamount"],
 };
 
-// Returns { rows, skipped } where rows are { companyName, contactName, email, phone, tierName, amount }
-// — companyName is required, everything else optional.
-function parseHistoricalSponsorsCsv(csvText) {
-  const raw = readRows(csvText);
-  if (raw.length === 0) return { rows: [], skipped: 0 };
+function interpretSponsorRows(rawRows) {
+  if (rawRows.length === 0) return { rows: [], skipped: 0, confident: false };
 
-  const fieldMap = buildFieldMap(raw[0], SPONSOR_HEADER_ALIASES);
+  const fieldMap = buildFieldMap(rawRows[0], SPONSOR_HEADER_ALIASES);
   if (!Object.values(fieldMap).includes("companyName")) {
-    throw new Error('The file needs at least a "Company" column');
+    return { rows: [], skipped: 0, confident: false };
   }
 
   const rows = [];
   let skipped = 0;
-  for (const line of raw.slice(1)) {
+  for (const line of rawRows.slice(1)) {
     const record = {};
-    raw[0].forEach((header, i) => {
+    rawRows[0].forEach((header, i) => {
       const field = fieldMap[header];
       if (field) record[field] = line[i];
     });
@@ -121,7 +162,13 @@ function parseHistoricalSponsorsCsv(csvText) {
       amount: Number.isFinite(amount) && amount > 0 ? amount : null,
     });
   }
-  return { rows, skipped };
+  return { rows, skipped, confident: true };
 }
 
-module.exports = { parseHistoricalPlayersCsv, parseHistoricalSponsorsCsv };
+module.exports = {
+  RECOMMENDED_PLAYER_FORMAT,
+  RECOMMENDED_SPONSOR_FORMAT,
+  readWorkbookRows,
+  interpretPlayerRows,
+  interpretSponsorRows,
+};

@@ -414,6 +414,7 @@ function RegisterForm({ tournament, slug, onCancel }) {
   async function submit(e) {
     e.preventDefault();
     if (players.some((p) => !p.name.trim())) return setError("Every player needs a name");
+    if (players.some((p) => !p.phone.trim())) return setError("Every player needs a phone number");
     setBusy(true);
     setError("");
     try {
@@ -475,7 +476,7 @@ function RegisterForm({ tournament, slug, onCancel }) {
         <div key={i} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <input style={{ ...inputStyle, flex: "1 1 140px" }} required placeholder={i === 0 ? "Your name" : "Player name"} value={p.name} onChange={(e) => setPlayer(i, "name", e.target.value)} />
           <input style={{ ...inputStyle, flex: "1 1 160px" }} type="email" placeholder="Email" value={p.email} onChange={(e) => setPlayer(i, "email", e.target.value)} />
-          <input style={{ ...inputStyle, flex: "1 1 120px" }} placeholder="Phone" value={formatPhone(p.phone)} onChange={(e) => setPlayer(i, "phone", stripPhone(e.target.value))} />
+          <input style={{ ...inputStyle, flex: "1 1 120px" }} required placeholder="Phone" value={formatPhone(p.phone)} onChange={(e) => setPlayer(i, "phone", stripPhone(e.target.value))} />
           {players.length > 1 && (
             <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: colors.textSecondary, whiteSpace: "nowrap" }}>
               <input type="radio" name="golf-team-captain" checked={p.isCaptain} onChange={() => setCaptain(i)} /> Team captain

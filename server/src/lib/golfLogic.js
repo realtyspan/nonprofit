@@ -32,6 +32,7 @@ async function registerTeam(orgId, tournament, { teamName, players }) {
   }
   for (const p of players) {
     if (!p.name || !p.name.trim()) throw Object.assign(new Error("Every player needs a name"), { status: 400 });
+    if (!p.phone || !p.phone.trim()) throw Object.assign(new Error("Every player needs a phone number"), { status: 400 });
   }
 
   return prisma.$transaction(async (tx) => {
