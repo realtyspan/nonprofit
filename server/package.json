@@ -11,6 +11,7 @@
     "prisma:seed": "node prisma/seed.js"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "@prisma/client": "^5.20.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -18,6 +19,7 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4",
     "stripe": "^22.5.0",
     "xlsx": "^0.18.5"
   },

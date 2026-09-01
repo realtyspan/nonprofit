@@ -239,6 +239,7 @@ export const api = {
   closeGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}/close`, { method: "POST" }),
   reopenGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}/reopen`, { method: "POST" }),
   listGolfLog: (tournamentId) => request(`/golf/tournaments/${tournamentId}/log`),
+  downloadGolfFlyerPdf: (tournamentId, tournamentName) => download(`/golf/tournaments/${tournamentId}/flyer`, `${(tournamentName || "Tournament").replace(/\s+/g, "_")}_Flyer.pdf`),
 
   listGolfTeams: (tournamentId) => request(`/golf/tournaments/${tournamentId}/teams`),
   createGolfTeam: (tournamentId, payload) => request(`/golf/tournaments/${tournamentId}/teams`, { method: "POST", body: payload }),

@@ -5,6 +5,8 @@ const { normalizeEmail, findOrCreatePlayer, registerTeam, addGolfLog } = require
 const { readWorkbookRows, interpretPlayerRows, interpretSponsorRows, RECOMMENDED_PLAYER_FORMAT, RECOMMENDED_SPONSOR_FORMAT } = require("../lib/golfHistoricalImport");
 const { extractPlayersFromRows, extractSponsorsFromRows } = require("../lib/golfHistoricalImportAi");
 const { stripe, createExpressAccount, createOnboardingLink } = require("../lib/stripe");
+const { decodeDataUrl } = require("../lib/dataUrl");
+const { buildGolfFlyerPdf } = require("../lib/golfFlyerPdf");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -258,6 +260,33 @@ router.post("/tournaments", requirePermission("golf", "Admin"), async (req, res)
 
 router.get("/tournaments/:tournamentId", requireReadAccess("golf"), async (req, res) => {
   res.json(req.golfTournament);
+});
+
+// Print-ready flyer PDF — QR code points at the org's public golf page, the
+// same /golf/:slug URL PublicLinkBox already surfaces for the web embed. A
+// flyer whose QR leads nowhere is worse than no flyer, so this requires the
+// org to have already set that slug up (Team screen's "Public Links" card)
+// rather than generating a broken code.
+router.get("/tournaments/:tournamentId/flyer", requireReadAccess("golf"), async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  if (!org.slug) {
+    return res.status(400).json({ error: "Set up your organization's public link first (Team → Public Links), then download the flyer." });
+  }
+
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+  const registerUrl = `${appUrl}/golf/${org.slug}`;
+
+  let bytes;
+  try {
+    bytes = await buildGolfFlyerPdf({ org, tournament: req.golfTournament, registerUrl });
+  } catch (err) {
+    return res.status(500).json({ error: "Couldn't generate the flyer: " + err.message });
+  }
+
+  const fileSafeName = req.golfTournament.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "tournament";
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileSafeName}-flyer.pdf"`);
+  res.send(Buffer.from(bytes));
 });
 
 router.patch("/tournaments/:tournamentId", requirePermission("golf", "Admin"), requireActiveGolfTournament, async (req, res) => {
@@ -854,12 +883,6 @@ async function findOrCreateHistoricalTournament(orgId, { existingTournamentId, y
       previousTournamentId: resolvedPreviousId,
     },
   });
-}
-
-function decodeDataUrl(dataUrl) {
-  const match = /^data:[^;]+;base64,(.+)$/.exec(dataUrl || "");
-  if (!match) return null;
-  return Buffer.from(match[1], "base64");
 }
 
 // Reads an uploaded file (xlsx or csv, as a data URL) into raw rows, then

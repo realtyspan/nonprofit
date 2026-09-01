@@ -19,6 +19,8 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
   const [deletingTournament, setDeletingTournament] = useState(null);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [lifecycleError, setLifecycleError] = useState("");
+  const [flyerBusy, setFlyerBusy] = useState(false);
+  const [flyerError, setFlyerError] = useState("");
   const [historicalImports, setHistoricalImports] = useState([]);
 
   function refreshHistoricalImports() {
@@ -44,6 +46,18 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
   }
 
   const lifecycleLabel = selected?.status === "open" ? "Close tournament" : selected?.status === "closed" ? "Reopen tournament" : "Open for registration";
+
+  async function downloadFlyer() {
+    setFlyerBusy(true);
+    setFlyerError("");
+    try {
+      await api.downloadGolfFlyerPdf(tournamentId, selected.name);
+    } catch (err) {
+      setFlyerError(err.message);
+    } finally {
+      setFlyerBusy(false);
+    }
+  }
   const statusStyle = (status) =>
     status === "open" ? [colors.successBg, colors.success] : status === "closed" ? ["#f1ece0", colors.textSecondary] : [colors.warningBg, colors.warning];
 
@@ -82,13 +96,17 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
             ].filter(Boolean).join(", ") || "none enabled yet"}
           </div>
           {lifecycleError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{lifecycleError}</div>}
-          <div>
+          {flyerError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{flyerError}</div>}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
               style={selected.status === "open" ? { ...button.ghost, color: colors.danger } : button.primary}
               disabled={lifecycleBusy}
               onClick={toggleLifecycle}
             >
               {lifecycleBusy ? "Working…" : lifecycleLabel}
+            </button>
+            <button style={button.secondary} disabled={flyerBusy} onClick={downloadFlyer}>
+              {flyerBusy ? "Generating…" : "Download flyer (PDF)"}
             </button>
           </div>
         </div>
