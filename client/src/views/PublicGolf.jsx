@@ -22,7 +22,6 @@ const EVT_CSS = `
 .evt {
   --evt-accent:        #968ae0;
   --evt-accent-deep:   #5d5294;
-  --evt-accent-tint:   #d2cefd;
   --evt-surface:       #f3f5fe;
   --evt-surface-alt:   #cfd3e5;
   --evt-ink:           #1e2028;
@@ -90,27 +89,75 @@ const EVT_CSS = `
   letter-spacing: -.01em; color: var(--evt-ink);
 }
 
-.evt-body {
-  display: flex; gap: 56px; flex-wrap: wrap;
-  align-items: flex-start; padding: 34px 44px 30px;
-}
-.evt-details { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 12px; }
-.evt-line {
-  display: flex; align-items: center; gap: 9px;
-  font-size: 14px; line-height: 1.6; color: var(--evt-ink-2);
-}
-.evt-line-muted { color: var(--evt-ink-muted); }
+.evt-body { padding: 34px 44px 30px; display: flex; flex-direction: column; gap: 30px; }
 .evt-strong { font-weight: 500; color: var(--evt-ink); }
 .evt-ico { width: 17px; height: 17px; flex: none; color: var(--evt-accent-deep); }
 .evt-ico-muted { color: var(--evt-label); }
-.evt-line a { color: var(--evt-accent-deep); text-underline-offset: 3px; }
-.evt-line a:hover { color: var(--evt-accent); }
 
-.evt-action { display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
+/* Section heading, shared by "What's Included" and "Schedule" */
+.evt-section { display: flex; flex-direction: column; gap: 14px; }
+.evt-section-title { display: flex; align-items: center; gap: 9px; font-size: 15px; }
+
+/* Included items + contact card, side by side */
+.evt-top-row { display: flex; gap: 24px; align-items: stretch; }
+.evt-included-col { flex: 1; min-width: 0; }
+.evt-included-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.evt-included-item {
+  display: flex; align-items: center; gap: 10px;
+  /* A light tint mixed live from the accent, rather than a separate custom
+     property — so an org overriding --evt-accent (see evtStyleVars) never
+     ends up with a stale tint that clashes with their own color. */
+  background: color-mix(in srgb, var(--evt-accent) 18%, white);
+  border-radius: 10px; padding: 13px 14px;
+  font-size: 14px; color: var(--evt-ink); line-height: 1.3;
+}
+.evt-included-check { width: 19px; height: 19px; flex: none; color: var(--evt-accent-deep); }
+
+.evt-contact-card {
+  flex: none; width: 220px; background: var(--evt-ink); color: var(--evt-btn-fg);
+  border-radius: var(--evt-radius-sm); padding: 20px; align-self: stretch;
+  display: flex; flex-direction: column; justify-content: center; gap: 6px;
+}
+.evt-contact-label {
+  font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  color: rgba(255,255,255,.65);
+}
+.evt-contact-name { font-size: 16px; font-weight: 700; margin-top: 2px; }
+.evt-contact-card a { display: block; color: var(--evt-btn-fg); text-decoration: underline; text-underline-offset: 3px; font-size: 14px; }
+.evt-contact-card a:hover { color: rgba(255,255,255,.8); }
+
+/* Schedule: a highlighted date pill (always shown — the date itself is
+   required data, even when no hour-by-hour agenda was entered), then an
+   optional time/label timeline below it. */
+.evt-date-pill {
+  display: inline-flex; width: fit-content; padding: 10px 18px;
+  background: var(--evt-accent-deep); color: var(--evt-btn-fg);
+  border-radius: 8px; font-size: 14px; font-weight: 600;
+}
+.evt-timeline { display: flex; flex-direction: column; }
+.evt-timeline-row {
+  display: grid; grid-template-columns: 82px 1px 1fr; gap: 16px; align-items: center;
+  padding: 9px 0;
+}
+.evt-timeline-row + .evt-timeline-row { border-top: 1px solid var(--evt-line); }
+.evt-timeline-time { font-weight: 700; color: var(--evt-ink); font-size: 14px; }
+.evt-timeline-rule { align-self: stretch; border-left: 1px dashed var(--evt-line); }
+.evt-timeline-label { font-size: 14px; color: var(--evt-ink-2); }
+
+.evt-footer {
+  background: color-mix(in srgb, var(--evt-accent) 18%, white); border-top: 1px solid var(--evt-line);
+  padding: 18px 44px; display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.evt-spots {
+  display: flex; align-items: center; gap: 7px; margin-right: auto;
+  font-size: 12.5px; line-height: 1.6; color: var(--evt-ink-muted);
+}
+.evt-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--evt-accent); flex: none; }
+.evt-full { font-size: 13px; font-weight: 600; color: #b3261e; margin-right: auto; }
 .evt-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 9px;
-  padding: 18px 34px; border-radius: var(--evt-radius-sm);
-  font-size: 16px; font-weight: 500; line-height: 1; letter-spacing: -.005em;
+  padding: 14px 30px; border-radius: var(--evt-radius-sm);
+  font-size: 15px; font-weight: 500; line-height: 1; letter-spacing: -.005em;
   font-family: inherit; cursor: pointer; text-decoration: none;
   background: var(--evt-accent-deep); color: var(--evt-btn-fg);
   border: 1px solid var(--evt-accent-deep);
@@ -119,13 +166,6 @@ const EVT_CSS = `
 .evt-btn:hover  { background: #4b4278; border-color: #4b4278; }
 .evt-btn:active { background: #3f3866; border-color: #3f3866; }
 .evt :focus-visible { outline: 2px solid var(--evt-accent); outline-offset: 2px; }
-
-.evt-spots {
-  display: flex; align-items: center; gap: 7px;
-  font-size: 12.5px; line-height: 1.6; color: var(--evt-ink-muted);
-}
-.evt-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--evt-accent); flex: none; }
-.evt-full { font-size: 13px; font-weight: 600; color: #b3261e; }
 
 .evt-formwrap { padding: 0 44px 34px; }
 
@@ -139,10 +179,14 @@ const EVT_CSS = `
   }
   .evt-rail-cell:first-child { padding-left: 22px; }
   .evt-rail-cell:last-child  { border-bottom: 0; }
-  .evt-body { padding: 24px 22px 26px; gap: 26px; }
-  .evt-action { align-items: stretch; width: 100%; }
+  .evt-body { padding: 24px 22px 26px; }
+  .evt-top-row { flex-direction: column; }
+  .evt-contact-card { width: auto; }
+  .evt-included-grid { grid-template-columns: 1fr; }
+  .evt-footer { padding: 16px 22px; flex-direction: column; align-items: stretch; }
+  .evt-spots { margin-right: 0; justify-content: center; }
+  .evt-full { margin-right: 0; text-align: center; }
   .evt-btn { width: 100%; }
-  .evt-spots { justify-content: center; }
   .evt-formwrap { padding: 0 22px 26px; }
 }
 `;
@@ -182,18 +226,10 @@ function CalendarIcon() {
     </svg>
   );
 }
-function ClockIcon() {
+function CheckIcon() {
   return (
-    <svg className="evt-ico" viewBox="0 0 256 256" aria-hidden="true">
-      <circle cx="128" cy="128" r="94" fill="none" stroke="currentColor" strokeWidth="18" />
-      <path d="M128 72v56h48" fill="none" stroke="currentColor" strokeWidth="18" strokeLinecap="round" />
-    </svg>
-  );
-}
-function PhoneIcon() {
-  return (
-    <svg className="evt-ico evt-ico-muted" viewBox="0 0 256 256" aria-hidden="true">
-      <path d="M96 40H56a16 16 0 0 0-16 16c0 88 72 160 160 160a16 16 0 0 0 16-16v-40l-48-24-24 32a144 144 0 0 1-56-56l32-24Z" fill="none" stroke="currentColor" strokeWidth="18" strokeLinejoin="round" />
+    <svg className="evt-included-check" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -312,38 +348,60 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
         </div>
 
         <div className="evt-body">
-          <div className="evt-details">
-            {tournament.includedDescription && (
-              <p className="evt-line"><FlagIcon />{tournament.includedDescription}</p>
-            )}
-            <p className="evt-line"><CalendarIcon />{kicker}</p>
-            {tournament.scheduleText && (
-              <p className="evt-line"><ClockIcon /><span><strong className="evt-strong">Schedule:</strong> {tournament.scheduleText}</span></p>
-            )}
-            {contactBits && (
-              <p className="evt-line evt-line-muted">
-                <PhoneIcon />
-                <span>
-                  Questions?{tournament.contactName ? ` ${tournament.contactName}` : ""}
-                  {tournament.contactPhone ? <> · <a href={`tel:${tournament.contactPhone.replace(/[^\d+]/g, "")}`}>{formatPhone(tournament.contactPhone)}</a></> : null}
-                  {tournament.contactEmail ? <> · <a href={`mailto:${tournament.contactEmail}`}>{tournament.contactEmail}</a></> : null}
-                </span>
-              </p>
-            )}
-          </div>
+          {(tournament.includedItems?.length > 0 || contactBits) && (
+            <div className="evt-top-row">
+              {tournament.includedItems?.length > 0 && (
+                <div className="evt-included-col evt-section">
+                  <p className="evt-section-title"><FlagIcon /><strong className="evt-strong">What's Included</strong></p>
+                  <div className="evt-included-grid">
+                    {tournament.includedItems.map((item, i) => (
+                      <div key={i} className="evt-included-item"><CheckIcon />{item}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {contactBits && (
+                <div className="evt-contact-card">
+                  <p className="evt-contact-label">Have Questions?</p>
+                  {tournament.contactName && <p className="evt-contact-name">{tournament.contactName}</p>}
+                  {tournament.contactPhone && <a href={`tel:${tournament.contactPhone.replace(/[^\d+]/g, "")}`}>{formatPhone(tournament.contactPhone)}</a>}
+                  {tournament.contactEmail && <a href={`mailto:${tournament.contactEmail}`}>{tournament.contactEmail}</a>}
+                </div>
+              )}
+            </div>
+          )}
 
-          <div className="evt-action">
-            {tournament.isFull ? (
-              <p className="evt-full">This tournament is full.</p>
-            ) : (
-              <>
-                {!expanded && <button type="button" className="evt-btn" onClick={onToggle}>Register a team</button>}
-                {tournament.spotsRemaining != null && (
-                  <p className="evt-spots"><span className="evt-dot" />{tournament.spotsRemaining} team spot{tournament.spotsRemaining === 1 ? "" : "s"} remaining</p>
-                )}
-              </>
+          {/* Always shown — the date pill covers every tournament (date is
+              required data); the timeline below it only appears once a
+              detailed schedule has actually been entered. */}
+          <div className="evt-section">
+            <p className="evt-section-title"><CalendarIcon /><strong className="evt-strong">Schedule</strong></p>
+            <div className="evt-date-pill">{kicker}</div>
+            {tournament.scheduleItems?.length > 0 && (
+              <div className="evt-timeline">
+                {tournament.scheduleItems.map((item, i) => (
+                  <div key={i} className="evt-timeline-row">
+                    <span className="evt-timeline-time">{item.time}</span>
+                    <span className="evt-timeline-rule" />
+                    <span className="evt-timeline-label">{item.label}</span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
+        </div>
+
+        <div className="evt-footer">
+          {tournament.isFull ? (
+            <p className="evt-full">This tournament is full.</p>
+          ) : (
+            <>
+              {tournament.spotsRemaining != null && (
+                <p className="evt-spots"><span className="evt-dot" />{tournament.spotsRemaining} team spot{tournament.spotsRemaining === 1 ? "" : "s"} remaining</p>
+              )}
+              {!expanded && <button type="button" className="evt-btn" onClick={onToggle}>Register a team</button>}
+            </>
+          )}
         </div>
 
         {expanded && !tournament.isFull && (

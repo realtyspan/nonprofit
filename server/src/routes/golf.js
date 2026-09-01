@@ -159,8 +159,27 @@ async function resolvePreviousTournamentId(orgId, previousTournamentId, selfId) 
 const MAX_FLYER_IMAGE_CHARS = 600000;
 const FLYER_IMAGE_POSITIONS = ["top", "center", "bottom"];
 
+// Cleans a client-submitted "what's included" list down to trimmed,
+// non-empty strings — an admin removing a row's text entirely shouldn't
+// leave a blank bullet on the public page.
+function cleanIncludedItems(items) {
+  if (!Array.isArray(items)) return null;
+  const cleaned = items.map((s) => String(s || "").trim()).filter(Boolean);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+// Same idea for schedule rows — a row needs at least a label (a time with
+// no label isn't a schedule item); time alone is dropped along with it.
+function cleanScheduleItems(items) {
+  if (!Array.isArray(items)) return null;
+  const cleaned = items
+    .map((r) => ({ time: String(r?.time || "").trim(), label: String(r?.label || "").trim() }))
+    .filter((r) => r.label);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 function resolveTournamentFields(body) {
-  const { name, year, date, format, maxTeamSize, venueName, venueAddress, flyerImage, flyerImagePosition, costPerPlayer, capacity, includedDescription, scheduleText, contactName, contactPhone, contactEmail, allowCheckPayment, checkPayableInstructions, allowInPersonPayment, inPersonPaymentInstructions } = body;
+  const { name, year, date, format, maxTeamSize, venueName, venueAddress, flyerImage, flyerImagePosition, costPerPlayer, capacity, includedItems, scheduleItems, contactName, contactPhone, contactEmail, allowCheckPayment, checkPayableInstructions, allowInPersonPayment, inPersonPaymentInstructions } = body;
 
   if (flyerImage && flyerImage.length > MAX_FLYER_IMAGE_CHARS) {
     throw Object.assign(new Error("That photo is too large — choose a smaller or simpler image"), { status: 400 });
@@ -203,8 +222,8 @@ function resolveTournamentFields(body) {
     flyerImagePosition: FLYER_IMAGE_POSITIONS.includes(flyerImagePosition) ? flyerImagePosition : "center",
     costPerPlayer: price,
     capacity: parsedCapacity,
-    includedDescription: includedDescription?.trim() || null,
-    scheduleText: scheduleText?.trim() || null,
+    includedItems: cleanIncludedItems(includedItems),
+    scheduleItems: cleanScheduleItems(scheduleItems),
     contactName: contactName?.trim() || null,
     contactPhone: contactPhone?.trim() || null,
     contactEmail: contactEmail?.trim() || null,

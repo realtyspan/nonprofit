@@ -282,8 +282,8 @@ function emptyForm(tournament) {
     flyerImagePosition: tournament?.flyerImagePosition || "center",
     costPerPlayer: tournament?.costPerPlayer || "",
     capacity: tournament?.capacity ?? "",
-    includedDescription: tournament?.includedDescription || "",
-    scheduleText: tournament?.scheduleText || "",
+    includedItems: tournament?.includedItems?.length ? tournament.includedItems : [""],
+    scheduleItems: tournament?.scheduleItems?.length ? tournament.scheduleItems : [{ time: "", label: "" }],
     contactName: tournament?.contactName || "",
     contactPhone: tournament?.contactPhone || "",
     contactEmail: tournament?.contactEmail || "",
@@ -306,6 +306,26 @@ function TournamentForm({ tournament, tournaments, historicalImports = [], onCan
     setForm((f) => ({ ...f, [k]: v }));
   }
 
+  function setIncludedItem(i, v) {
+    setForm((f) => ({ ...f, includedItems: f.includedItems.map((item, idx) => (idx === i ? v : item)) }));
+  }
+  function addIncludedItem() {
+    setForm((f) => ({ ...f, includedItems: [...f.includedItems, ""] }));
+  }
+  function removeIncludedItem(i) {
+    setForm((f) => ({ ...f, includedItems: f.includedItems.filter((_, idx) => idx !== i) }));
+  }
+
+  function setScheduleItem(i, k, v) {
+    setForm((f) => ({ ...f, scheduleItems: f.scheduleItems.map((item, idx) => (idx === i ? { ...item, [k]: v } : item)) }));
+  }
+  function addScheduleItem() {
+    setForm((f) => ({ ...f, scheduleItems: [...f.scheduleItems, { time: "", label: "" }] }));
+  }
+  function removeScheduleItem(i) {
+    setForm((f) => ({ ...f, scheduleItems: f.scheduleItems.filter((_, idx) => idx !== i) }));
+  }
+
   async function submit(e) {
     e.preventDefault();
     if (!form.name.trim()) return setError("A name is required so you can tell tournaments apart");
@@ -313,7 +333,12 @@ function TournamentForm({ tournament, tournaments, historicalImports = [], onCan
     setBusy(true);
     setError("");
     try {
-      const payload = { ...form, previousTournamentId: form.previousTournamentId || null };
+      const payload = {
+        ...form,
+        includedItems: form.includedItems.map((s) => s.trim()).filter(Boolean),
+        scheduleItems: form.scheduleItems.map((r) => ({ time: r.time.trim(), label: r.label.trim() })).filter((r) => r.label),
+        previousTournamentId: form.previousTournamentId || null,
+      };
       if (tournament) await api.updateGolfTournament(tournament.id, payload);
       else await api.createGolfTournament(payload);
       onSaved();
@@ -356,11 +381,34 @@ function TournamentForm({ tournament, tournaments, historicalImports = [], onCan
       </div>
 
       <Field label="What's included (optional)">
-        <textarea style={{ ...inputStyle, minHeight: 60, resize: "vertical", fontFamily: "inherit" }} placeholder="18 holes with cart, breakfast, lunch on the turn, dinner & prizes" value={form.includedDescription} onChange={(e) => set("includedDescription", e.target.value)} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {form.includedItems.map((item, i) => (
+            <div key={i} style={{ display: "flex", gap: 6 }}>
+              <input style={{ ...inputStyle, flex: 1 }} placeholder="18 holes with cart" value={item} onChange={(e) => setIncludedItem(i, e.target.value)} />
+              {form.includedItems.length > 1 && (
+                <button type="button" style={{ ...button.ghost, padding: "6px 10px", fontSize: 12 }} onClick={() => removeIncludedItem(i)}>Remove</button>
+              )}
+            </div>
+          ))}
+          <div><button type="button" style={button.ghost} onClick={addIncludedItem}>+ Add item</button></div>
+        </div>
+        <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>Each item shows as its own bullet on the public page — e.g. "18 holes with cart," "Breakfast at the clubhouse," "Dinner & prizes."</div>
       </Field>
 
       <Field label="Schedule (optional)">
-        <textarea style={{ ...inputStyle, minHeight: 60, resize: "vertical", fontFamily: "inherit" }} placeholder="9:00 AM Tee off · 11:00 AM Lunch at the turn · 3:30 PM Dinner · 4:00 PM Trophies" value={form.scheduleText} onChange={(e) => set("scheduleText", e.target.value)} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {form.scheduleItems.map((item, i) => (
+            <div key={i} style={{ display: "flex", gap: 6 }}>
+              <input style={{ ...inputStyle, flex: "0 0 110px" }} placeholder="9:00 AM" value={item.time} onChange={(e) => setScheduleItem(i, "time", e.target.value)} />
+              <input style={{ ...inputStyle, flex: 1 }} placeholder="Shotgun start" value={item.label} onChange={(e) => setScheduleItem(i, "label", e.target.value)} />
+              {form.scheduleItems.length > 1 && (
+                <button type="button" style={{ ...button.ghost, padding: "6px 10px", fontSize: 12 }} onClick={() => removeScheduleItem(i)}>Remove</button>
+              )}
+            </div>
+          ))}
+          <div><button type="button" style={button.ghost} onClick={addScheduleItem}>+ Add schedule item</button></div>
+        </div>
+        <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>Time is optional — leave it blank for an item with no fixed time.</div>
       </Field>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
