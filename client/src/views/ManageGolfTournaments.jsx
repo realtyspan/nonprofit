@@ -21,6 +21,7 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
   const [lifecycleError, setLifecycleError] = useState("");
   const [flyerBusy, setFlyerBusy] = useState(false);
   const [flyerError, setFlyerError] = useState("");
+  const [showFlyerColors, setShowFlyerColors] = useState(false);
   const [historicalImports, setHistoricalImports] = useState([]);
 
   function refreshHistoricalImports() {
@@ -108,7 +109,9 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
             <button style={button.secondary} disabled={flyerBusy} onClick={downloadFlyer}>
               {flyerBusy ? "Generating…" : "Download flyer (PDF)"}
             </button>
+            <button style={button.ghost} onClick={() => setShowFlyerColors((s) => !s)}>{showFlyerColors ? "Hide flyer colors" : "Flyer colors"}</button>
           </div>
+          {showFlyerColors && <FlyerColorsCard />}
         </div>
       )}
 
@@ -187,6 +190,76 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
 
       <HistoricalImports tournaments={tournaments} imports={historicalImports} onImportsChanged={refreshHistoricalImports} />
     </div>
+  );
+}
+
+// Org-wide (not per-tournament) — the two brand colors a generated flyer
+// draws with. Deliberately separate from the embed customizer's colors
+// (PublicLinkBox): those aren't even saved anywhere today, and print/web
+// don't need to share one setting. Every other shade the flyer draws with
+// (a light tint for badges, a guaranteed-readable dark panel fill, etc.) is
+// derived from just these two at generation time — see golfFlyerPdf.js's
+// deriveFlyerTheme — so an org never has to pick more than two colors.
+function FlyerColorsCard() {
+  const [colorsForm, setColorsForm] = useState({ primary: "", accent: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api.getOrg().then((o) => setColorsForm({ primary: o.flyerPrimaryColor || "", accent: o.flyerAccentColor || "" })).catch(() => {});
+  }, []);
+
+  function set(k, v) {
+    setColorsForm((f) => ({ ...f, [k]: v }));
+    setSaved(false);
+  }
+
+  async function save() {
+    setBusy(true);
+    setError("");
+    try {
+      await api.updateFlyerColors(colorsForm.primary || null, colorsForm.accent || null);
+      setSaved(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ fontSize: 11.5, color: colors.textSecondary }}>
+        Match your flyer to your own colors — paste a hex code if you have one, or click the swatch to pick. Leave either blank to use the app's default colors.
+      </div>
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+        <ColorField label="Primary (panels)" value={colorsForm.primary} onChange={(v) => set("primary", v)} placeholder="#25555f" />
+        <ColorField label="Accent (highlights)" value={colorsForm.accent} onChange={(v) => set("accent", v)} placeholder="#cd715c" />
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+      <div><button style={button.primary} disabled={busy} onClick={save}>{busy ? "Saving…" : saved ? "Saved!" : "Save colors"}</button></div>
+    </div>
+  );
+}
+
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+function ColorField({ label, value, onChange, placeholder }) {
+  const swatchValue = HEX_COLOR_RE.test(value) ? value : placeholder;
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 600, color: colors.textSecondary }}>
+      {label}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          type="color"
+          value={swatchValue}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ width: 34, height: 30, padding: 0, border: `1px solid ${colors.border}`, borderRadius: 6, cursor: "pointer", background: "none" }}
+        />
+        <input style={{ ...inputStyle, width: 100 }} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+      </div>
+    </label>
   );
 }
 

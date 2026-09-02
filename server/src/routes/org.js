@@ -57,6 +57,44 @@ router.patch("/identity", requireOwner, async (req, res) => {
   res.json(org);
 });
 
+// Mirrors golf.js's own requireOwnerOrGolfAdmin — flyer colors are a golf
+// operational detail today (only golf generates flyers), not core org
+// identity, so whoever can already generate a flyer can set them; if a
+// future module gets its own flyers, generalize this gate then.
+function requireOwnerOrGolfAdmin(req, res, next) {
+  if (req.orgTier === "Owner") return next();
+  return requirePermission("golf", "Admin")(req, res, next);
+}
+
+// Accepts a hex color ("#25555f" or "25555f") and normalizes it to lowercase
+// "#rrggbb", or returns null for an empty/missing value — throws if given
+// something that isn't a valid 6-digit hex color at all.
+function normalizeHexColor(value, label) {
+  if (value === undefined) return undefined;
+  const trimmed = (value || "").trim();
+  if (!trimmed) return null;
+  const match = /^#?([0-9a-f]{6})$/i.exec(trimmed);
+  if (!match) throw Object.assign(new Error(`${label} must be a 6-digit hex color (e.g. #25555f)`), { status: 400 });
+  return `#${match[1].toLowerCase()}`;
+}
+
+router.patch("/flyer-colors", requireOwnerOrGolfAdmin, async (req, res) => {
+  const { primaryColor, accentColor } = req.body;
+  let normalizedPrimary, normalizedAccent;
+  try {
+    normalizedPrimary = normalizeHexColor(primaryColor, "Primary color");
+    normalizedAccent = normalizeHexColor(accentColor, "Accent color");
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+
+  const org = await prisma.organization.update({
+    where: { id: req.user.orgId },
+    data: { flyerPrimaryColor: normalizedPrimary, flyerAccentColor: normalizedAccent },
+  });
+  res.json(org);
+});
+
 // The actual external webpage where an org has pasted a module's embed code
 // (see PublicLinkBox.jsx) — merged into the existing map by module key so
 // setting golf's URL never touches any other module's. Owner-only, same as

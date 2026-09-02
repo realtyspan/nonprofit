@@ -13,6 +13,15 @@ model Organization {
   slug            String?  @unique // public-facing URL segment, shared across modules' public pages (rentals, calendar)
   contactEmail    String?  // used as the Reply-To on buyer-facing emails (e.g. Raffle) sent from the platform's shared sender address
   phone           String?  // org's own main contact number — shown on flyers (see golfFlyerPdf.js) and anywhere else the org's identity, not one module's contact person, is what belongs
+  // Two brand colors an org can set for generated flyers (hex, e.g. "#25555f") —
+  // deliberately not tied to the embed customizer's colors (PublicLinkBox), which
+  // aren't even persisted today and serve a different medium (screen vs. print).
+  // Every other shade a flyer needs (a light tint for badges, a dark panel fill,
+  // a readable-on-cream accent) is derived from just these two at generation time
+  // (see golfFlyerPdf.js's deriveFlyerTheme) so an org never has to pick more
+  // than two colors. Null means "use the app's own teal/terracotta defaults."
+  flyerPrimaryColor String? // solid dark panels — hero band, "Have Questions?" card
+  flyerAccentColor  String? // the one eye-catching element — date tab, register CTA band
   licenseId       String?
   address         String?  // physical address — used on buyer-facing raffle emails, and as the GC-7Q PDF header's fallback when no mailing address is set (see gc7q.js)
   mailingAddress  String?  // preferred over `address` on the GC-7Q PDF header (gc7q.js) — a filing should show where mail reaches the org, not necessarily the premises address

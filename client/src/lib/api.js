@@ -124,6 +124,7 @@ export const api = {
   updateOrg: (payload) => request("/org", { method: "PATCH", body: payload }),
   updateOrgIdentity: (payload) => request("/org/identity", { method: "PATCH", body: payload }),
   updateOrgEmbedPageUrl: (module, url) => request("/org/identity/embed-page", { method: "PATCH", body: { module, url } }),
+  updateFlyerColors: (primaryColor, accentColor) => request("/org/flyer-colors", { method: "PATCH", body: { primaryColor, accentColor } }),
   getAiUsage: () => request("/org/ai-usage"),
 
   listRentalSpaces: () => request("/rentals/spaces"),
