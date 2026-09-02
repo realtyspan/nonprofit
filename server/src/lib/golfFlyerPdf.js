@@ -246,6 +246,11 @@ async function buildEventFlyerPdf(content) {
 
   const orgLabel = (content.orgName || "").toUpperCase();
   const headline = fitWrapped(displayBlack, content.eventName || "", contentW - 110, [40, 34, 30, 26, 22], 2);
+  // How far apart wrapped headline lines sit, as a multiple of the font
+  // size — 0.86 (tight enough to touch on a 2-line tournament name) read as
+  // cramped once actually printed; this gives real daylight between lines
+  // while still reading as a tight display headline, not loose body text.
+  const HEADLINE_LINE_HEIGHT = 1.0;
 
   // First pass: walk the same y-cursor math the real draw will use, purely to
   // find where the band ends — pdf-lib has no z-order/layers, so the teal
@@ -253,7 +258,7 @@ async function buildEventFlyerPdf(content) {
   // band's height (dependent on how many lines the headline wraps to) must
   // be known before the fill is drawn.
   let hy = PAGE.height - MARGIN - 9 - 22;
-  for (const _line of headline.lines) hy -= headline.size * 0.86;
+  for (const _line of headline.lines) hy -= headline.size * HEADLINE_LINE_HEIGHT;
   hy -= 18;
   if (content.subLine) hy -= 14;
   const heroBottom = hy - 30; // breathing room before the date tab overlaps the seam
@@ -265,7 +270,7 @@ async function buildEventFlyerPdf(content) {
   page.drawText(orgLabel, { x: MARGIN + 12, y: hy, size: 10.5, font: interBold, color: theme.primaryTintText });
   hy -= 22;
   for (const line of headline.lines) {
-    hy -= headline.size * 0.86;
+    hy -= headline.size * HEADLINE_LINE_HEIGHT;
     page.drawText(line, { x: MARGIN, y: hy, size: headline.size, font: displayBlack, color: NEUTRAL.white });
   }
   hy -= 18;
