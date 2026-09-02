@@ -31,6 +31,7 @@ import CalendarView from "./views/CalendarView";
 import PublicCalendar from "./views/PublicCalendar";
 import PublicGolf from "./views/PublicGolf";
 import PublicGolfPay from "./views/PublicGolfPay";
+import PublicGolfUnsubscribe from "./views/PublicGolfUnsubscribe";
 import PublicRaffleUnsubscribe from "./views/PublicRaffleUnsubscribe";
 import PlatformAdminApp from "./views/platform-admin/PlatformAdminApp";
 import ManageRaffles from "./views/ManageRaffles";
@@ -402,6 +403,7 @@ export default function App() {
   // it's handled before AuthProvider/Shell rather than as a route inside it.
   if (window.location.pathname === "/reset-password") return <ResetPassword />;
   if (window.location.pathname === "/raffle-unsubscribe") return <PublicRaffleUnsubscribe />;
+  if (window.location.pathname === "/golf-unsubscribe") return <PublicGolfUnsubscribe />;
 
   // Requires being logged in (unlike the routes above), so it renders inside
   // AuthProvider as an alternative to Shell rather than before it — it's

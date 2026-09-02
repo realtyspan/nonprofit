@@ -3,8 +3,50 @@ const prisma = require("../lib/prisma");
 const { rateLimit } = require("../lib/rateLimit");
 const { registerTeam, addGolfLog, normalizeEmail } = require("../lib/golfLogic");
 const { stripPhone } = require("../lib/phone");
+const { verifyUnsubscribeToken, normalizeEmail: normalizeUnsubEmail } = require("../lib/golfUnsubscribe");
 
 const router = express.Router();
+
+// Public landing for the golf marketing email's unsubscribe link — split
+// into a read-only "who is this" lookup and a separate POST to actually
+// record the opt-out, so an email client or security scanner that
+// preemptively GETs every link in an inbox can't silently unsubscribe
+// people. Mirrors publicRaffle.js's pair exactly. Registered before the
+// GET /:slug route below on purpose — /:slug is a single wildcard segment
+// that would otherwise match "/unsubscribe-info" first and swallow it.
+router.get("/unsubscribe-info", rateLimit({ windowMs: 10 * 60 * 1000, max: 30 }), async (req, res) => {
+  let payload;
+  try {
+    payload = verifyUnsubscribeToken(req.query.token);
+  } catch {
+    return res.status(400).json({ error: "This link is invalid or has expired." });
+  }
+  const org = await prisma.organization.findUnique({ where: { id: payload.orgId }, select: { name: true } });
+  if (!org) return res.status(404).json({ error: "This link is invalid or has expired." });
+
+  const existing = await prisma.golfEmailSuppression.findUnique({
+    where: { orgId_email: { orgId: payload.orgId, email: payload.email } },
+  });
+  res.json({ orgName: org.name, email: payload.email, alreadyUnsubscribed: !!existing });
+});
+
+router.post("/unsubscribe", rateLimit({ windowMs: 10 * 60 * 1000, max: 10 }), async (req, res) => {
+  let payload;
+  try {
+    payload = verifyUnsubscribeToken(req.body.token);
+  } catch {
+    return res.status(400).json({ error: "This link is invalid or has expired." });
+  }
+  const org = await prisma.organization.findUnique({ where: { id: payload.orgId }, select: { name: true } });
+  if (!org) return res.status(404).json({ error: "This link is invalid or has expired." });
+
+  await prisma.golfEmailSuppression.upsert({
+    where: { orgId_email: { orgId: payload.orgId, email: normalizeUnsubEmail(payload.email) } },
+    update: {},
+    create: { orgId: payload.orgId, email: normalizeUnsubEmail(payload.email) },
+  });
+  res.json({ ok: true, orgName: org.name, email: payload.email });
+});
 
 const PUBLIC_TOURNAMENT_FIELDS = {
   id: true, name: true, year: true, date: true, format: true, maxTeamSize: true,

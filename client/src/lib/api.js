@@ -243,6 +243,19 @@ export const api = {
   listGolfLog: (tournamentId) => request(`/golf/tournaments/${tournamentId}/log`),
   downloadGolfFlyerPdf: (tournamentId, tournamentName) => download(`/golf/tournaments/${tournamentId}/flyer`, `${(tournamentName || "Tournament").replace(/\s+/g, "_")}_Flyer.pdf`),
 
+  getGolfKickoffEmail: (tournamentId) => request(`/golf/tournaments/${tournamentId}/kickoff-email`),
+  getGolfKickoffRecipients: (tournamentId) => request(`/golf/tournaments/${tournamentId}/kickoff-email/recipients`),
+  sendGolfKickoffEmail: (tournamentId) => request(`/golf/tournaments/${tournamentId}/kickoff-email/send`, { method: "POST" }),
+  sendGolfKickoffTestEmail: (tournamentId, email) => request(`/golf/tournaments/${tournamentId}/kickoff-email/send-test`, { method: "POST", body: { email } }),
+
+  getGolfSponsorEmail: (tournamentId) => request(`/golf/tournaments/${tournamentId}/sponsor-email`),
+  getGolfSponsorEmailRecipients: (tournamentId) => request(`/golf/tournaments/${tournamentId}/sponsor-email/recipients`),
+  sendGolfSponsorEmail: (tournamentId) => request(`/golf/tournaments/${tournamentId}/sponsor-email/send`, { method: "POST" }),
+  sendGolfSponsorTestEmail: (tournamentId, email) => request(`/golf/tournaments/${tournamentId}/sponsor-email/send-test`, { method: "POST", body: { email } }),
+
+  getGolfUnsubscribeInfo: (token) => request(`/public/golf/unsubscribe-info?token=${encodeURIComponent(token)}`),
+  confirmGolfUnsubscribe: (token) => request("/public/golf/unsubscribe", { method: "POST", body: { token } }),
+
   listGolfTeams: (tournamentId) => request(`/golf/tournaments/${tournamentId}/teams`),
   createGolfTeam: (tournamentId, payload) => request(`/golf/tournaments/${tournamentId}/teams`, { method: "POST", body: payload }),
   updateGolfTeam: (tournamentId, teamId, payload) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}`, { method: "PATCH", body: payload }),

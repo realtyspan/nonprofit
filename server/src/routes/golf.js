@@ -7,6 +7,10 @@ const { extractPlayersFromRows, extractSponsorsFromRows } = require("../lib/golf
 const { stripe, createExpressAccount, createOnboardingLink } = require("../lib/stripe");
 const { decodeDataUrl } = require("../lib/dataUrl");
 const { buildGolfFlyerPdf } = require("../lib/golfFlyerPdf");
+const { golfKickoffEmailHtml } = require("../lib/golfKickoffEmail");
+const { golfSponsorEmailHtml } = require("../lib/golfSponsorEmail");
+const { buildUnsubscribeToken } = require("../lib/golfUnsubscribe");
+const { sendEmail } = require("../lib/notifications");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -262,21 +266,28 @@ router.get("/tournaments/:tournamentId", requireReadAccess("golf"), async (req, 
   res.json(req.golfTournament);
 });
 
-// Print-ready flyer PDF — QR code points at wherever the org has actually
-// told us this registers a team: their own external webpage (PublicLinkBox's
-// "Where did you put this?" field, org.embedPageUrls.golf) if they've set
-// one, else our own /golf/:slug page. A flyer whose QR leads nowhere is
-// worse than no flyer, so this requires at least one of the two to exist
-// rather than generating a broken code.
+// Wherever the org has actually told us this registers a team: their own
+// external webpage (PublicLinkBox's "Where did you put this?" field,
+// org.embedPageUrls.golf) if they've set one, else our own /golf/:slug
+// page. Shared by the flyer (below) and the marketing emails — a link that
+// leads nowhere is worse than no link, so both require at least one of the
+// two to exist rather than generating a broken one.
+function resolveGolfRegisterUrl(org) {
+  const ownSiteUrl = org.embedPageUrls?.golf;
+  if (ownSiteUrl) return ownSiteUrl;
+  if (!org.slug) return null;
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+  return `${appUrl}/golf/${org.slug}`;
+}
+
+// Print-ready flyer PDF — see resolveGolfRegisterUrl above for the QR's
+// destination.
 router.get("/tournaments/:tournamentId/flyer", requireReadAccess("golf"), async (req, res) => {
   const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
-  const ownSiteUrl = org.embedPageUrls?.golf;
-  if (!ownSiteUrl && !org.slug) {
+  const registerUrl = resolveGolfRegisterUrl(org);
+  if (!registerUrl) {
     return res.status(400).json({ error: "Set up your organization's public link first (Golf → Public link), then download the flyer." });
   }
-
-  const appUrl = process.env.APP_URL || "http://localhost:5173";
-  const registerUrl = ownSiteUrl || `${appUrl}/golf/${org.slug}`;
 
   let bytes;
   try {
@@ -366,6 +377,269 @@ router.delete("/tournaments/:tournamentId", requirePermission("golf", "Admin"), 
 router.get("/tournaments/:tournamentId/log", requireReadAccess("golf"), async (req, res) => {
   const logs = await prisma.golfLog.findMany({ where: { tournamentId: req.golfTournament.id }, orderBy: { createdAt: "desc" }, take: 500 });
   res.json(logs);
+});
+
+// --- Marketing email ---
+// Invites a linked tournament's past players/sponsors back for this one —
+// the payoff of the previousTournamentId chain set via "Player/sponsor
+// history source." Mirrors raffle.js's kickoff-email flow almost exactly
+// (collectSeriesRecipients -> collectGolf*Recipients, same suppression/
+// dedupe/missing-email handling), just walking GolfTeamPlayer/GolfSponsorship
+// rows instead of RaffleTicket rows, and split into two independent tracks
+// since golf has two audiences raffle doesn't.
+
+// Buyer/player/sponsor emails come from one shared platform sender address,
+// but should still look like they're from the org running the tournament
+// and route replies to that org, not the platform. Mirrors raffle.js's own
+// resolveReplyTo — route files in this codebase don't import from each
+// other, so this small helper is duplicated rather than shared.
+async function resolveReplyTo(orgId, org) {
+  if (org.contactEmail) return org.contactEmail;
+  const ownerMembership = await prisma.orgMembership.findFirst({
+    where: { orgId, tier: "Owner" },
+    include: { user: { select: { email: true } } },
+  });
+  return ownerMembership?.user?.email || undefined;
+}
+
+// Walks previousTournamentId starting at startTournamentId itself (already
+// the *previous* tournament by the time a caller passes
+// req.golfTournament.previousTournamentId in) with the same visited-Set
+// cycle guard raffle.js uses, capped at 50 hops. Only rosters on
+// non-cancelled teams count as real past players.
+async function collectGolfPlayerRecipients(orgId, startTournamentId) {
+  const seriesYears = [];
+  const recipients = new Map();
+  let missingEmailCount = 0;
+
+  let cursorId = startTournamentId || null;
+  const visited = new Set();
+
+  for (let hops = 0; cursorId && hops < 50; hops++) {
+    if (visited.has(cursorId)) break;
+    visited.add(cursorId);
+    const tournament = await prisma.golfTournament.findFirst({ where: { id: cursorId, orgId } });
+    if (!tournament) break;
+    seriesYears.push({ id: tournament.id, name: tournament.name, year: tournament.year });
+
+    const teamPlayers = await prisma.golfTeamPlayer.findMany({
+      where: { tournamentId: tournament.id, orgId, team: { status: { not: "cancelled" } } },
+      include: { player: true },
+    });
+    for (const tp of teamPlayers) {
+      const email = normalizeEmail(tp.player.email);
+      if (!email) {
+        missingEmailCount += 1;
+        continue;
+      }
+      if (!recipients.has(email)) {
+        recipients.set(email, { name: tp.player.name, email: tp.player.email.trim(), phone: tp.player.phone || "", years: [tournament.year] });
+      } else {
+        recipients.get(email).years.push(tournament.year);
+      }
+    }
+    cursorId = tournament.previousTournamentId;
+  }
+
+  const suppressed = await prisma.golfEmailSuppression.findMany({ where: { orgId }, select: { email: true } });
+  const suppressedSet = new Set(suppressed.map((s) => s.email));
+
+  const list = Array.from(recipients.values())
+    .map((r) => ({ ...r, suppressed: suppressedSet.has(normalizeEmail(r.email)) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { recipients: list, missingEmailCount, seriesYears };
+}
+
+// Same chain walk, over confirmed sponsorships instead of rosters — an
+// "inquiry" that was never confirmed or was declined isn't a real past
+// sponsor, so those are excluded rather than just uncounted.
+async function collectGolfSponsorRecipients(orgId, startTournamentId) {
+  const seriesYears = [];
+  const recipients = new Map();
+  let missingEmailCount = 0;
+
+  let cursorId = startTournamentId || null;
+  const visited = new Set();
+
+  for (let hops = 0; cursorId && hops < 50; hops++) {
+    if (visited.has(cursorId)) break;
+    visited.add(cursorId);
+    const tournament = await prisma.golfTournament.findFirst({ where: { id: cursorId, orgId } });
+    if (!tournament) break;
+    seriesYears.push({ id: tournament.id, name: tournament.name, year: tournament.year });
+
+    const sponsorships = await prisma.golfSponsorship.findMany({
+      where: { tournamentId: tournament.id, orgId, status: "confirmed" },
+      include: { sponsor: true },
+    });
+    for (const s of sponsorships) {
+      const email = normalizeEmail(s.sponsor.email);
+      if (!email) {
+        missingEmailCount += 1;
+        continue;
+      }
+      if (!recipients.has(email)) {
+        recipients.set(email, {
+          name: s.sponsor.contactName || s.sponsor.companyName, companyName: s.sponsor.companyName,
+          email: s.sponsor.email.trim(), phone: s.sponsor.phone || "",
+          years: [tournament.year], lastTierName: s.tierName || "", lastAmount: s.amount,
+        });
+      } else {
+        const existing = recipients.get(email);
+        existing.years.push(tournament.year);
+        // Most recent (highest-year) sponsorship wins for the "renew at this level" prompt.
+        if (tournament.year >= Math.max(...existing.years)) {
+          existing.lastTierName = s.tierName || "";
+          existing.lastAmount = s.amount;
+        }
+      }
+    }
+    cursorId = tournament.previousTournamentId;
+  }
+
+  const suppressed = await prisma.golfEmailSuppression.findMany({ where: { orgId }, select: { email: true } });
+  const suppressedSet = new Set(suppressed.map((s) => s.email));
+
+  const list = Array.from(recipients.values())
+    .map((r) => ({ ...r, suppressed: suppressedSet.has(normalizeEmail(r.email)) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { recipients: list, missingEmailCount, seriesYears };
+}
+
+router.get("/tournaments/:tournamentId/kickoff-email", requirePermission("golf", "Admin"), async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const registerUrl = resolveGolfRegisterUrl(org) || "#";
+  const html = golfKickoffEmailHtml({ org, tournament: req.golfTournament, registerUrl });
+  res.json({ html });
+});
+
+router.get("/tournaments/:tournamentId/kickoff-email/recipients", requirePermission("golf", "Admin"), async (req, res) => {
+  const result = await collectGolfPlayerRecipients(req.user.orgId, req.golfTournament.previousTournamentId);
+  res.json(result);
+});
+
+router.post("/tournaments/:tournamentId/kickoff-email/send-test", requirePermission("golf", "Admin"), async (req, res) => {
+  const email = (req.body.email || "").trim();
+  if (!email) return res.status(400).json({ error: "An email address is required" });
+
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const registerUrl = resolveGolfRegisterUrl(org) || "#";
+  const replyTo = await resolveReplyTo(req.user.orgId, org);
+  const firstName = (req.callerUser?.name || "").trim().split(/\s+/)[0] || "there";
+  const unsubscribeUrl = `${process.env.APP_URL || "http://localhost:5173"}/golf-unsubscribe?token=${buildUnsubscribeToken(req.user.orgId, email)}`;
+  const html = golfKickoffEmailHtml({ org, tournament: req.golfTournament, registerUrl, recipientFirstName: firstName, unsubscribeUrl });
+
+  try {
+    await sendEmail({ to: email, toName: firstName, subject: `[TEST] ${req.golfTournament.name} is back — save your spot`, html, fromName: org.name, replyTo });
+  } catch (err) {
+    return res.status(502).json({ error: `Send failed: ${err.message}` });
+  }
+
+  await addGolfLog(req.user.orgId, req.golfTournament.id, { type: "kickoff_email_test_sent", text: `Test kickoff email sent to ${email}`, actorName: req.callerUser?.name || "" });
+  res.json({ ok: true });
+});
+
+router.post("/tournaments/:tournamentId/kickoff-email/send", requirePermission("golf", "Admin"), async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const registerUrl = resolveGolfRegisterUrl(org) || "#";
+  const { recipients: allRecipients } = await collectGolfPlayerRecipients(req.user.orgId, req.golfTournament.previousTournamentId);
+  const recipients = allRecipients.filter((r) => !r.suppressed);
+  const suppressedCount = allRecipients.length - recipients.length;
+  if (recipients.length === 0) {
+    return res.status(400).json({ error: "No recipients to send to — build the recipient list first" });
+  }
+  const replyTo = await resolveReplyTo(req.user.orgId, org);
+  const subject = `${req.golfTournament.name} is back — save your spot`;
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+
+  let sent = 0;
+  for (const recipient of recipients) {
+    const firstName = recipient.name.trim().split(/\s+/)[0];
+    const unsubscribeUrl = `${appUrl}/golf-unsubscribe?token=${buildUnsubscribeToken(req.user.orgId, recipient.email)}`;
+    const html = golfKickoffEmailHtml({ org, tournament: req.golfTournament, registerUrl, recipientFirstName: firstName, unsubscribeUrl });
+    try {
+      await sendEmail({ to: recipient.email, toName: recipient.name, subject, html, fromName: org.name, replyTo });
+      sent++;
+    } catch (err) {
+      console.error(`Golf kickoff email send failed for ${recipient.email}:`, err.message);
+    }
+  }
+
+  await addGolfLog(req.user.orgId, req.golfTournament.id, {
+    type: "kickoff_email_sent",
+    text: `Kickoff email sent to ${sent} of ${recipients.length} recipient${recipients.length === 1 ? "" : "s"}${suppressedCount ? ` (${suppressedCount} unsubscribed and skipped)` : ""}`,
+    actorName: req.callerUser?.name || "",
+  });
+  res.json({ sent, total: recipients.length, suppressed: suppressedCount });
+});
+
+router.get("/tournaments/:tournamentId/sponsor-email", requirePermission("golf", "Admin"), async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const registerUrl = resolveGolfRegisterUrl(org) || "#";
+  const html = golfSponsorEmailHtml({ org, tournament: req.golfTournament, registerUrl });
+  res.json({ html });
+});
+
+router.get("/tournaments/:tournamentId/sponsor-email/recipients", requirePermission("golf", "Admin"), async (req, res) => {
+  const result = await collectGolfSponsorRecipients(req.user.orgId, req.golfTournament.previousTournamentId);
+  res.json(result);
+});
+
+router.post("/tournaments/:tournamentId/sponsor-email/send-test", requirePermission("golf", "Admin"), async (req, res) => {
+  const email = (req.body.email || "").trim();
+  if (!email) return res.status(400).json({ error: "An email address is required" });
+
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const registerUrl = resolveGolfRegisterUrl(org) || "#";
+  const replyTo = await resolveReplyTo(req.user.orgId, org);
+  const firstName = (req.callerUser?.name || "").trim().split(/\s+/)[0] || "there";
+  const unsubscribeUrl = `${process.env.APP_URL || "http://localhost:5173"}/golf-unsubscribe?token=${buildUnsubscribeToken(req.user.orgId, email)}`;
+  const html = golfSponsorEmailHtml({ org, tournament: req.golfTournament, registerUrl, recipientName: firstName, unsubscribeUrl });
+
+  try {
+    await sendEmail({ to: email, toName: firstName, subject: `[TEST] ${req.golfTournament.name} sponsorship opportunities are open`, html, fromName: org.name, replyTo });
+  } catch (err) {
+    return res.status(502).json({ error: `Send failed: ${err.message}` });
+  }
+
+  await addGolfLog(req.user.orgId, req.golfTournament.id, { type: "sponsor_email_test_sent", text: `Test sponsor email sent to ${email}`, actorName: req.callerUser?.name || "" });
+  res.json({ ok: true });
+});
+
+router.post("/tournaments/:tournamentId/sponsor-email/send", requirePermission("golf", "Admin"), async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const registerUrl = resolveGolfRegisterUrl(org) || "#";
+  const { recipients: allRecipients } = await collectGolfSponsorRecipients(req.user.orgId, req.golfTournament.previousTournamentId);
+  const recipients = allRecipients.filter((r) => !r.suppressed);
+  const suppressedCount = allRecipients.length - recipients.length;
+  if (recipients.length === 0) {
+    return res.status(400).json({ error: "No recipients to send to — build the recipient list first" });
+  }
+  const replyTo = await resolveReplyTo(req.user.orgId, org);
+  const subject = `${req.golfTournament.name} sponsorship opportunities are open`;
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+
+  let sent = 0;
+  for (const recipient of recipients) {
+    const unsubscribeUrl = `${appUrl}/golf-unsubscribe?token=${buildUnsubscribeToken(req.user.orgId, recipient.email)}`;
+    const html = golfSponsorEmailHtml({
+      org, tournament: req.golfTournament, registerUrl, recipientName: recipient.name,
+      lastTierName: recipient.lastTierName, lastAmount: recipient.lastAmount, unsubscribeUrl,
+    });
+    try {
+      await sendEmail({ to: recipient.email, toName: recipient.name, subject, html, fromName: org.name, replyTo });
+      sent++;
+    } catch (err) {
+      console.error(`Golf sponsor email send failed for ${recipient.email}:`, err.message);
+    }
+  }
+
+  await addGolfLog(req.user.orgId, req.golfTournament.id, {
+    type: "sponsor_email_sent",
+    text: `Sponsor email sent to ${sent} of ${recipients.length} recipient${recipients.length === 1 ? "" : "s"}${suppressedCount ? ` (${suppressedCount} unsubscribed and skipped)` : ""}`,
+    actorName: req.callerUser?.name || "",
+  });
+  res.json({ sent, total: recipients.length, suppressed: suppressedCount });
 });
 
 // --- Roster / team management ---
