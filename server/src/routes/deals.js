@@ -14,7 +14,7 @@ function parseThreshold(value) {
   if (value === undefined || value === null || value === "") return { value: 0.75 };
   const n = Number(value);
   if (Number.isNaN(n) || n < 0.75 || n > 1) {
-    return { error: "Close threshold must be between 75% and 100% (75% is the NYS minimum before a deal can be closed)" };
+    return { error: "Close threshold must be between 75% and 100% (75% is the NYS minimum before a game can be closed)" };
   }
   return { value: n };
 }
@@ -52,7 +52,7 @@ router.post("/scan-label", requirePermission("bell-jar", "Helper"), async (req, 
 router.post("/", requirePermission("bell-jar", "Helper"), async (req, res) => {
   const { name, serialNum, formNum, ticketCount, ticketPrice, idealPayout, closeThreshold, labelImage } = req.body;
   if (!name || !serialNum || !formNum || !ticketCount || !ticketPrice || !idealPayout) {
-    return res.status(400).json({ error: "Missing required deal fields" });
+    return res.status(400).json({ error: "Missing required game fields" });
   }
   const threshold = parseThreshold(closeThreshold);
   if (threshold.error) return res.status(400).json({ error: threshold.error });
@@ -81,14 +81,14 @@ router.post("/", requirePermission("bell-jar", "Helper"), async (req, res) => {
 // deals are locked (that's what Schedule 1 close-out + the audit trail is for).
 router.patch("/:id", requirePermission("bell-jar", "Helper"), async (req, res) => {
   const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
-  if (!deal) return res.status(404).json({ error: "Deal not found" });
+  if (!deal) return res.status(404).json({ error: "Game not found" });
   if (deal.status === "closed") {
-    return res.status(400).json({ error: "Closed deals can't be edited — they're locked in the Schedule 1 audit trail" });
+    return res.status(400).json({ error: "Closed games can't be edited — they're locked in the Schedule 1 audit trail" });
   }
 
   const { name, serialNum, formNum, ticketCount, ticketPrice, idealPayout, closeThreshold, labelImage } = req.body;
   if (!name || !serialNum || !formNum || !ticketCount || !ticketPrice || !idealPayout) {
-    return res.status(400).json({ error: "Missing required deal fields" });
+    return res.status(400).json({ error: "Missing required game fields" });
   }
 
   const newTicketCount = Number(ticketCount);
@@ -123,9 +123,9 @@ router.patch("/:id", requirePermission("bell-jar", "Helper"), async (req, res) =
 // those are working data, not the compliance record itself.
 router.delete("/:id", requirePermission("bell-jar", "Admin"), async (req, res) => {
   const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
-  if (!deal) return res.status(404).json({ error: "Deal not found" });
+  if (!deal) return res.status(404).json({ error: "Game not found" });
   if (deal.status === "closed") {
-    return res.status(400).json({ error: "Closed deals can't be deleted — they're locked in the Schedule 1 audit trail" });
+    return res.status(400).json({ error: "Closed games can't be deleted — they're locked in the Schedule 1 audit trail" });
   }
 
   await prisma.$transaction([
@@ -139,7 +139,7 @@ router.delete("/:id", requirePermission("bell-jar", "Admin"), async (req, res) =
 // toward daily sales / its close threshold.
 router.post("/:id/activate", requirePermission("bell-jar", "Helper"), async (req, res) => {
   const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
-  if (!deal) return res.status(404).json({ error: "Deal not found" });
+  if (!deal) return res.status(404).json({ error: "Game not found" });
   if (deal.status !== "received") {
     return res.status(400).json({ error: "Only a received (not yet active) game can be activated" });
   }
@@ -152,8 +152,8 @@ router.post("/:id/activate", requirePermission("bell-jar", "Helper"), async (req
 router.post("/:id/daily-sales", requirePermission("bell-jar", "Helper"), async (req, res) => {
   const { ticketsSold, cashPaid, date } = req.body;
   const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
-  if (!deal) return res.status(404).json({ error: "Deal not found" });
-  if (deal.status !== "active") return res.status(400).json({ error: "Deal is not active" });
+  if (!deal) return res.status(404).json({ error: "Game not found" });
+  if (deal.status !== "active") return res.status(400).json({ error: "Game is not active" });
 
   let saleDate;
   if (date) {
@@ -194,7 +194,7 @@ router.post("/:id/daily-sales", requirePermission("bell-jar", "Helper"), async (
 // already-fetched (and potentially huge) result set client-side.
 router.get("/:id/daily-sales", requireReadAccess("bell-jar"), async (req, res) => {
   const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
-  if (!deal) return res.status(404).json({ error: "Deal not found" });
+  if (!deal) return res.status(404).json({ error: "Game not found" });
 
   const { from, to } = req.query;
   const where = { dealId: deal.id };

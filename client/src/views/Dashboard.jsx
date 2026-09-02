@@ -22,7 +22,7 @@ export default function Dashboard({ deals, onOpenReports }) {
   const totalPrizes = active.reduce((s, d) => s + d.prizesAwardedToDate, 0);
 
   const stats = [
-    { label: "Active deals", value: active.length, trend: null },
+    { label: "Active games", value: active.length, trend: null },
     { label: "Eligible to close", value: eligible.length, trend: eligible.length > 0 ? "Action needed" : "None pending", warn: eligible.length > 0 },
     { label: "Tickets sold / total", value: `${totalSold.toLocaleString()} / ${totalTickets.toLocaleString()}`, trend: null },
     { label: "Cash prizes awarded", value: money(totalPrizes), trend: null },
@@ -47,7 +47,7 @@ export default function Dashboard({ deals, onOpenReports }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 }}>
         <div style={card}>
-          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Active deals &amp; prize threshold</div>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Active games &amp; prize threshold</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {active.map((d) => (
               <div key={d.id}>
@@ -71,7 +71,7 @@ export default function Dashboard({ deals, onOpenReports }) {
                 </div>
               </div>
             ))}
-            {active.length === 0 && <div style={{ fontSize: 13, color: colors.textSecondary }}>No active deals.</div>}
+            {active.length === 0 && <div style={{ fontSize: 13, color: colors.textSecondary }}>No active games.</div>}
           </div>
         </div>
 

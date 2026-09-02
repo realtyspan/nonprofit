@@ -13,7 +13,7 @@ export const MODULES = [
     navItems: [
       { key: "dashboard", label: "Overview", icon: icons.grid, title: "Overview", subtitle: "At-a-glance compliance status" },
       { key: "worksheet", label: "Sales Worksheet", icon: icons.table, title: "Sales Worksheet", subtitle: "Log tickets sold and cash collected each time the machine is opened to retrieve funds and refill tickets" },
-      { key: "deals", label: "Deals & Schedule 1", icon: icons.layers, title: "Deals & Schedule 1", subtitle: "Open deals, prize threshold, and close-deal history" },
+      { key: "deals", label: "Games & Schedule 1", icon: icons.layers, title: "Games & Schedule 1", subtitle: "Open games, prize threshold, and close-game history" },
       { key: "ledger", label: "Bank Ledger & Receipts", icon: icons.bank, title: "Bank Ledger & Receipts", subtitle: "Special Bell Jar Checking Account register" },
       { key: "reports", label: "GC-7Q Reports", icon: icons.fileCheck, title: "GC-7Q Reports", subtitle: "Quarterly aggregator, PDF overlay, and sign-off" },
     ],

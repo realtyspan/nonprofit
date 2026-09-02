@@ -98,13 +98,13 @@ export default function Deals({ deals, onChanged, permissions }) {
       </div>
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "14px 18px", fontSize: 15, fontWeight: 700, borderBottom: `1px solid ${colors.borderLight}` }}>Open deals</div>
+        <div style={{ padding: "14px 18px", fontSize: 15, fontWeight: 700, borderBottom: `1px solid ${colors.borderLight}` }}>Open games</div>
         <DataList
           rows={active}
-          emptyMessage="No open deals."
+          emptyMessage="No open games."
           columns={[
             {
-              key: "deal", label: "Deal", grid: "2fr", primary: true,
+              key: "deal", label: "Game", grid: "2fr", primary: true,
               render: (d) => (
                 <>
                   <div style={{ fontWeight: 600 }}>{d.name}</div>
@@ -130,10 +130,10 @@ export default function Deals({ deals, onChanged, permissions }) {
                   <button
                     style={d.eligibleToClose && isBellJarAdmin ? button.primary : button.disabled}
                     disabled={!d.eligibleToClose || !isBellJarAdmin}
-                    title={!isBellJarAdmin ? "Only a Bell Jar Admin can close a deal" : !d.eligibleToClose ? `Deal must reach ${formatPct(d.closeThreshold)} of ideal prize payout` : ""}
+                    title={!isBellJarAdmin ? "Only a Bell Jar Admin can close a game" : !d.eligibleToClose ? `Game must reach ${formatPct(d.closeThreshold)} of ideal prize payout` : ""}
                     onClick={() => setClosing(d)}
                   >
-                    Close deal
+                    Close game
                   </button>
                   <button
                     style={isBellJarAdmin ? { ...button.ghost, color: colors.danger } : button.disabled}
@@ -151,12 +151,12 @@ export default function Deals({ deals, onChanged, permissions }) {
       </div>
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "14px 18px", fontSize: 15, fontWeight: 700, borderBottom: `1px solid ${colors.borderLight}` }}>Schedule 1 — closed-deal history</div>
+        <div style={{ padding: "14px 18px", fontSize: 15, fontWeight: 700, borderBottom: `1px solid ${colors.borderLight}` }}>Schedule 1 — closed-game history</div>
         <DataList
           rows={history}
-          emptyMessage="No deals closed yet."
+          emptyMessage="No games closed yet."
           columns={[
-            { key: "deal", label: "Deal", grid: "1.6fr", primary: true, render: (r) => <div style={{ fontWeight: 600 }}>{r.deal?.name}</div> },
+            { key: "deal", label: "Game", grid: "1.6fr", primary: true, render: (r) => <div style={{ fontWeight: 600 }}>{r.deal?.name}</div> },
             { key: "closedDate", label: "Closed date", grid: "1fr", render: (r) => <div style={{ fontFamily: mono, fontSize: 13 }}>{new Date(r.closedDate).toLocaleDateString()}</div> },
             { key: "prizes", label: "Prizes (M)", grid: "1fr", render: (r) => <div style={{ fontFamily: mono, fontSize: 13 }}>{money(r.cashPrizes + r.otherPrizes)}</div> },
             { key: "unsold", label: "Unsold value (O)", grid: "1fr", render: (r) => <div style={{ fontFamily: mono, fontSize: 13 }}>{money(r.unsoldValue)}</div> },
@@ -470,7 +470,7 @@ function EditGameModal({ deal, onCancel, onSaved }) {
           <input style={inputStyle} type="number" min="75" max="100" step="1" required value={form.closeThresholdPct} onChange={(e) => set("closeThresholdPct", e.target.value)} />
         </Field>
         <div style={{ fontSize: 11.5, color: colors.textSecondary }}>
-          75% is the NYS minimum before this deal can be closed — set higher only if the org wants a stricter bar.
+          75% is the NYS minimum before this game can be closed — set higher only if the org wants a stricter bar.
         </div>
         {deal.soldToDate > 0 && (
           <div style={{ fontSize: 11.5, color: colors.textSecondary }}>Ticket count can't go below the {deal.soldToDate.toLocaleString()} already sold.</div>
