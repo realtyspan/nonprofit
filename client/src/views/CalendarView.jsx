@@ -9,6 +9,7 @@ import PublicLinkBox from "../components/PublicLinkBox";
 import DateTimeField from "../components/DateTimeField";
 import Modal from "../components/Modal";
 import { monthLabel, weekLabel } from "../lib/calendarLabels";
+import { useConfirm } from "../lib/ConfirmContext";
 
 const WEEKDAYS = [
   { key: "SU", label: "S" }, { key: "MO", label: "M" }, { key: "TU", label: "T" }, { key: "WE", label: "W" },
@@ -154,10 +155,17 @@ function EventDetailModal({ event, rentalSpaces, isCalendarAdmin, currentUserId,
   const usedSpaceNames = (event.rentalSpaceIds || [])
     .map((id) => rentalSpaces.find((s) => s.id === id)?.name)
     .filter(Boolean);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
+  const confirm = useConfirm();
 
+  // A single unlabeled "Delete" that only reveals whether it means one date
+  // or the whole series after you click it reads as "this will nuke
+  // everything" and trains people to avoid it — exactly what happened here.
+  // Naming both outcomes up front (mirroring the Edit buttons above, which
+  // already do this correctly) means there's nothing left to guess at.
   async function deleteOne() {
+    const what = isRecurring ? `this date (${new Date(event.startAt).toLocaleDateString()}) of "${event.title}"` : `"${event.title}"`;
+    if (!(await confirm(`Delete ${what}? This can't be undone.`, { confirmLabel: "Delete", danger: true }))) return;
     setBusy(true);
     try {
       await api.deleteCalendarEvent(event.id);
@@ -167,6 +175,7 @@ function EventDetailModal({ event, rentalSpaces, isCalendarAdmin, currentUserId,
     }
   }
   async function deleteSeries() {
+    if (!(await confirm(`Delete the entire "${event.title}" series — every date, past and future? This can't be undone.`, { confirmLabel: "Delete series", danger: true }))) return;
     setBusy(true);
     try {
       await api.deleteCalendarRecurrence(event.recurrenceId);
@@ -214,31 +223,22 @@ function EventDetailModal({ event, rentalSpaces, isCalendarAdmin, currentUserId,
         </div>
       )}
 
-      {canManage && !confirmDelete && (
+      {canManage && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {isRecurring ? (
             <>
               <button style={button.ghost} onClick={() => onEdit("editOne")}>Edit this date only</button>
               <button style={button.ghost} onClick={() => onEdit("editSeries")}>Edit entire series</button>
-            </>
-          ) : (
-            <button style={button.ghost} onClick={() => onEdit("editOne")}>Edit</button>
-          )}
-          <button style={{ ...button.ghost, color: colors.danger }} onClick={() => setConfirmDelete(true)}>Delete</button>
-        </div>
-      )}
-
-      {confirmDelete && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {isRecurring ? (
-            <>
-              <button style={button.ghost} disabled={busy} onClick={deleteOne}>Delete this date only</button>
+              <div style={{ borderTop: `1px solid ${colors.borderLight}`, margin: "2px 0" }} />
+              <button style={{ ...button.ghost, color: colors.danger }} disabled={busy} onClick={deleteOne}>Delete this date only</button>
               <button style={{ ...button.ghost, color: colors.danger }} disabled={busy} onClick={deleteSeries}>Delete entire series</button>
             </>
           ) : (
-            <button style={{ ...button.ghost, color: colors.danger }} disabled={busy} onClick={deleteOne}>Confirm delete</button>
+            <>
+              <button style={button.ghost} onClick={() => onEdit("editOne")}>Edit</button>
+              <button style={{ ...button.ghost, color: colors.danger }} disabled={busy} onClick={deleteOne}>Delete</button>
+            </>
           )}
-          <button style={button.ghost} onClick={() => setConfirmDelete(false)}>Never mind</button>
         </div>
       )}
 
