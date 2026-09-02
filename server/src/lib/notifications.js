@@ -22,7 +22,16 @@ async function notifyOwnerSetChanged(orgId) {
 // ("Red Hook Elks Lodge") instead of the platform's generic sender identity,
 // and `replyTo` routes buyer replies to that org's own contact address —
 // both without needing a distinct verified sending address per org.
-async function sendEmail({ to, toName, subject, html, fromName, replyTo }) {
+//
+// `unsubscribeUrl`, when passed, sets the RFC 8058 List-Unsubscribe(-Post)
+// headers Gmail/Yahoo/Outlook now weigh as a real trust signal for anything
+// that reads as marketing mail — a bulk send with no way to opt out short
+// of the actual message body is exactly the pattern spam filters flag.
+// Every caller that's an actual marketing send (golf/raffle kickoff emails)
+// already computes a real per-recipient unsubscribe link; a pure
+// transactional email (a receipt, a payment reminder) has no unsubscribe
+// concept and should keep omitting this.
+async function sendEmail({ to, toName, subject, html, fromName, replyTo, unsubscribeUrl }) {
   if (!BREVO_API_KEY) {
     console.warn(`Brevo not configured — skipping email "${subject}" to ${to}`);
     return { skipped: true };
@@ -36,6 +45,7 @@ async function sendEmail({ to, toName, subject, html, fromName, replyTo }) {
       replyTo: replyTo ? { email: replyTo } : undefined,
       subject,
       htmlContent: html,
+      headers: unsubscribeUrl ? { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } : undefined,
     }),
   });
   if (!response.ok) {

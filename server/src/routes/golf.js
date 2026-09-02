@@ -530,7 +530,7 @@ router.post("/tournaments/:tournamentId/kickoff-email/send-test", requirePermiss
   const html = golfKickoffEmailHtml({ org, tournament: req.golfTournament, registerUrl, recipientFirstName: firstName, unsubscribeUrl });
 
   try {
-    await sendEmail({ to: email, toName: firstName, subject: `[TEST] ${req.golfTournament.name} is back — save your spot`, html, fromName: org.name, replyTo });
+    await sendEmail({ to: email, toName: firstName, subject: `[TEST] ${req.golfTournament.name} is back — save your spot`, html, fromName: org.name, replyTo, unsubscribeUrl });
   } catch (err) {
     return res.status(502).json({ error: `Send failed: ${err.message}` });
   }
@@ -558,7 +558,7 @@ router.post("/tournaments/:tournamentId/kickoff-email/send", requirePermission("
     const unsubscribeUrl = `${appUrl}/golf-unsubscribe?token=${buildUnsubscribeToken(req.user.orgId, recipient.email)}`;
     const html = golfKickoffEmailHtml({ org, tournament: req.golfTournament, registerUrl, recipientFirstName: firstName, unsubscribeUrl });
     try {
-      await sendEmail({ to: recipient.email, toName: recipient.name, subject, html, fromName: org.name, replyTo });
+      await sendEmail({ to: recipient.email, toName: recipient.name, subject, html, fromName: org.name, replyTo, unsubscribeUrl });
       sent++;
     } catch (err) {
       console.error(`Golf kickoff email send failed for ${recipient.email}:`, err.message);
@@ -597,7 +597,7 @@ router.post("/tournaments/:tournamentId/sponsor-email/send-test", requirePermiss
   const html = golfSponsorEmailHtml({ org, tournament: req.golfTournament, registerUrl, recipientName: firstName, unsubscribeUrl });
 
   try {
-    await sendEmail({ to: email, toName: firstName, subject: `[TEST] ${req.golfTournament.name} sponsorship opportunities are open`, html, fromName: org.name, replyTo });
+    await sendEmail({ to: email, toName: firstName, subject: `[TEST] ${req.golfTournament.name} sponsorship opportunities are open`, html, fromName: org.name, replyTo, unsubscribeUrl });
   } catch (err) {
     return res.status(502).json({ error: `Send failed: ${err.message}` });
   }
@@ -627,7 +627,7 @@ router.post("/tournaments/:tournamentId/sponsor-email/send", requirePermission("
       lastTierName: recipient.lastTierName, lastAmount: recipient.lastAmount, unsubscribeUrl,
     });
     try {
-      await sendEmail({ to: recipient.email, toName: recipient.name, subject, html, fromName: org.name, replyTo });
+      await sendEmail({ to: recipient.email, toName: recipient.name, subject, html, fromName: org.name, replyTo, unsubscribeUrl });
       sent++;
     } catch (err) {
       console.error(`Golf sponsor email send failed for ${recipient.email}:`, err.message);

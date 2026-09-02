@@ -658,7 +658,7 @@ router.post("/games/:gameId/kickoff-email/send-test", requirePermission("raffle"
   const html = raffleKickoffEmailHtml({ org, game: req.raffleGame, drawings, recipientFirstName: firstName, unsubscribeUrl });
 
   try {
-    await sendEmail({ to: email, toName: firstName, subject: `[TEST] ${req.raffleGame.name} is back — save your spot`, html, fromName: org.name, replyTo });
+    await sendEmail({ to: email, toName: firstName, subject: `[TEST] ${req.raffleGame.name} is back — save your spot`, html, fromName: org.name, replyTo, unsubscribeUrl });
   } catch (err) {
     return res.status(502).json({ error: `Send failed: ${err.message}` });
   }
@@ -700,7 +700,7 @@ router.post("/games/:gameId/kickoff-email/send", requirePermission("raffle", "Ad
     const unsubscribeUrl = `${appUrl}/raffle-unsubscribe?token=${buildUnsubscribeToken(req.user.orgId, recipient.email)}`;
     const html = raffleKickoffEmailHtml({ org, game: req.raffleGame, drawings, recipientFirstName: firstName, unsubscribeUrl });
     try {
-      await sendEmail({ to: recipient.email, toName: recipient.name, subject, html, fromName: org.name, replyTo });
+      await sendEmail({ to: recipient.email, toName: recipient.name, subject, html, fromName: org.name, replyTo, unsubscribeUrl });
       sent++;
     } catch (err) {
       console.error(`Kickoff email send failed for ${recipient.email}:`, err.message);
