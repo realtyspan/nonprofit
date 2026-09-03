@@ -439,7 +439,14 @@ function TournamentVisual({ tournament, isPreview, notice }) {
         <img className="evt-hero-img" src={heroImage} alt="" style={{ objectPosition: `center ${heroPosition}` }} />
         <div className="evt-hero-scrim" />
         <div className="evt-hero-text">
-          <h2 className="evt-title">{tournament.name}</h2>
+          {/* The source tournament's own name is reported directly as
+              confusing here — for a currently-open tournament being
+              force-previewed (see PublicGolf's forcePreview), it read as
+              though that specific real, active event had no active
+              tournament. A fixed generic heading makes clear this card is
+              an illustration, not a specific real event, regardless of
+              which tournament's data it's borrowing. */}
+          <h2 className="evt-title">{isPreview ? "No Active Golf Tournament" : tournament.name}</h2>
         </div>
       </div>
 
