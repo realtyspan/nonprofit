@@ -186,6 +186,8 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
         description="Set a link so players can view open tournaments and register a team from your website."
       />
 
+      <PreviewEmptyStateCard />
+
       <StripeConnectCard />
 
       {selected && (
@@ -684,6 +686,37 @@ function SendGolfMarketingEmailModal({ title, description, send, onCancel, onSen
         </div>
       </div>
     </Modal>
+  );
+}
+
+// Lets an admin see exactly what a visitor sees when no tournament is open
+// for registration — reusing PublicGolf.jsx's real preview-tournament/
+// "Notify Me" layout — without having to close or delete a real, currently
+// open tournament just to check. `?preview=empty` (recognized by
+// PublicGolf.jsx) forces that view using whatever real tournament data is
+// available, and disables the Notify Me form's actual submission so trying
+// it out never leaves a fake entry in the real Interest Signups list below.
+function PreviewEmptyStateCard() {
+  const [slug, setSlug] = useState("");
+
+  useEffect(() => {
+    api.getOrg().then((o) => setSlug(o.slug || "")).catch(() => {});
+  }, []);
+
+  if (!slug) return null;
+
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 15, fontWeight: 700 }}>Preview "no active tournament" page</div>
+      <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+        See exactly what visitors see when no tournament is open for registration, using your own tournament's details — without changing anything or touching a real tournament's status.
+      </div>
+      <div>
+        <a href={`/golf/${slug}?preview=empty`} target="_blank" rel="noreferrer" style={{ ...button.secondary, textDecoration: "none", display: "inline-block" }}>
+          Open preview ↗
+        </a>
+      </div>
+    </div>
   );
 }
 

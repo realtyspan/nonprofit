@@ -281,6 +281,13 @@ export default function PublicGolf({ slug, embed }) {
   const theme = parseThemeFromQuery(params);
   const font = params.get("font");
   useGoogleFont(font || "Inter");
+  // Lets an admin see exactly what a visitor sees when no tournament is
+  // open, without actually closing (or deleting) a real one to get there —
+  // see ManageGolfTournaments.jsx's "Preview" link, which is the only place
+  // this param is ever set. Harmless if a visitor stumbles onto it directly:
+  // it only ever surfaces the same public-safe fields the real embed already
+  // shows, just forced into the empty-state layout.
+  const forcePreview = params.get("preview") === "empty";
 
   useEffect(() => {
     publicApi.getGolfPage(slug).then(setPage).catch((err) => setLoadError(err.message));
@@ -302,6 +309,15 @@ export default function PublicGolf({ slug, embed }) {
   if (loadError) return <Centered embed={embed}>This page isn't available.</Centered>;
   if (!page) return <Centered embed={embed}>Loading…</Centered>;
 
+  const showEmptyState = forcePreview || page.tournaments.length === 0;
+  // Normally the server's own previewTournament (the org's most recent real
+  // tournament) is the only source for this — it's null exactly when there's
+  // nothing to show. Force-previewing while a real tournament IS open has no
+  // equivalent on the server (there's nothing "most recent and not open" to
+  // find), so it falls back to that open tournament's own data instead —
+  // still real data, just displayed in the empty-state layout for a look.
+  const previewSource = page.previewTournament || (forcePreview ? page.tournaments[0] : null);
+
   return (
     <div
       ref={containerRef}
@@ -316,39 +332,46 @@ export default function PublicGolf({ slug, embed }) {
         </header>
       )}
 
+      {forcePreview && (
+        <div style={{ background: "#5A4900", color: "#FFF7DD", fontSize: 12.5, fontWeight: 600, textAlign: "center", padding: "8px 16px", fontFamily: "sans-serif" }}>
+          Preview mode — this is what visitors see when no tournament is open. Not shown to real visitors, and the "Notify Me" form below won't actually submit.
+        </div>
+      )}
+
       <div style={embed ? { padding: 4 } : { maxWidth: 1100, margin: "0 auto", padding: "28px 20px 60px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-          {page.tournaments.length === 0 && (
+          {showEmptyState ? (
             <>
               <div style={{ ...card, fontSize: 13.5, color: colors.textSecondary, fontFamily: "sans-serif" }}>
-                {page.previewTournament
+                {previewSource
                   ? "We don't have an active golf tournament scheduled right now. Our typical format is shown below — register your interest and we'll reach out as soon as registration opens for players and sponsors."
                   : "No tournaments are open for registration right now."}
               </div>
-              {page.previewTournament && (
+              {previewSource && (
                 <PreviewTournamentCard
-                  tournament={page.previewTournament}
+                  tournament={previewSource}
                   slug={slug}
                   theme={theme}
                   font={font}
+                  previewOnly={forcePreview}
                   expanded={openTournamentId === "preview"}
                   onToggle={() => setOpenTournamentId(openTournamentId === "preview" ? null : "preview")}
                 />
               )}
             </>
+          ) : (
+            page.tournaments.map((tournament) => (
+              <TournamentCard
+                key={tournament.id}
+                tournament={tournament}
+                slug={slug}
+                theme={theme}
+                font={font}
+                expanded={openTournamentId === tournament.id}
+                onToggle={() => setOpenTournamentId(openTournamentId === tournament.id ? null : tournament.id)}
+              />
+            ))
           )}
-
-          {page.tournaments.map((tournament) => (
-            <TournamentCard
-              key={tournament.id}
-              tournament={tournament}
-              slug={slug}
-              theme={theme}
-              font={font}
-              expanded={openTournamentId === tournament.id}
-              onToggle={() => setOpenTournamentId(openTournamentId === tournament.id ? null : tournament.id)}
-            />
-          ))}
         </div>
       </div>
     </div>
@@ -496,7 +519,7 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
 // (see publicGolf.js's GET /:slug), but with the footer's register button
 // replaced by a lightweight "notify me" signup, since there's nothing to
 // actually register for yet.
-function PreviewTournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
+function PreviewTournamentCard({ tournament, slug, theme, font, previewOnly, expanded, onToggle }) {
   return (
     <div className="evt" style={evtStyleVars(theme, font)}>
       <div className="evt-card">
@@ -511,7 +534,7 @@ function PreviewTournamentCard({ tournament, slug, theme, font, expanded, onTogg
 
         {expanded && (
           <div className="evt-formwrap">
-            <NotifyForm slug={slug} onCancel={onToggle} />
+            <NotifyForm slug={slug} onCancel={onToggle} previewOnly={previewOnly} />
           </div>
         )}
       </div>
@@ -663,7 +686,7 @@ function RegisterForm({ tournament, slug, onCancel }) {
 // The "notify me" lead-capture form shown under PreviewTournamentCard — a
 // lightweight contact-only ask (no roster, no payment) since there's no real
 // tournament to register for yet. Posts to publicGolf.js's POST /:slug/interest.
-function NotifyForm({ slug, onCancel }) {
+function NotifyForm({ slug, onCancel, previewOnly }) {
   const [role, setRole] = useState("player");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -682,7 +705,10 @@ function NotifyForm({ slug, onCancel }) {
     setBusy(true);
     setError("");
     try {
-      await publicApi.submitGolfInterest(slug, { role, name, email, phone, companyName, note, website });
+      // previewOnly (admin testing the "no active tournament" look — see
+      // PublicGolf's forcePreview) skips the real submission entirely, so
+      // trying it out never leaves a fake lead in the org's real signup list.
+      if (!previewOnly) await publicApi.submitGolfInterest(slug, { role, name, email, phone, companyName, note, website });
       setDone(true);
     } catch (err) {
       setError(err.message);
@@ -695,7 +721,11 @@ function NotifyForm({ slug, onCancel }) {
     return (
       <div className="evt-form-success">
         <div className="evt-form-success-title">You're on the list!</div>
-        <div style={{ fontSize: 13 }}>We'll reach out to {email.trim() || formatPhone(phone) || "you"} as soon as registration opens.</div>
+        <div style={{ fontSize: 13 }}>
+          {previewOnly
+            ? "(Preview only — nothing was actually submitted.)"
+            : `We'll reach out to ${email.trim() || formatPhone(phone) || "you"} as soon as registration opens.`}
+        </div>
       </div>
     );
   }
