@@ -64,6 +64,20 @@ const EVT_CSS = `
 }
 .evt-hero .evt-title { color: var(--evt-surface); }
 
+/* The "no active tournament" notice on PreviewTournamentCard — sits right
+   under the hero, ahead of the format/entry/venue rail and the typical-
+   format details below it, so it's the first thing read after the photo
+   instead of a small aside a visitor could scroll past. Bold accent-tinted
+   text (same tint recipe as .evt-included-item/.evt-footer) rather than the
+   card's own muted body copy, specifically so it can't blend in. */
+.evt-notice {
+  padding: 16px 44px;
+  background: color-mix(in srgb, var(--evt-accent) 22%, white);
+  border-bottom: 1px solid var(--evt-line);
+  font-size: 14.5px; font-weight: 700; line-height: 1.5;
+  color: var(--evt-accent-deep);
+}
+
 .evt-title {
   font-size: 46px; font-weight: 500; line-height: 1.04;
   letter-spacing: -.022em; color: var(--evt-ink);
@@ -212,6 +226,7 @@ const EVT_CSS = `
   .evt { --evt-hero-h: 200px; }
   .evt-title { font-size: 32px; }
   .evt-hero-text { left: 22px; right: 22px; bottom: 22px; }
+  .evt-notice { padding: 14px 22px; }
   .evt-rail { grid-template-columns: 1fr !important; }
   .evt-rail-cell {
     padding: 18px 22px; border-right: 0; border-bottom: 1px solid var(--evt-line);
@@ -341,24 +356,25 @@ export default function PublicGolf({ slug, embed }) {
       <div style={embed ? { padding: 4 } : { maxWidth: 1100, margin: "0 auto", padding: "28px 20px 60px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           {showEmptyState ? (
-            <>
+            previewSource ? (
+              // The "no active tournament" message now lives inside the card
+              // itself (see PreviewTournamentCard's `notice`), right under the
+              // hero — a small muted box floating above the whole card was
+              // easy to miss entirely before scrolling into the card below it.
+              <PreviewTournamentCard
+                tournament={previewSource}
+                slug={slug}
+                theme={theme}
+                font={font}
+                previewOnly={forcePreview}
+                expanded={openTournamentId === "preview"}
+                onToggle={() => setOpenTournamentId(openTournamentId === "preview" ? null : "preview")}
+              />
+            ) : (
               <div style={{ ...card, fontSize: 13.5, color: colors.textSecondary, fontFamily: "sans-serif" }}>
-                {previewSource
-                  ? "We don't have an active golf tournament scheduled right now. Our typical format is shown below — register your interest and we'll reach out as soon as registration opens for players and sponsors."
-                  : "No tournaments are open for registration right now."}
+                No tournaments are open for registration right now.
               </div>
-              {previewSource && (
-                <PreviewTournamentCard
-                  tournament={previewSource}
-                  slug={slug}
-                  theme={theme}
-                  font={font}
-                  previewOnly={forcePreview}
-                  expanded={openTournamentId === "preview"}
-                  onToggle={() => setOpenTournamentId(openTournamentId === "preview" ? null : "preview")}
-                />
-              )}
-            </>
+            )
           ) : (
             page.tournaments.map((tournament) => (
               <TournamentCard
@@ -394,7 +410,11 @@ function RailCell({ label, value }) {
 // date pill for a generic "Typical schedule" label instead of the source
 // tournament's actual past date, since a specific date on a card that isn't
 // actually open would read as a real upcoming event rather than an example.
-function TournamentVisual({ tournament, isPreview }) {
+// `notice`, when given, renders a bold attention-grabbing banner right
+// under the hero and ahead of everything else — used by PreviewTournamentCard
+// for the "no active tournament" message, which was getting missed entirely
+// as a small, separate, muted-color box above the whole card.
+function TournamentVisual({ tournament, isPreview, notice }) {
   // Every tournament shows a hero photo now — the org's own upload if they
   // have one, otherwise Charity Pulse's own default golf graphic (uploaded
   // once, on the platform's own org, and baked in here as a static asset so
@@ -422,6 +442,8 @@ function TournamentVisual({ tournament, isPreview }) {
           <h2 className="evt-title">{tournament.name}</h2>
         </div>
       </div>
+
+      {notice && <div className="evt-notice">{notice}</div>}
 
       <div className="evt-rail" style={{ gridTemplateColumns: `repeat(${railCells.length}, minmax(0, 1fr))` }}>
         <RailCell label="Format" value={tournament.format} />
@@ -523,7 +545,11 @@ function PreviewTournamentCard({ tournament, slug, theme, font, previewOnly, exp
   return (
     <div className="evt" style={evtStyleVars(theme, font)}>
       <div className="evt-card">
-        <TournamentVisual tournament={tournament} isPreview />
+        <TournamentVisual
+          tournament={tournament}
+          isPreview
+          notice="We don't have an active golf tournament scheduled right now. Our typical format is shown below — register your interest and we'll reach out as soon as registration opens for players and sponsors."
+        />
 
         <div className="evt-footer">
           <FooterContact tournament={tournament} />
