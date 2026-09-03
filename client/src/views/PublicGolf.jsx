@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { colors, card, button, input as inputStyle, money } from "../lib/tokens";
+import { colors, card, money } from "../lib/tokens";
 import { publicApi } from "../lib/api";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
 import { formatPhone, stripPhone } from "../lib/phone";
@@ -172,6 +172,41 @@ const EVT_CSS = `
 .evt :focus-visible { outline: 2px solid var(--evt-accent); outline-offset: 2px; }
 
 .evt-formwrap { padding: 0 44px 34px; }
+
+/* The registration form itself, restyled onto .evt's own tokens — it used
+   to render with the app's own default teal/terracotta buttons regardless
+   of the card's actual accent color (default lavender, or an org's own
+   override), which is exactly what looked "off" once you opened it: every
+   other button/pill on the card already reads in --evt-accent, and this
+   was the one part of the embed that never did. */
+.evt-form-panel { background: var(--evt-surface); border-radius: var(--evt-radius-sm); padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.evt-form-note { font-size: 13px; color: var(--evt-ink-muted); line-height: 1.5; }
+.evt-input {
+  width: 100%; padding: 10px 12px; border-radius: var(--evt-radius-sm);
+  border: 1px solid var(--evt-line); font-size: 14px; font-family: inherit; color: var(--evt-ink);
+  background: #fff;
+}
+.evt-input:focus-visible { outline: 2px solid var(--evt-accent); outline-offset: 1px; }
+.evt-form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.evt-btn-sm {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 20px; border-radius: var(--evt-radius-sm);
+  font-size: 13.5px; font-weight: 500; font-family: inherit; cursor: pointer; text-decoration: none;
+  background: var(--evt-accent-deep); color: var(--evt-btn-fg); border: 1px solid var(--evt-accent-deep);
+}
+.evt-btn-sm:disabled { opacity: .6; cursor: default; }
+.evt-btn-ghost {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 20px; border-radius: var(--evt-radius-sm);
+  font-size: 13.5px; font-weight: 500; font-family: inherit; cursor: pointer;
+  background: transparent; color: var(--evt-ink-muted); border: 1px solid var(--evt-line);
+}
+.evt-btn-ghost:hover { background: rgba(0,0,0,.03); }
+.evt-btn-ghost:disabled { opacity: .6; cursor: default; }
+.evt-btn-ghost-remove { color: #b3261e; padding: 5px 10px; font-size: 12px; }
+.evt-radio-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--evt-ink-muted); white-space: nowrap; }
+.evt-form-error { color: #b3261e; font-size: 12.5px; }
+.evt-form-success { background: color-mix(in srgb, var(--evt-accent) 14%, white); border-radius: var(--evt-radius-sm); padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.evt-form-success-title { font-size: 14.5px; font-weight: 700; color: var(--evt-accent-deep); }
+.evt-form-success a { color: var(--evt-accent-deep); }
 
 @media (max-width: 780px) {
   .evt { --evt-hero-h: 200px; }
@@ -490,18 +525,18 @@ function RegisterForm({ tournament, slug, onCancel }) {
 
   if (step === "lookup") {
     return (
-      <form onSubmit={submitLookup} style={{ display: "flex", flexDirection: "column", gap: 10, padding: 14, background: "#f7f4ec", borderRadius: 8, fontFamily: "sans-serif" }}>
-        <div style={{ fontSize: 13, color: colors.textSecondary }}>
+      <form onSubmit={submitLookup} className="evt-form-panel">
+        <div className="evt-form-note">
           Played or sponsored with us before? Enter the email or phone number you used, and we'll fill in your name for you.
         </div>
         <input
-          style={inputStyle} placeholder="Email or phone" value={lookupValue}
+          className="evt-input" placeholder="Email or phone" value={lookupValue}
           onChange={(e) => setLookupValue(e.target.value)} autoFocus
         />
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button type="submit" style={button.primary} disabled={lookupBusy || !lookupValue.trim()}>{lookupBusy ? "Checking…" : "Continue"}</button>
-          <button type="button" style={button.ghost} onClick={() => setStep("form")} disabled={lookupBusy}>I'm new — skip this</button>
-          <button type="button" style={button.ghost} onClick={onCancel} disabled={lookupBusy}>Cancel</button>
+        <div className="evt-form-row">
+          <button type="submit" className="evt-btn-sm" disabled={lookupBusy || !lookupValue.trim()}>{lookupBusy ? "Checking…" : "Continue"}</button>
+          <button type="button" className="evt-btn-ghost" onClick={() => setStep("form")} disabled={lookupBusy}>I'm new — skip this</button>
+          <button type="button" className="evt-btn-ghost" onClick={onCancel} disabled={lookupBusy}>Cancel</button>
         </div>
       </form>
     );
@@ -510,8 +545,8 @@ function RegisterForm({ tournament, slug, onCancel }) {
   if (result) {
     const { payment } = result;
     return (
-      <div style={{ padding: 14, background: colors.successBg, borderRadius: 8, display: "flex", flexDirection: "column", gap: 8, fontFamily: "sans-serif" }}>
-        <div style={{ fontSize: 14.5, fontWeight: 700, color: colors.success }}>You're registered!</div>
+      <div className="evt-form-success">
+        <div className="evt-form-success-title">You're registered!</div>
         <div style={{ fontSize: 13 }}>
           {result.team.players.map((p) => p.name).join(", ")} — {money(tournament.costPerPlayer)} per player.
         </div>
@@ -520,39 +555,39 @@ function RegisterForm({ tournament, slug, onCancel }) {
             When you're ready, <a href={result.payUrl}>pay for your team here</a>.
           </div>
         ) : (
-          <div style={{ fontSize: 12.5, color: colors.textSecondary }}>The organizer will follow up with payment instructions.</div>
+          <div style={{ fontSize: 12.5, color: "var(--evt-ink-muted)" }}>The organizer will follow up with payment instructions.</div>
         )}
       </div>
     );
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10, padding: 14, background: "#f7f4ec", borderRadius: 8, fontFamily: "sans-serif" }}>
+    <form onSubmit={submit} className="evt-form-panel">
       <input
         type="text" value={website} onChange={(e) => setWebsite(e.target.value)} tabIndex={-1} autoComplete="off"
         style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} aria-hidden="true"
       />
-      <input style={inputStyle} placeholder="Team name (optional)" value={teamName} onChange={(e) => setTeamName(e.target.value)} />
+      <input className="evt-input" placeholder="Team name (optional)" value={teamName} onChange={(e) => setTeamName(e.target.value)} />
       {players.map((p, i) => (
-        <div key={i} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <input style={{ ...inputStyle, flex: "1 1 140px" }} required placeholder={i === 0 ? "Your name" : "Player name"} value={p.name} onChange={(e) => setPlayer(i, "name", e.target.value)} />
-          <input style={{ ...inputStyle, flex: "1 1 160px" }} type="email" placeholder="Email" value={p.email} onChange={(e) => setPlayer(i, "email", e.target.value)} />
-          <input style={{ ...inputStyle, flex: "1 1 120px" }} required placeholder="Phone" value={formatPhone(p.phone)} onChange={(e) => setPlayer(i, "phone", stripPhone(e.target.value))} />
+        <div key={i} className="evt-form-row">
+          <input className="evt-input" style={{ flex: "1 1 140px" }} required placeholder={i === 0 ? "Your name" : "Player name"} value={p.name} onChange={(e) => setPlayer(i, "name", e.target.value)} />
+          <input className="evt-input" style={{ flex: "1 1 160px" }} type="email" placeholder="Email" value={p.email} onChange={(e) => setPlayer(i, "email", e.target.value)} />
+          <input className="evt-input" style={{ flex: "1 1 120px" }} required placeholder="Phone" value={formatPhone(p.phone)} onChange={(e) => setPlayer(i, "phone", stripPhone(e.target.value))} />
           {players.length > 1 && (
-            <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: colors.textSecondary, whiteSpace: "nowrap" }}>
+            <label className="evt-radio-label">
               <input type="radio" name="golf-team-captain" checked={p.isCaptain} onChange={() => setCaptain(i)} /> Team captain
             </label>
           )}
-          {players.length > 1 && <button type="button" style={{ ...button.ghost, padding: "4px 8px", fontSize: 11.5, color: colors.danger }} onClick={() => removePlayerRow(i)}>Remove</button>}
+          {players.length > 1 && <button type="button" className="evt-btn-ghost evt-btn-ghost-remove" onClick={() => removePlayerRow(i)}>Remove</button>}
         </div>
       ))}
       {players.length < tournament.maxTeamSize && (
-        <div><button type="button" style={button.ghost} onClick={addPlayerRow}>+ Add another player</button></div>
+        <div><button type="button" className="evt-btn-ghost" onClick={addPlayerRow}>+ Add another player</button></div>
       )}
-      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
-      <div style={{ display: "flex", gap: 10 }}>
-        <button type="submit" style={button.primary} disabled={busy}>{busy ? "Registering…" : "Register"}</button>
-        <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+      {error && <div className="evt-form-error">{error}</div>}
+      <div className="evt-form-row">
+        <button type="submit" className="evt-btn-sm" disabled={busy}>{busy ? "Registering…" : "Register"}</button>
+        <button type="button" className="evt-btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
       </div>
     </form>
   );
