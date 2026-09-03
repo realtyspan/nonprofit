@@ -295,6 +295,9 @@ export const api = {
   syncGolfStripeConnect: () => request("/golf/stripe-connect/sync", { method: "POST" }),
   disconnectGolfStripeConnect: () => request("/golf/stripe-connect", { method: "DELETE" }),
 
+  listGolfInterestSignups: () => request("/golf/interest-signups"),
+  setGolfInterestSignupContacted: (id, contacted) => request(`/golf/interest-signups/${id}`, { method: "PATCH", body: { contacted } }),
+
   generateFrsReport: (file, fileName) => request("/elks-tools/frs-report", { method: "POST", body: { file, fileName } }),
   listFrsReportRuns: () => request("/elks-tools/frs-report/runs"),
   downloadFrsReportSource: (id, filename) => download(`/elks-tools/frs-report/runs/${id}/source-file`, filename),
@@ -378,6 +381,16 @@ export const publicApi = {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Registration failed");
+    return data;
+  },
+  async submitGolfInterest(slug, payload) {
+    const res = await fetch(`/api/public/golf/${slug}/interest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
     return data;
   },
   async getGolfTeamForPay(slug, tournamentId, teamId) {

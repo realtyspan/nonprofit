@@ -195,6 +195,8 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
         </>
       )}
 
+      <InterestSignupsCard />
+
       <HistoricalImports tournaments={tournaments} imports={historicalImports} onImportsChanged={refreshHistoricalImports} />
     </div>
   );
@@ -1094,6 +1096,72 @@ function TournamentFlyerField({ image, position, onChange, onPositionChange }) {
         )}
       </div>
       {error && <div style={{ color: colors.danger, fontSize: 11.5 }}>{error}</div>}
+    </div>
+  );
+}
+
+// Org-wide (not per-tournament) — leads captured from the public golf
+// page's "Notify Me" form while no tournament was open for registration
+// (see PublicGolf.jsx's PreviewTournamentCard / NotifyForm). A signup can
+// exist before any tournament does, so this isn't scoped to `selected`.
+function InterestSignupsCard() {
+  const [signups, setSignups] = useState([]);
+  const [busyId, setBusyId] = useState(null);
+  const [error, setError] = useState("");
+
+  function reload() {
+    api.listGolfInterestSignups().then(setSignups).catch((err) => setError(err.message));
+  }
+  useEffect(reload, []);
+
+  async function toggleContacted(signup) {
+    setBusyId(signup.id);
+    setError("");
+    try {
+      const updated = await api.setGolfInterestSignupContacted(signup.id, !signup.contactedAt);
+      setSignups((rows) => rows.map((r) => (r.id === updated.id ? updated : r)));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+      <div style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Interest signups</div>
+        <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>
+          People who asked to be notified when your next tournament opens for registration.
+        </div>
+        {error && <div style={{ color: colors.danger, fontSize: 12.5, marginTop: 6 }}>{error}</div>}
+      </div>
+      <DataList
+        rows={signups}
+        emptyMessage="No one has signed up for a notification yet."
+        columns={[
+          { key: "name", label: "Name", grid: "1.2fr", primary: true, render: (s) => s.name },
+          { key: "role", label: "Interested as", grid: "0.9fr", render: (s) => (s.role === "sponsor" ? "Sponsor" : "Player") },
+          {
+            key: "contact", label: "Contact", grid: "1.4fr",
+            render: (s) => [s.email, s.phone && formatPhone(s.phone)].filter(Boolean).join(" · ") || "—",
+          },
+          { key: "companyName", label: "Company", grid: "1fr", render: (s) => s.companyName || "—" },
+          { key: "submitted", label: "Submitted", grid: "1fr", render: (s) => new Date(s.createdAt).toLocaleString() },
+          {
+            key: "actions", label: "", footerRow: true,
+            render: (s) => (
+              <button
+                style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: s.contactedAt ? colors.textSecondary : undefined }}
+                disabled={busyId === s.id}
+                onClick={() => toggleContacted(s)}
+              >
+                {busyId === s.id ? "Working…" : s.contactedAt ? "Contacted ✓" : "Mark contacted"}
+              </button>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

@@ -91,6 +91,7 @@ model Organization {
   golfSponsorships         GolfSponsorship[]
   golfLogs                 GolfLog[]
   golfEmailSuppressions    GolfEmailSuppression[]
+  golfInterestSignups      GolfInterestSignup[]
   orgStripeConnect         OrgStripeConnect?
   aiUsageLogs              AiUsageLog[]
 }
@@ -1104,6 +1105,28 @@ model GolfEmailSuppression {
   createdAt DateTime @default(now())
 
   @@unique([orgId, email])
+  @@index([orgId])
+}
+
+// A visitor's "notify me" request from the public golf page when no
+// tournament is currently open — see PublicGolf.jsx's preview-tournament
+// state. Deliberately its own model rather than a bare GolfLog entry:
+// GolfLog.tournamentId is required (there's no tournament to log against
+// yet) and this isn't a real registration/sponsorship, just a lead for the
+// org to follow up on manually — see golf.js's resolveGolfAlertRecipients.
+model GolfInterestSignup {
+  id          String    @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  role        String    // player | sponsor
+  name        String
+  email       String    @default("")
+  phone       String    @default("")
+  companyName String?   // sponsor interest only
+  note        String?
+  contactedAt DateTime? // set by an admin once they've followed up
+  createdAt   DateTime  @default(now())
+
   @@index([orgId])
 }
 

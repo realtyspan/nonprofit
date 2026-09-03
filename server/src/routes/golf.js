@@ -1336,4 +1336,28 @@ router.patch("/historical-imports/:id", requirePermission("golf", "Admin"), asyn
   res.json(updated);
 });
 
+// --- Interest signups (org-wide, not tournament-scoped) ---
+// Leads captured from the public golf page's "Notify Me" form while no
+// tournament is open — see publicGolf.js's POST /:slug/interest. Not nested
+// under /tournaments/:tournamentId since a signup can exist before any
+// tournament does.
+
+router.get("/interest-signups", requireReadAccess("golf"), async (req, res) => {
+  const signups = await prisma.golfInterestSignup.findMany({
+    where: { orgId: req.user.orgId },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(signups);
+});
+
+router.patch("/interest-signups/:id", requirePermission("golf", "Helper"), async (req, res) => {
+  const signup = await prisma.golfInterestSignup.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!signup) return res.status(404).json({ error: "Signup not found" });
+  const updated = await prisma.golfInterestSignup.update({
+    where: { id: signup.id },
+    data: { contactedAt: req.body.contacted ? new Date() : null },
+  });
+  res.json(updated);
+});
+
 module.exports = router;

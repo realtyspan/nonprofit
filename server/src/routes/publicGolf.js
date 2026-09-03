@@ -4,6 +4,9 @@ const { rateLimit } = require("../lib/rateLimit");
 const { registerTeam, addGolfLog, normalizeEmail } = require("../lib/golfLogic");
 const { stripPhone } = require("../lib/phone");
 const { verifyUnsubscribeToken, normalizeEmail: normalizeUnsubEmail } = require("../lib/golfUnsubscribe");
+const { resolveGolfAlertRecipients } = require("../lib/golfAlerts");
+const { golfInterestAlertHtml } = require("../lib/golfInterestEmail");
+const { sendEmail } = require("../lib/notifications");
 
 const router = express.Router();
 
@@ -92,6 +95,21 @@ router.get("/:slug", async (req, res) => {
   });
 
   const payOnlineAvailable = !!org.orgStripeConnect?.chargesEnabled;
+
+  // When nothing's open, give the page something real to show instead of a
+  // bare "nothing scheduled" message: the org's own most recent real
+  // tournament, as a preview of "the normal format." isHistorical ones are
+  // sparse CSV-import shells with no format/venue/included-items, so they're
+  // excluded even if one happens to be the most recent by date.
+  let previewTournament = null;
+  if (tournaments.length === 0) {
+    previewTournament = await prisma.golfTournament.findFirst({
+      where: { orgId: org.id, isHistorical: false },
+      select: PUBLIC_TOURNAMENT_FIELDS,
+      orderBy: { date: "desc" },
+    });
+  }
+
   res.json({
     orgName: org.name,
     tournaments: tournaments.map((t) => ({
@@ -100,8 +118,65 @@ router.get("/:slug", async (req, res) => {
       isFull: t.capacity != null && t.registeredTeamCount >= t.capacity,
       payOnlineAvailable,
     })),
+    previewTournament,
   });
 });
+
+// Captures a "notify me" lead when a visitor lands on the page with no
+// tournament open — see PublicGolf.jsx's empty-state "Notify Me" form.
+// Deliberately its own model/route rather than folding into
+// lookup-player/register: there's no tournament to register against yet,
+// and this person hasn't played or sponsored, so they don't belong in the
+// real player/sponsor directories either. `website` is a honeypot field,
+// same convention as every other public golf/rental route.
+router.post(
+  "/:slug/interest",
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 5 }),
+  async (req, res) => {
+    const org = await prisma.organization.findUnique({ where: { slug: req.params.slug } });
+    if (!org) return res.status(404).json({ error: "Not found" });
+
+    if (req.body.website) return res.json({ ok: true }); // silently drop suspected bot submissions
+
+    const { role, name, email, phone, companyName, note } = req.body;
+    if (!["player", "sponsor"].includes(role)) return res.status(400).json({ error: "Choose player or sponsor" });
+    if (!name || !name.trim()) return res.status(400).json({ error: "Name is required" });
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedPhone = stripPhone(phone);
+    if (!normalizedEmail && !normalizedPhone) return res.status(400).json({ error: "Enter an email or phone number so we can reach you" });
+
+    const signup = await prisma.golfInterestSignup.create({
+      data: {
+        orgId: org.id,
+        role,
+        name: name.trim(),
+        email: normalizedEmail || "",
+        phone: normalizedPhone || "",
+        companyName: role === "sponsor" && companyName ? companyName.trim() : null,
+        note: note && note.trim() ? note.trim() : null,
+      },
+    });
+    res.json({ ok: true });
+
+    // Fire-and-forget: the signup is already saved and the visitor already
+    // has their on-screen confirmation, so an alert-email hiccup here
+    // shouldn't turn into a failed request — same best-effort spirit as
+    // publicRentals.js's inquiry alert.
+    const recipients = await resolveGolfAlertRecipients(org.id, org);
+    for (const recipient of recipients) {
+      try {
+        await sendEmail({
+          to: recipient.email, toName: recipient.name,
+          subject: `New golf tournament interest signup — ${signup.name}`,
+          html: golfInterestAlertHtml({ signup, org }),
+          fromName: org.name, replyTo: signup.email || undefined,
+        });
+      } catch (err) {
+        console.error(`Golf interest alert email failed for signup ${signup.id} -> ${recipient.email}:`, err.message);
+      }
+    }
+  }
+);
 
 // "Have you played with us before?" — lets a visitor pre-fill their name by
 // giving the exact email or phone they registered with previously, without

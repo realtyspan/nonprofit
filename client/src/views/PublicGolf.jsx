@@ -319,7 +319,23 @@ export default function PublicGolf({ slug, embed }) {
       <div style={embed ? { padding: 4 } : { maxWidth: 1100, margin: "0 auto", padding: "28px 20px 60px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           {page.tournaments.length === 0 && (
-            <div style={{ ...card, fontSize: 13.5, color: colors.textSecondary, fontFamily: "sans-serif" }}>No tournaments are open for registration right now.</div>
+            <>
+              <div style={{ ...card, fontSize: 13.5, color: colors.textSecondary, fontFamily: "sans-serif" }}>
+                {page.previewTournament
+                  ? "We don't have an active golf tournament scheduled right now. Our typical format is shown below — register your interest and we'll reach out as soon as registration opens for players and sponsors."
+                  : "No tournaments are open for registration right now."}
+              </div>
+              {page.previewTournament && (
+                <PreviewTournamentCard
+                  tournament={page.previewTournament}
+                  slug={slug}
+                  theme={theme}
+                  font={font}
+                  expanded={openTournamentId === "preview"}
+                  onToggle={() => setOpenTournamentId(openTournamentId === "preview" ? null : "preview")}
+                />
+              )}
+            </>
           )}
 
           {page.tournaments.map((tournament) => (
@@ -349,7 +365,13 @@ function RailCell({ label, value }) {
   );
 }
 
-function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
+// Hero + rail + What's Included/Schedule body — the part every card shares
+// regardless of whether its footer offers real registration (TournamentCard)
+// or a "notify me" signup (PreviewTournamentCard). `isPreview` swaps the
+// date pill for a generic "Typical schedule" label instead of the source
+// tournament's actual past date, since a specific date on a card that isn't
+// actually open would read as a real upcoming event rather than an example.
+function TournamentVisual({ tournament, isPreview }) {
   // Every tournament shows a hero photo now — the org's own upload if they
   // have one, otherwise Charity Pulse's own default golf graphic (uploaded
   // once, on the platform's own org, and baked in here as a static asset so
@@ -359,8 +381,9 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
   // originally cropped/verified.
   const heroImage = tournament.flyerImage || defaultFlyerImage;
   const heroPosition = tournament.flyerImage ? (tournament.flyerImagePosition || "center") : "top";
-  const kicker = new Date(tournament.date).toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
-  const contactBits = [tournament.contactName, tournament.contactPhone, tournament.contactEmail].filter(Boolean).length > 0;
+  const kicker = isPreview
+    ? "Typical schedule"
+    : new Date(tournament.date).toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
   const railCells = [
     tournament.format && "format",
     "entry", // always present — costPerPlayer is required
@@ -368,66 +391,82 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
   ].filter(Boolean);
 
   return (
-    <div className="evt" style={evtStyleVars(theme, font)}>
-      <div className="evt-card">
-        <div className="evt-hero">
-          <img className="evt-hero-img" src={heroImage} alt="" style={{ objectPosition: `center ${heroPosition}` }} />
-          <div className="evt-hero-scrim" />
-          <div className="evt-hero-text">
-            <h2 className="evt-title">{tournament.name}</h2>
-          </div>
+    <>
+      <div className="evt-hero">
+        <img className="evt-hero-img" src={heroImage} alt="" style={{ objectPosition: `center ${heroPosition}` }} />
+        <div className="evt-hero-scrim" />
+        <div className="evt-hero-text">
+          <h2 className="evt-title">{tournament.name}</h2>
         </div>
+      </div>
 
-        <div className="evt-rail" style={{ gridTemplateColumns: `repeat(${railCells.length}, minmax(0, 1fr))` }}>
-          <RailCell label="Format" value={tournament.format} />
-          <RailCell label="Entry" value={`${money(tournament.costPerPlayer)} per player`} />
-          <RailCell label="Venue" value={tournament.venueName} />
-        </div>
+      <div className="evt-rail" style={{ gridTemplateColumns: `repeat(${railCells.length}, minmax(0, 1fr))` }}>
+        <RailCell label="Format" value={tournament.format} />
+        <RailCell label="Entry" value={`${money(tournament.costPerPlayer)} per player`} />
+        <RailCell label="Venue" value={tournament.venueName} />
+      </div>
 
-        <div className="evt-body">
-          {/* Side by side as two equal columns. What's Included only
-              renders when there's something to show; Schedule always
-              renders — the date pill covers every tournament (date is
-              required data), with the timeline below it appearing once a
-              detailed schedule has actually been entered. */}
-          <div className="evt-top-row">
-            {tournament.includedItems?.length > 0 && (
-              <div className="evt-included-col evt-section">
-                <p className="evt-section-title"><FlagIcon /><strong className="evt-strong">What's Included</strong></p>
-                <div className="evt-included-grid">
-                  {tournament.includedItems.map((item, i) => (
-                    <div key={i} className="evt-included-item"><CheckIcon />{item}</div>
-                  ))}
-                </div>
+      <div className="evt-body">
+        {/* Side by side as two equal columns. What's Included only
+            renders when there's something to show; Schedule always
+            renders — the date pill covers every tournament (date is
+            required data), with the timeline below it appearing once a
+            detailed schedule has actually been entered. */}
+        <div className="evt-top-row">
+          {tournament.includedItems?.length > 0 && (
+            <div className="evt-included-col evt-section">
+              <p className="evt-section-title"><FlagIcon /><strong className="evt-strong">What's Included</strong></p>
+              <div className="evt-included-grid">
+                {tournament.includedItems.map((item, i) => (
+                  <div key={i} className="evt-included-item"><CheckIcon />{item}</div>
+                ))}
               </div>
-            )}
-            <div className="evt-schedule-col evt-section">
-              <p className="evt-section-title"><CalendarIcon /><strong className="evt-strong">Schedule</strong></p>
-              <div className="evt-date-pill">{kicker}</div>
-              {tournament.scheduleItems?.length > 0 && (
-                <div className="evt-timeline">
-                  {tournament.scheduleItems.map((item, i) => (
-                    <div key={i} className="evt-timeline-row">
-                      <span className="evt-timeline-time">{item.time}</span>
-                      <span className="evt-timeline-rule" />
-                      <span className="evt-timeline-label">{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="evt-footer">
-          {contactBits && (
-            <div className="evt-footer-contact">
-              <p className="evt-footer-contact-label">Have Questions?</p>
-              {tournament.contactName && <p className="evt-footer-contact-name">{tournament.contactName}</p>}
-              {tournament.contactPhone && <a href={`tel:${tournament.contactPhone.replace(/[^\d+]/g, "")}`}>{formatPhone(tournament.contactPhone)}</a>}
-              {tournament.contactEmail && <a href={`mailto:${tournament.contactEmail}`}>{tournament.contactEmail}</a>}
             </div>
           )}
+          <div className="evt-schedule-col evt-section">
+            <p className="evt-section-title"><CalendarIcon /><strong className="evt-strong">Schedule</strong></p>
+            <div className="evt-date-pill">{kicker}</div>
+            {tournament.scheduleItems?.length > 0 && (
+              <div className="evt-timeline">
+                {tournament.scheduleItems.map((item, i) => (
+                  <div key={i} className="evt-timeline-row">
+                    <span className="evt-timeline-time">{item.time}</span>
+                    <span className="evt-timeline-rule" />
+                    <span className="evt-timeline-label">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Shared by both footers — a tournament's contact info, light-on-light to
+// match the footer's own tinted background.
+function FooterContact({ tournament }) {
+  const contactBits = [tournament.contactName, tournament.contactPhone, tournament.contactEmail].filter(Boolean).length > 0;
+  if (!contactBits) return null;
+  return (
+    <div className="evt-footer-contact">
+      <p className="evt-footer-contact-label">Have Questions?</p>
+      {tournament.contactName && <p className="evt-footer-contact-name">{tournament.contactName}</p>}
+      {tournament.contactPhone && <a href={`tel:${tournament.contactPhone.replace(/[^\d+]/g, "")}`}>{formatPhone(tournament.contactPhone)}</a>}
+      {tournament.contactEmail && <a href={`mailto:${tournament.contactEmail}`}>{tournament.contactEmail}</a>}
+    </div>
+  );
+}
+
+function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
+  return (
+    <div className="evt" style={evtStyleVars(theme, font)}>
+      <div className="evt-card">
+        <TournamentVisual tournament={tournament} />
+
+        <div className="evt-footer">
+          <FooterContact tournament={tournament} />
           <div className="evt-footer-actions">
             {tournament.isFull ? (
               <p className="evt-full">This tournament is full.</p>
@@ -445,6 +484,34 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
         {expanded && !tournament.isFull && (
           <div className="evt-formwrap">
             <RegisterForm tournament={tournament} slug={slug} onCancel={onToggle} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Shown in place of TournamentCard when no tournament is currently open —
+// same visual card, built from the org's own most recent real tournament
+// (see publicGolf.js's GET /:slug), but with the footer's register button
+// replaced by a lightweight "notify me" signup, since there's nothing to
+// actually register for yet.
+function PreviewTournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
+  return (
+    <div className="evt" style={evtStyleVars(theme, font)}>
+      <div className="evt-card">
+        <TournamentVisual tournament={tournament} isPreview />
+
+        <div className="evt-footer">
+          <FooterContact tournament={tournament} />
+          <div className="evt-footer-actions">
+            {!expanded && <button type="button" className="evt-btn" onClick={onToggle}>Notify me</button>}
+          </div>
+        </div>
+
+        {expanded && (
+          <div className="evt-formwrap">
+            <NotifyForm slug={slug} onCancel={onToggle} />
           </div>
         )}
       </div>
@@ -587,6 +654,74 @@ function RegisterForm({ tournament, slug, onCancel }) {
       {error && <div className="evt-form-error">{error}</div>}
       <div className="evt-form-row">
         <button type="submit" className="evt-btn-sm" disabled={busy}>{busy ? "Registering…" : "Register"}</button>
+        <button type="button" className="evt-btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+// The "notify me" lead-capture form shown under PreviewTournamentCard — a
+// lightweight contact-only ask (no roster, no payment) since there's no real
+// tournament to register for yet. Posts to publicGolf.js's POST /:slug/interest.
+function NotifyForm({ slug, onCancel }) {
+  const [role, setRole] = useState("player");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [note, setNote] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot — real visitors never see this field
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!name.trim()) return setError("Name is required");
+    if (!email.trim() && !phone.trim()) return setError("Enter an email or phone number so we can reach you");
+    setBusy(true);
+    setError("");
+    try {
+      await publicApi.submitGolfInterest(slug, { role, name, email, phone, companyName, note, website });
+      setDone(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="evt-form-success">
+        <div className="evt-form-success-title">You're on the list!</div>
+        <div style={{ fontSize: 13 }}>We'll reach out to {email.trim() || formatPhone(phone) || "you"} as soon as registration opens.</div>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="evt-form-panel">
+      <input
+        type="text" value={website} onChange={(e) => setWebsite(e.target.value)} tabIndex={-1} autoComplete="off"
+        style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} aria-hidden="true"
+      />
+      <div className="evt-form-row">
+        <label className="evt-radio-label"><input type="radio" name="golf-interest-role" checked={role === "player"} onChange={() => setRole("player")} /> I want to play</label>
+        <label className="evt-radio-label"><input type="radio" name="golf-interest-role" checked={role === "sponsor"} onChange={() => setRole("sponsor")} /> I want to sponsor</label>
+      </div>
+      <input className="evt-input" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
+      <div className="evt-form-row">
+        <input className="evt-input" style={{ flex: "1 1 160px" }} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input className="evt-input" style={{ flex: "1 1 120px" }} placeholder="Phone" value={formatPhone(phone)} onChange={(e) => setPhone(stripPhone(e.target.value))} />
+      </div>
+      {role === "sponsor" && (
+        <input className="evt-input" placeholder="Company name (optional)" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+      )}
+      <input className="evt-input" placeholder="Anything else we should know? (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+      {error && <div className="evt-form-error">{error}</div>}
+      <div className="evt-form-row">
+        <button type="submit" className="evt-btn-sm" disabled={busy}>{busy ? "Submitting…" : "Notify me"}</button>
         <button type="button" className="evt-btn-ghost" onClick={onCancel} disabled={busy}>Cancel</button>
       </div>
     </form>
