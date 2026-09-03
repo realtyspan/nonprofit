@@ -98,10 +98,14 @@ const EVT_CSS = `
 .evt-section { display: flex; flex-direction: column; gap: 14px; }
 .evt-section-title { display: flex; align-items: center; gap: 9px; font-size: 15px; }
 
-/* Included items + contact card, side by side */
-.evt-top-row { display: flex; gap: 24px; align-items: stretch; }
-.evt-included-col { flex: 1; min-width: 0; }
-.evt-included-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* What's Included + Schedule, side by side as two equal columns — was
+   Included + a dark contact card side by side, with Schedule stretched
+   full-width alone underneath (leaving its rows nothing to sit next to).
+   Contact info now lives in the footer instead (see .evt-footer-contact). */
+.evt-top-row { display: flex; gap: 32px; align-items: flex-start; }
+.evt-included-col, .evt-schedule-col { flex: 1; min-width: 0; }
+/* Single column (was a 2-up grid) — matches the flyer PDF's own layout. */
+.evt-included-grid { display: flex; flex-direction: column; gap: 10px; }
 .evt-included-item {
   display: flex; align-items: center; gap: 10px;
   /* A light tint mixed live from the accent, rather than a separate custom
@@ -112,19 +116,6 @@ const EVT_CSS = `
   font-size: 14px; color: var(--evt-ink); line-height: 1.3;
 }
 .evt-included-check { width: 19px; height: 19px; flex: none; color: var(--evt-accent-deep); }
-
-.evt-contact-card {
-  flex: none; width: 220px; background: var(--evt-ink); color: var(--evt-btn-fg);
-  border-radius: var(--evt-radius-sm); padding: 20px; align-self: stretch;
-  display: flex; flex-direction: column; justify-content: center; gap: 6px;
-}
-.evt-contact-label {
-  font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
-  color: rgba(255,255,255,.65);
-}
-.evt-contact-name { font-size: 16px; font-weight: 700; margin-top: 2px; }
-.evt-contact-card a { display: block; color: var(--evt-btn-fg); text-decoration: underline; text-underline-offset: 3px; font-size: 14px; }
-.evt-contact-card a:hover { color: rgba(255,255,255,.8); }
 
 /* Schedule: a highlighted date pill (always shown — the date itself is
    required data, even when no hour-by-hour agenda was entered), then an
@@ -140,20 +131,33 @@ const EVT_CSS = `
   padding: 9px 0;
 }
 .evt-timeline-row + .evt-timeline-row { border-top: 1px solid var(--evt-line); }
-.evt-timeline-time { font-weight: 700; color: var(--evt-ink); font-size: 14px; }
+/* Was var(--evt-ink) — each time now reads in the accent color, matching
+   the flyer PDF's own schedule-time treatment. */
+.evt-timeline-time { font-weight: 700; color: var(--evt-accent-deep); font-size: 14px; }
 .evt-timeline-rule { align-self: stretch; border-left: 1px dashed var(--evt-line); }
 .evt-timeline-label { font-size: 14px; color: var(--evt-ink-2); }
 
 .evt-footer {
   background: color-mix(in srgb, var(--evt-accent) 18%, white); border-top: 1px solid var(--evt-line);
-  padding: 18px 44px; display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 18px 44px; display: flex; justify-content: flex-end; align-items: center; gap: 16px; flex-wrap: wrap;
 }
+/* Replaces the old dark "Have Questions?" card that used to sit in the
+   body next to What's Included — light-on-light to match this bar's own
+   tinted background instead of a dark card. margin-right:auto pushes the
+   actions group (spots + button) to the end, same trick .evt-spots used
+   to do on its own before this existed. */
+.evt-footer-contact { display: flex; flex-direction: column; gap: 2px; margin-right: auto; }
+.evt-footer-contact-label { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--evt-label); }
+.evt-footer-contact-name { font-size: 13.5px; font-weight: 700; color: var(--evt-ink); margin-top: 1px; }
+.evt-footer-contact a { font-size: 12.5px; color: var(--evt-ink-muted); text-decoration: none; }
+.evt-footer-contact a:hover { text-decoration: underline; }
+.evt-footer-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .evt-spots {
-  display: flex; align-items: center; gap: 7px; margin-right: auto;
+  display: flex; align-items: center; gap: 7px;
   font-size: 12.5px; line-height: 1.6; color: var(--evt-ink-muted);
 }
 .evt-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--evt-accent); flex: none; }
-.evt-full { font-size: 13px; font-weight: 600; color: #b3261e; margin-right: auto; }
+.evt-full { font-size: 13px; font-weight: 600; color: #b3261e; }
 .evt-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 9px;
   padding: 14px 30px; border-radius: var(--evt-radius-sm);
@@ -181,11 +185,9 @@ const EVT_CSS = `
   .evt-rail-cell:last-child  { border-bottom: 0; }
   .evt-body { padding: 24px 22px 26px; }
   .evt-top-row { flex-direction: column; }
-  .evt-contact-card { width: auto; }
-  .evt-included-grid { grid-template-columns: 1fr; }
   .evt-footer { padding: 16px 22px; flex-direction: column; align-items: stretch; }
-  .evt-spots { margin-right: 0; justify-content: center; }
-  .evt-full { margin-right: 0; text-align: center; }
+  .evt-footer-contact { margin-right: 0; text-align: center; align-items: center; }
+  .evt-footer-actions { justify-content: center; }
   .evt-btn { width: 100%; }
   .evt-formwrap { padding: 0 22px 26px; }
 }
@@ -348,60 +350,61 @@ function TournamentCard({ tournament, slug, theme, font, expanded, onToggle }) {
         </div>
 
         <div className="evt-body">
-          {(tournament.includedItems?.length > 0 || contactBits) && (
-            <div className="evt-top-row">
-              {tournament.includedItems?.length > 0 && (
-                <div className="evt-included-col evt-section">
-                  <p className="evt-section-title"><FlagIcon /><strong className="evt-strong">What's Included</strong></p>
-                  <div className="evt-included-grid">
-                    {tournament.includedItems.map((item, i) => (
-                      <div key={i} className="evt-included-item"><CheckIcon />{item}</div>
-                    ))}
-                  </div>
+          {/* Side by side as two equal columns. What's Included only
+              renders when there's something to show; Schedule always
+              renders — the date pill covers every tournament (date is
+              required data), with the timeline below it appearing once a
+              detailed schedule has actually been entered. */}
+          <div className="evt-top-row">
+            {tournament.includedItems?.length > 0 && (
+              <div className="evt-included-col evt-section">
+                <p className="evt-section-title"><FlagIcon /><strong className="evt-strong">What's Included</strong></p>
+                <div className="evt-included-grid">
+                  {tournament.includedItems.map((item, i) => (
+                    <div key={i} className="evt-included-item"><CheckIcon />{item}</div>
+                  ))}
                 </div>
-              )}
-              {contactBits && (
-                <div className="evt-contact-card">
-                  <p className="evt-contact-label">Have Questions?</p>
-                  {tournament.contactName && <p className="evt-contact-name">{tournament.contactName}</p>}
-                  {tournament.contactPhone && <a href={`tel:${tournament.contactPhone.replace(/[^\d+]/g, "")}`}>{formatPhone(tournament.contactPhone)}</a>}
-                  {tournament.contactEmail && <a href={`mailto:${tournament.contactEmail}`}>{tournament.contactEmail}</a>}
+              </div>
+            )}
+            <div className="evt-schedule-col evt-section">
+              <p className="evt-section-title"><CalendarIcon /><strong className="evt-strong">Schedule</strong></p>
+              <div className="evt-date-pill">{kicker}</div>
+              {tournament.scheduleItems?.length > 0 && (
+                <div className="evt-timeline">
+                  {tournament.scheduleItems.map((item, i) => (
+                    <div key={i} className="evt-timeline-row">
+                      <span className="evt-timeline-time">{item.time}</span>
+                      <span className="evt-timeline-rule" />
+                      <span className="evt-timeline-label">{item.label}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-          )}
-
-          {/* Always shown — the date pill covers every tournament (date is
-              required data); the timeline below it only appears once a
-              detailed schedule has actually been entered. */}
-          <div className="evt-section">
-            <p className="evt-section-title"><CalendarIcon /><strong className="evt-strong">Schedule</strong></p>
-            <div className="evt-date-pill">{kicker}</div>
-            {tournament.scheduleItems?.length > 0 && (
-              <div className="evt-timeline">
-                {tournament.scheduleItems.map((item, i) => (
-                  <div key={i} className="evt-timeline-row">
-                    <span className="evt-timeline-time">{item.time}</span>
-                    <span className="evt-timeline-rule" />
-                    <span className="evt-timeline-label">{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
         <div className="evt-footer">
-          {tournament.isFull ? (
-            <p className="evt-full">This tournament is full.</p>
-          ) : (
-            <>
-              {tournament.spotsRemaining != null && (
-                <p className="evt-spots"><span className="evt-dot" />{tournament.spotsRemaining} team spot{tournament.spotsRemaining === 1 ? "" : "s"} remaining</p>
-              )}
-              {!expanded && <button type="button" className="evt-btn" onClick={onToggle}>Register a team</button>}
-            </>
+          {contactBits && (
+            <div className="evt-footer-contact">
+              <p className="evt-footer-contact-label">Have Questions?</p>
+              {tournament.contactName && <p className="evt-footer-contact-name">{tournament.contactName}</p>}
+              {tournament.contactPhone && <a href={`tel:${tournament.contactPhone.replace(/[^\d+]/g, "")}`}>{formatPhone(tournament.contactPhone)}</a>}
+              {tournament.contactEmail && <a href={`mailto:${tournament.contactEmail}`}>{tournament.contactEmail}</a>}
+            </div>
           )}
+          <div className="evt-footer-actions">
+            {tournament.isFull ? (
+              <p className="evt-full">This tournament is full.</p>
+            ) : (
+              <>
+                {tournament.spotsRemaining != null && (
+                  <p className="evt-spots"><span className="evt-dot" />{tournament.spotsRemaining} team spot{tournament.spotsRemaining === 1 ? "" : "s"} remaining</p>
+                )}
+                {!expanded && <button type="button" className="evt-btn" onClick={onToggle}>Register a team</button>}
+              </>
+            )}
+          </div>
         </div>
 
         {expanded && !tournament.isFull && (
