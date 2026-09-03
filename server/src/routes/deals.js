@@ -208,4 +208,85 @@ router.get("/:id/daily-sales", requireReadAccess("bell-jar"), async (req, res) =
   res.json(sales);
 });
 
+// Corrects a worksheet entry logged in error (wrong tickets sold / cash paid,
+// or the wrong backdated date) — same "Helper can log/correct" tier as the
+// worksheet save itself. The deal's running soldToDate/prizesAwardedToDate
+// are adjusted by the *difference* between the old and new values in the
+// same transaction, so they stay in sync with the corrected entry rather
+// than needing a full recount. Closed games are locked — same restriction
+// as correcting the game record itself, since Schedule 1 close-out is what
+// finalizes the audit trail for everything logged against it.
+router.patch("/:id/daily-sales/:saleId", requirePermission("bell-jar", "Helper"), async (req, res) => {
+  const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!deal) return res.status(404).json({ error: "Game not found" });
+  if (deal.status === "closed") {
+    return res.status(400).json({ error: "Entries on a closed game can't be edited — they're locked in the Schedule 1 audit trail" });
+  }
+  const sale = await prisma.dailySale.findFirst({ where: { id: req.params.saleId, dealId: deal.id } });
+  if (!sale) return res.status(404).json({ error: "Entry not found" });
+
+  const { ticketsSold, cashPaid, date } = req.body;
+  const newTicketsSold = Number(ticketsSold);
+  const newCashPaid = Number(cashPaid);
+  if (!Number.isFinite(newTicketsSold) || newTicketsSold < 0 || !Number.isFinite(newCashPaid) || newCashPaid < 0) {
+    return res.status(400).json({ error: "Tickets sold and cash paid must be zero or more" });
+  }
+
+  let saleDate = sale.date;
+  if (date) {
+    saleDate = new Date(date);
+    if (Number.isNaN(saleDate.getTime())) return res.status(400).json({ error: "Invalid entry date" });
+    if (saleDate.getTime() > Date.now()) return res.status(400).json({ error: "Entry date can't be in the future" });
+  }
+
+  const ticketsDelta = newTicketsSold - sale.ticketsSold;
+  const newSoldToDate = deal.soldToDate + ticketsDelta;
+  if (newSoldToDate < 0 || newSoldToDate > deal.ticketCount) {
+    return res.status(400).json({ error: `Tickets sold can't put this game's total outside 0–${deal.ticketCount}` });
+  }
+  const cashDelta = newCashPaid - sale.cashPaid;
+
+  const { cashCollected, profitLoss } = dailyWorksheet(newTicketsSold, newCashPaid, deal.ticketPrice);
+
+  const [updated] = await prisma.$transaction([
+    prisma.dailySale.update({
+      where: { id: sale.id },
+      data: { ticketsSold: newTicketsSold, cashPaid: newCashPaid, cashCollected, profitLoss, date: saleDate },
+    }),
+    prisma.deal.update({
+      where: { id: deal.id },
+      data: { soldToDate: { increment: ticketsDelta }, prizesAwardedToDate: { increment: cashDelta } },
+    }),
+  ]);
+  res.json(updated);
+});
+
+// Permanently removes a worksheet entry logged in error — Admin-only, same
+// "Helper can correct, Admin must erase outright" split used for the game
+// record's own delete route above. Reverses this entry's effect on the
+// deal's running totals in the same transaction, so removing a mistaken
+// entry doesn't leave its tickets/cash stranded in soldToDate/
+// prizesAwardedToDate. Closed games are locked, same as editing above.
+router.delete("/:id/daily-sales/:saleId", requirePermission("bell-jar", "Admin"), async (req, res) => {
+  const deal = await prisma.deal.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!deal) return res.status(404).json({ error: "Game not found" });
+  if (deal.status === "closed") {
+    return res.status(400).json({ error: "Entries on a closed game can't be deleted — they're locked in the Schedule 1 audit trail" });
+  }
+  const sale = await prisma.dailySale.findFirst({ where: { id: req.params.saleId, dealId: deal.id } });
+  if (!sale) return res.status(404).json({ error: "Entry not found" });
+
+  await prisma.$transaction([
+    prisma.dailySale.delete({ where: { id: sale.id } }),
+    prisma.deal.update({
+      where: { id: deal.id },
+      data: {
+        soldToDate: { increment: -sale.ticketsSold },
+        prizesAwardedToDate: { increment: -sale.cashPaid },
+      },
+    }),
+  ]);
+  res.json({ ok: true });
+});
+
 module.exports = router;

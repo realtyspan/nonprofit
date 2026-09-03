@@ -106,6 +106,8 @@ export const api = {
     const qs = params.toString();
     return request(`/deals/${dealId}/daily-sales${qs ? `?${qs}` : ""}`);
   },
+  updateDailySale: (dealId, saleId, payload) => request(`/deals/${dealId}/daily-sales/${saleId}`, { method: "PATCH", body: payload }),
+  deleteDailySale: (dealId, saleId) => request(`/deals/${dealId}/daily-sales/${saleId}`, { method: "DELETE" }),
 
   listSchedule1: () => request("/schedule1"),
   closeDeal: (dealId, unsoldCount) => request(`/schedule1/${dealId}/close`, { method: "POST", body: { unsoldCount } }),

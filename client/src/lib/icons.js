@@ -28,4 +28,5 @@ export const icons = {
   close: wrap(`<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>`),
   dots: wrap(`<circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/>`),
   flag: wrap(`<line x1="6" y1="3" x2="6" y2="21"/><path d="M6 4h13l-3 4 3 4H6"/>`),
+  filter: wrap(`<path d="M3 4h18l-7 8v6l-4 2v-8z"/>`),
 };
