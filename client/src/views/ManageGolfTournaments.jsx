@@ -237,6 +237,27 @@ function FlyerColorsCard() {
     }
   }
 
+  // A blank field already means "use the app's default" (see save() above),
+  // so resetting just clears both fields and saves that right away — most
+  // people who've messed up their colors don't have the original hex codes
+  // memorized to type back in, so this needs to be a single click, not
+  // "clear the fields, then remember to also hit Save."
+  async function reset() {
+    setBusy(true);
+    setError("");
+    try {
+      await api.updateFlyerColors(null, null);
+      setColorsForm({ primary: "", accent: "" });
+      setSaved(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const isDefault = !colorsForm.primary && !colorsForm.accent;
+
   return (
     <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ fontSize: 11.5, color: colors.textSecondary }}>
@@ -247,7 +268,10 @@ function FlyerColorsCard() {
         <ColorField label="Accent (highlights)" value={colorsForm.accent} onChange={(v) => set("accent", v)} placeholder="#cd715c" />
       </div>
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
-      <div><button style={button.primary} disabled={busy} onClick={save}>{busy ? "Saving…" : saved ? "Saved!" : "Save colors"}</button></div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button style={button.primary} disabled={busy} onClick={save}>{busy ? "Saving…" : saved ? "Saved!" : "Save colors"}</button>
+        <button style={button.ghost} disabled={busy || isDefault} onClick={reset}>Reset to defaults</button>
+      </div>
     </div>
   );
 }
