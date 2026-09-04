@@ -108,6 +108,13 @@ export const api = {
   },
   updateDailySale: (dealId, saleId, payload) => request(`/deals/${dealId}/daily-sales/${saleId}`, { method: "PATCH", body: payload }),
   deleteDailySale: (dealId, saleId) => request(`/deals/${dealId}/daily-sales/${saleId}`, { method: "DELETE" }),
+  downloadDailySalesReport: ({ dealId, from, to }) => {
+    const params = new URLSearchParams();
+    if (dealId) params.set("dealId", dealId);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    return download(`/deals/daily-sales-report?${params.toString()}`, "Sales_Worksheet_Report.pdf");
+  },
 
   listSchedule1: () => request("/schedule1"),
   closeDeal: (dealId, unsoldCount) => request(`/schedule1/${dealId}/close`, { method: "POST", body: { unsoldCount } }),

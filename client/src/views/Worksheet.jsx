@@ -41,6 +41,7 @@ export default function Worksheet({ deals, onSaved }) {
   const [historyGameId, setHistoryGameId] = useState(""); // "" = all games
   const [editingEntry, setEditingEntry] = useState(null); // a history row, or null
   const [historyActionError, setHistoryActionError] = useState("");
+  const [printBusy, setPrintBusy] = useState(false);
   const confirm = useConfirm();
 
   // Bounded at the database level (see the /daily-sales route) so this pulls
@@ -85,6 +86,22 @@ export default function Worksheet({ deals, onSaved }) {
       onSaved();
     } catch (err) {
       setHistoryActionError(err.message);
+    }
+  }
+
+  // Prints exactly what's currently filtered/shown on screen — same game
+  // and date-range selection — as a formatted PDF, for members who'll only
+  // ever see a paper copy of this. Server-side query mirrors loadHistory's
+  // own, so the paper report always matches what was just reviewed here.
+  async function printReport() {
+    setPrintBusy(true);
+    setHistoryActionError("");
+    try {
+      await api.downloadDailySalesReport({ dealId: historyGameId || undefined, from: historyFrom, to: historyTo });
+    } catch (err) {
+      setHistoryActionError(err.message);
+    } finally {
+      setPrintBusy(false);
     }
   }
 
@@ -282,6 +299,12 @@ export default function Worksheet({ deals, onSaved }) {
               <input style={{ ...inputStyle, width: isMobile ? "100%" : 145 }} type="date" value={historyTo} min={historyFrom} max={todayStr()} onChange={(e) => setHistoryTo(e.target.value)} />
             </Field>
             <button style={button.ghost} onClick={resetHistoryFilters}>Reset</button>
+            {/* Prints exactly this filtered view as a formatted PDF — for
+                members who'll only ever see a paper copy of the worksheet,
+                not the screen itself. */}
+            <button style={button.secondary} onClick={printReport} disabled={printBusy || filteredHistory.length === 0}>
+              {printBusy ? "Preparing…" : "Print report (PDF)"}
+            </button>
           </div>
         </div>
         {historyActionError && (

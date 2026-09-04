@@ -3,6 +3,7 @@ const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
 const { dailyWorksheet, isEligibleToClose, prizePercent } = require("../lib/businessLogic");
 const { scanGameLabel } = require("../lib/labelScan");
+const { buildDailySalesReportPdf } = require("../lib/dailySalesReportPdf");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -206,6 +207,48 @@ router.get("/:id/daily-sales", requireReadAccess("bell-jar"), async (req, res) =
 
   const sales = await prisma.dailySale.findMany({ where, orderBy: { date: "desc" } });
   res.json(sales);
+});
+
+// Printable PDF of the worksheet's Recent Entries table, honoring whatever
+// game/date-range filter is currently showing on screen — reported directly:
+// some members will only ever see a paper copy, so the "print this" button
+// needs to produce exactly what was just reviewed on screen, not a fresh,
+// possibly-different query. Not nested under /:id since "All games" has no
+// single deal to nest under — dealId is optional and, when given, is still
+// ownership-checked against the org like every other deal lookup here.
+router.get("/daily-sales-report", requireReadAccess("bell-jar"), async (req, res) => {
+  const { dealId, from, to } = req.query;
+
+  let deal = null;
+  if (dealId) {
+    deal = await prisma.deal.findFirst({ where: { id: dealId, orgId: req.user.orgId } });
+    if (!deal) return res.status(404).json({ error: "Game not found" });
+  }
+
+  const where = { deal: { orgId: req.user.orgId } };
+  if (deal) where.dealId = deal.id;
+  if (from || to) {
+    where.date = {};
+    if (from) where.date.gte = new Date(from);
+    if (to) where.date.lte = new Date(`${to}T23:59:59.999Z`);
+  }
+
+  const [sales, org] = await Promise.all([
+    prisma.dailySale.findMany({ where, include: { deal: { select: { name: true } } }, orderBy: { date: "desc" } }),
+    prisma.organization.findUnique({ where: { id: req.user.orgId } }),
+  ]);
+
+  const bytes = await buildDailySalesReportPdf({
+    org,
+    gameLabel: deal ? deal.name : "All games",
+    from,
+    to,
+    sales: sales.map((s) => ({ ...s, dealName: s.deal.name })),
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="Sales_Worksheet_Report.pdf"`);
+  res.send(Buffer.from(bytes));
 });
 
 // Corrects a worksheet entry logged in error (wrong tickets sold / cash paid,
