@@ -128,6 +128,13 @@ export const api = {
 
   listDisbursements: () => request("/disbursements"),
   createDisbursement: (payload) => request("/disbursements", { method: "POST", body: payload }),
+  downloadDisbursementsReport: ({ from, to, category } = {}) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    if (category) params.set("category", category);
+    return download(`/disbursements/report?${params.toString()}`, "Bank_Ledger_Report.pdf");
+  },
 
   getGC7Q: (year, quarter) => request(`/gc7q/${year}/${quarter}`),
   signGC7Q: (year, quarter, role) => request(`/gc7q/${year}/${quarter}/sign`, { method: "POST", body: { role } }),

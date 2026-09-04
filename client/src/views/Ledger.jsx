@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money, mono } from "../lib/tokens";
 import { api } from "../lib/api";
+import { icons } from "../lib/icons";
 import ReceiptField from "../components/ReceiptField";
 import DataList from "../components/DataList";
+import { useIsMobile } from "../lib/viewport";
 
 const CATEGORY_META = {
   ticket_purchase: { label: "Ticket purchase (A5)", bg: colors.successBg, color: colors.success },
@@ -11,10 +13,16 @@ const CATEGORY_META = {
 };
 
 export default function Ledger() {
+  const isMobile = useIsMobile();
   const [rows, setRows] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ date: "", payee: "", checkNum: "", amount: "", category: "ticket_purchase", receiptFile: "", receiptFileName: "" });
   const [error, setError] = useState("");
+  const [filterCategory, setFilterCategory] = useState(""); // "" = all categories
+  const [filterFrom, setFilterFrom] = useState(""); // "" = no lower bound
+  const [filterTo, setFilterTo] = useState(""); // "" = no upper bound
+  const [printBusy, setPrintBusy] = useState(false);
+  const [printError, setPrintError] = useState("");
 
   function refresh() {
     api.listDisbursements().then(setRows).catch(() => {});
@@ -23,6 +31,45 @@ export default function Ledger() {
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  // Client-side, like Schedule 1's own filter — a checking-account register
+  // for one org accumulates slowly enough that filtering the already-
+  // fetched list needs no separate server round trip. Defaults to no bound
+  // at all, not a rolling window, so nothing in the register is hidden
+  // until someone actually narrows it.
+  const filteredRows = rows.filter((r) => {
+    if (filterCategory && r.category !== filterCategory) return false;
+    const d = new Date(r.date);
+    if (filterFrom && d < new Date(filterFrom)) return false;
+    if (filterTo && d > new Date(`${filterTo}T23:59:59.999`)) return false;
+    return true;
+  });
+
+  function resetFilters() {
+    setFilterCategory("");
+    setFilterFrom("");
+    setFilterTo("");
+  }
+
+  // Prints exactly the filtered category/date range shown on screen — same
+  // reasoning as the Sales Worksheet's and Schedule 1's own Print report
+  // buttons. The server independently re-queries by the same filter rather
+  // than trusting client-side rows.
+  async function printReport() {
+    setPrintBusy(true);
+    setPrintError("");
+    try {
+      await api.downloadDisbursementsReport({
+        category: filterCategory || undefined,
+        from: filterFrom || undefined,
+        to: filterTo || undefined,
+      });
+    } catch (err) {
+      setPrintError(err.message);
+    } finally {
+      setPrintBusy(false);
+    }
   }
 
   async function submit(e) {
@@ -79,9 +126,37 @@ export default function Ledger() {
       )}
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "flex-end", flexDirection: isMobile ? "column" : "row", justifyContent: "flex-end", flexWrap: "wrap", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, color: colors.textSecondary, alignSelf: isMobile ? "flex-start" : "flex-end", paddingBottom: isMobile ? 0 : 8 }}>
+            <span dangerouslySetInnerHTML={{ __html: icons.filter }} style={{ width: 14, height: 14, display: "flex" }} />
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em" }}>Filters</span>
+          </div>
+          <Field label="Category">
+            <select style={{ ...inputStyle, width: isMobile ? "100%" : 190 }} value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+              <option value="">All categories</option>
+              <option value="ticket_purchase">Ticket purchase (A5)</option>
+              <option value="license_fee">License fee</option>
+              <option value="indirect">Indirect disbursement</option>
+            </select>
+          </Field>
+          <Field label="From">
+            <input style={{ ...inputStyle, width: isMobile ? "100%" : 145 }} type="date" value={filterFrom} max={filterTo || undefined} onChange={(e) => setFilterFrom(e.target.value)} />
+          </Field>
+          <Field label="To">
+            <input style={{ ...inputStyle, width: isMobile ? "100%" : 145 }} type="date" value={filterTo} min={filterFrom || undefined} onChange={(e) => setFilterTo(e.target.value)} />
+          </Field>
+          <button style={button.ghost} onClick={resetFilters}>Reset</button>
+          {/* Prints exactly this filtered category/date range as a
+              formatted PDF — for members who'll only ever see a paper
+              copy of this register, not the screen itself. */}
+          <button style={button.secondary} onClick={printReport} disabled={printBusy || filteredRows.length === 0}>
+            {printBusy ? "Preparing…" : "Print report (PDF)"}
+          </button>
+        </div>
+        {printError && <div style={{ padding: "10px 18px 0", color: colors.danger, fontSize: 12.5, fontWeight: 600 }}>{printError}</div>}
         <DataList
-          rows={rows}
-          emptyMessage="No transactions yet."
+          rows={filteredRows}
+          emptyMessage={rows.length === 0 ? "No transactions yet." : "No transactions match this filter."}
           columns={[
             { key: "date", label: "Date", grid: "1fr", render: (r) => <span style={{ fontFamily: mono }}>{new Date(r.date).toLocaleDateString(undefined, { timeZone: "UTC" })}</span> },
             { key: "payee", label: "Payee", grid: "1.6fr", primary: true, render: (r) => r.payee },
