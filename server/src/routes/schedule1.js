@@ -3,6 +3,7 @@ const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
 const { closeDeal, isEligibleToClose } = require("../lib/businessLogic");
 const { fillSchedule1Pdf } = require("../lib/schedule1Pdf");
+const { buildSchedule1ReportPdf } = require("../lib/schedule1ReportPdf");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -15,6 +16,32 @@ router.get("/", requireReadAccess("bell-jar"), async (req, res) => {
     orderBy: { closedDate: "desc" },
   });
   res.json(records);
+});
+
+// A plain, easy-to-read paper copy of the closed-game history for whatever
+// closed-date range is currently filtered on screen — not a filing
+// document (see fillSchedule1Pdf below for that). Members who'll never
+// look at a screen still need a hard copy of this history, same reasoning
+// as the Sales Worksheet's own Print report button.
+router.get("/report", requireReadAccess("bell-jar"), async (req, res) => {
+  const { from, to } = req.query;
+  const where = { deal: { orgId: req.user.orgId } };
+  if (from || to) {
+    where.closedDate = {};
+    if (from) where.closedDate.gte = new Date(from);
+    if (to) where.closedDate.lte = new Date(`${to}T23:59:59.999Z`);
+  }
+
+  const [records, org] = await Promise.all([
+    prisma.schedule1Record.findMany({ where, include: { deal: true }, orderBy: { closedDate: "desc" } }),
+    prisma.organization.findUnique({ where: { id: req.user.orgId } }),
+  ]);
+
+  const bytes = await buildSchedule1ReportPdf({ org, from, to, records });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="Schedule1_History_Report.pdf"`);
+  res.send(Buffer.from(bytes));
 });
 
 // Fills the real NYS Schedule 1 form with every deal closed in the given quarter.

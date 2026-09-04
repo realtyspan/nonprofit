@@ -119,6 +119,12 @@ export const api = {
   listSchedule1: () => request("/schedule1"),
   closeDeal: (dealId, unsoldCount) => request(`/schedule1/${dealId}/close`, { method: "POST", body: { unsoldCount } }),
   downloadSchedule1Pdf: (year, quarter) => download(`/schedule1/${year}/${quarter}/pdf`, `Schedule1_Q${quarter}_${year}.pdf`),
+  downloadSchedule1Report: ({ from, to } = {}) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    return download(`/schedule1/report?${params.toString()}`, "Schedule1_History_Report.pdf");
+  },
 
   listDisbursements: () => request("/disbursements"),
   createDisbursement: (payload) => request("/disbursements", { method: "POST", body: payload }),

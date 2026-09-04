@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle, money, mono } from "../lib/tokens";
 import { api } from "../lib/api";
+import { icons } from "../lib/icons";
 import { resizeImageFile } from "../lib/imageResize";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
@@ -22,6 +23,10 @@ export default function Deals({ deals, onChanged, permissions }) {
   const [editingDeal, setEditingDeal] = useState(null);
   const [deleting, setDeleting] = useState(null); // deal pending delete confirmation
   const [deleteError, setDeleteError] = useState("");
+  const [historyFrom, setHistoryFrom] = useState(""); // "" = no lower bound
+  const [historyTo, setHistoryTo] = useState(""); // "" = no upper bound
+  const [printBusy, setPrintBusy] = useState(false);
+  const [printError, setPrintError] = useState("");
 
   function refreshHistory() {
     api.listSchedule1().then(setHistory).catch(() => {});
@@ -31,6 +36,40 @@ export default function Deals({ deals, onChanged, permissions }) {
 
   const received = deals.filter((d) => d.status === "received");
   const active = deals.filter((d) => d.status === "active");
+
+  // Client-side, unlike the Worksheet's own date filter — a game only closes
+  // once, so an org's whole closed-game history is small enough (unlike
+  // hundreds of daily worksheet rows) that filtering the already-fetched
+  // list needs no separate server round trip. Defaults to no bound at all
+  // (not a rolling window like the Worksheet) since closures happen rarely
+  // enough that a 90-day default could easily hide everything an org has.
+  const filteredHistory = history.filter((r) => {
+    const closed = new Date(r.closedDate);
+    if (historyFrom && closed < new Date(historyFrom)) return false;
+    if (historyTo && closed > new Date(`${historyTo}T23:59:59.999`)) return false;
+    return true;
+  });
+
+  function resetHistoryFilters() {
+    setHistoryFrom("");
+    setHistoryTo("");
+  }
+
+  // Prints exactly the filtered closed-date range shown on screen — same
+  // reasoning as the Sales Worksheet's Print report button: some members
+  // will only ever see a paper copy of this. The server independently
+  // re-queries by the same from/to rather than trusting client-side rows.
+  async function printSchedule1Report() {
+    setPrintBusy(true);
+    setPrintError("");
+    try {
+      await api.downloadSchedule1Report({ from: historyFrom || undefined, to: historyTo || undefined });
+    } catch (err) {
+      setPrintError(err.message);
+    } finally {
+      setPrintBusy(false);
+    }
+  }
 
   async function activate(dealId) {
     setActivatingId(dealId);
@@ -151,10 +190,32 @@ export default function Deals({ deals, onChanged, permissions }) {
       </div>
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "14px 18px", fontSize: 15, fontWeight: 700, borderBottom: `1px solid ${colors.borderLight}` }}>Schedule 1 — closed-game history</div>
+        <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "flex-end", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
+          <div style={{ fontSize: 15, fontWeight: 700, alignSelf: isMobile ? "flex-start" : "flex-end" }}>Schedule 1 — closed-game history</div>
+          <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "flex-end", flexDirection: isMobile ? "column" : "row", gap: 10, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, color: colors.textSecondary, alignSelf: isMobile ? "flex-start" : "flex-end", paddingBottom: isMobile ? 0 : 8 }}>
+              <span dangerouslySetInnerHTML={{ __html: icons.filter }} style={{ width: 14, height: 14, display: "flex" }} />
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em" }}>Filters</span>
+            </div>
+            <Field label="Closed from">
+              <input style={{ ...inputStyle, width: isMobile ? "100%" : 145 }} type="date" value={historyFrom} max={historyTo || undefined} onChange={(e) => setHistoryFrom(e.target.value)} />
+            </Field>
+            <Field label="Closed to">
+              <input style={{ ...inputStyle, width: isMobile ? "100%" : 145 }} type="date" value={historyTo} min={historyFrom || undefined} onChange={(e) => setHistoryTo(e.target.value)} />
+            </Field>
+            <button style={button.ghost} onClick={resetHistoryFilters}>Reset</button>
+            {/* Prints exactly this filtered closed-date range as a formatted
+                PDF — for members who'll only ever see a paper copy of this
+                history, not the screen itself. */}
+            <button style={button.secondary} onClick={printSchedule1Report} disabled={printBusy || filteredHistory.length === 0}>
+              {printBusy ? "Preparing…" : "Print report (PDF)"}
+            </button>
+          </div>
+        </div>
+        {printError && <div style={{ padding: "10px 18px 0", color: colors.danger, fontSize: 12.5, fontWeight: 600 }}>{printError}</div>}
         <DataList
-          rows={history}
-          emptyMessage="No games closed yet."
+          rows={filteredHistory}
+          emptyMessage={history.length === 0 ? "No games closed yet." : "No closed games in this date range."}
           columns={[
             { key: "deal", label: "Game", grid: "1.6fr", primary: true, render: (r) => <div style={{ fontWeight: 600 }}>{r.deal?.name}</div> },
             { key: "closedDate", label: "Closed date", grid: "1fr", render: (r) => <div style={{ fontFamily: mono, fontSize: 13 }}>{new Date(r.closedDate).toLocaleDateString()}</div> },
