@@ -1261,7 +1261,13 @@ router.post("/games/:gameId/tickets/:number/send-eticket", requirePermission("ra
   const replyTo = await resolveReplyTo(req.user.orgId, org);
   const drawings = await prisma.raffleDrawing.findMany({ where: { gameId: req.raffleGame.id, orgId: req.user.orgId } });
   const verificationCode = ticket.id.slice(-8).toUpperCase();
-  const html = electronicTicketHtml({ ticket, gameName: req.raffleGame.name, verificationCode, drawings, org });
+  // Public, unauthenticated page showing this exact ticket — see
+  // publicRaffle.js's GET /ticket/:ticketId. ticket.id is already this
+  // app's de facto access token for a ticket (it's what verificationCode
+  // above is derived from), so it's reused directly as the URL token.
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+  const ticketUrl = `${appUrl}/raffle-ticket/${ticket.id}`;
+  const html = electronicTicketHtml({ ticket, gameName: req.raffleGame.name, verificationCode, drawings, org, ticketUrl });
   await sendEmail({ to: ticket.email, toName: ticket.buyer, subject: `Your official ticket — #${ticket.number}`, html, fromName: org.name, replyTo });
   await addRaffleLog(req.user.orgId, req.raffleGame.id, {
     type: "email_sent", text: `Electronic ticket sent for ticket #${number}`,

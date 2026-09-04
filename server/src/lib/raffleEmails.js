@@ -57,7 +57,7 @@ function saleConfirmationHtml({ ticket, sellerName, gameName, org }) {
 // `drawings` is that game's RaffleDrawing rows — the prize table and drawing
 // date(s) shown are whatever the org has actually configured, not the
 // source's hardcoded 14-prize/$10,000 structure.
-function electronicTicketHtml({ ticket, gameName, verificationCode, drawings, org }) {
+function electronicTicketHtml({ ticket, gameName, verificationCode, drawings, org, ticketUrl }) {
   const amount = Number(ticket.tenderAmount || 0);
   const tender = ticket.tenderType ? ticket.tenderType[0].toUpperCase() + ticket.tenderType.slice(1) : "";
   const tenderLine = tender
@@ -102,6 +102,9 @@ function electronicTicketHtml({ ticket, gameName, verificationCode, drawings, or
             <div style="font-size:15px;font-weight:700;margin-top:6px;text-transform:uppercase;letter-spacing:0.03em;">${ticket.buyer}</div>
           </div>
         </td></tr>
+        ${ticketUrl ? `<tr><td style="padding:14px 28px 0 28px;text-align:center;">
+          <a href="${ticketUrl}" style="display:inline-block;background:#A32D2D;color:#ffffff;font-weight:700;font-size:13px;padding:11px 22px;border-radius:6px;text-decoration:none;">View &amp; Download Your Ticket</a>
+        </td></tr>` : ""}
         <tr><td style="padding:14px 28px 4px 28px;text-align:center;">${mainLine}</td></tr>
         <tr><td style="padding:8px 28px 4px 28px;text-align:center;">${earlyBirdLines}</td></tr>
         ${prizeRows ? `<tr><td style="padding:12px 28px 4px 28px;">

@@ -431,6 +431,12 @@ export const publicApi = {
     if (!res.ok) throw new Error(data.error || "Request failed");
     return data;
   },
+  async getRaffleTicket(ticketId) {
+    const res = await fetch(`/api/public/raffle/ticket/${ticketId}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Not found");
+    return data;
+  },
 };
 
 export function saveSession(token, user) {
