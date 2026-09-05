@@ -367,7 +367,7 @@ export default function Worksheet({ deals, onSaved }) {
 
         {isHistoryFiltered && filteredHistory.length > 0 && (
           isMobile ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13.5, fontWeight: 700 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "12px 18px", background: colors.bg, borderTop: `1px solid ${colors.borderStrong}`, fontSize: 13.5, fontWeight: 700 }}>
               <div>Total</div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
                 <span style={{ color: colors.textSecondary }}>Tickets sold</span>
@@ -390,7 +390,7 @@ export default function Worksheet({ deals, onSaved }) {
               </div>
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: historyCols, padding: "12px 18px", alignItems: "center", fontSize: 13.5, fontWeight: 700, borderTop: `1px solid ${colors.borderLight}` }}>
+            <div style={{ display: "grid", gridTemplateColumns: historyCols, padding: "12px 18px", alignItems: "center", fontSize: 13.5, fontWeight: 700, background: colors.bg, borderTop: `1px solid ${colors.borderStrong}` }}>
               <div>Total</div>
               <div />
               <div style={{ fontFamily: mono }}>{historyTotals.ticketsSold.toLocaleString()}</div>
