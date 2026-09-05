@@ -367,38 +367,42 @@ export default function Worksheet({ deals, onSaved }) {
 
         {isHistoryFiltered && filteredHistory.length > 0 && (
           isMobile ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "12px 18px", background: colors.bg, borderTop: `1px solid ${colors.borderStrong}`, fontSize: 13.5, fontWeight: 700 }}>
-              <div>Total</div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
-                <span style={{ color: colors.textSecondary }}>Tickets sold</span>
-                <span style={{ fontFamily: mono, fontWeight: 700 }}>{historyTotals.ticketsSold.toLocaleString()}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
-                <span style={{ color: colors.textSecondary }}>Cash paid</span>
-                <span style={{ fontFamily: mono, fontWeight: 700 }}>{money(historyTotals.cashPaid)}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
-                <span style={{ color: colors.textSecondary }}>Cash collected</span>
-                <span style={{ fontFamily: mono, fontWeight: 700 }}>{money(historyTotals.cashCollected)}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
-                <span style={{ color: colors.textSecondary }}>Profit / loss</span>
-                <span style={{ fontFamily: mono, fontWeight: 700, color: historyTotals.profitLoss >= 0 ? colors.success : colors.danger }}>
-                  {historyTotals.profitLoss >= 0 ? "+" : ""}
-                  {money(historyTotals.profitLoss)}
-                </span>
+            <div style={{ padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}` }}>
+              <div style={{ padding: "10px 14px", background: colors.border, border: `1px solid ${colors.borderStrong}`, borderRadius: 8, display: "flex", flexDirection: "column", gap: 6, fontSize: 13.5, fontWeight: 700 }}>
+                <div>Total</div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
+                  <span style={{ color: colors.textSecondary }}>Tickets sold</span>
+                  <span style={{ fontFamily: mono, fontWeight: 700 }}>{historyTotals.ticketsSold.toLocaleString()}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
+                  <span style={{ color: colors.textSecondary }}>Cash paid</span>
+                  <span style={{ fontFamily: mono, fontWeight: 700 }}>{money(historyTotals.cashPaid)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
+                  <span style={{ color: colors.textSecondary }}>Cash collected</span>
+                  <span style={{ fontFamily: mono, fontWeight: 700 }}>{money(historyTotals.cashCollected)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
+                  <span style={{ color: colors.textSecondary }}>Profit / loss</span>
+                  <span style={{ fontFamily: mono, fontWeight: 700, color: historyTotals.profitLoss >= 0 ? colors.success : colors.danger }}>
+                    {historyTotals.profitLoss >= 0 ? "+" : ""}
+                    {money(historyTotals.profitLoss)}
+                  </span>
+                </div>
               </div>
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: historyCols, padding: "12px 18px", alignItems: "center", fontSize: 13.5, fontWeight: 700, background: colors.bg, borderTop: `1px solid ${colors.borderStrong}` }}>
-              <div>Total</div>
-              <div />
-              <div style={{ fontFamily: mono }}>{historyTotals.ticketsSold.toLocaleString()}</div>
-              <div style={{ fontFamily: mono }}>{money(historyTotals.cashPaid)}</div>
-              <div style={{ fontFamily: mono }}>{money(historyTotals.cashCollected)}</div>
-              <div style={{ fontFamily: mono, color: historyTotals.profitLoss >= 0 ? colors.success : colors.danger }}>
-                {historyTotals.profitLoss >= 0 ? "+" : ""}
-                {money(historyTotals.profitLoss)}
+            <div style={{ padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}` }}>
+              <div style={{ display: "grid", gridTemplateColumns: historyCols, padding: "10px 14px", alignItems: "center", fontSize: 13.5, fontWeight: 700, background: colors.border, border: `1px solid ${colors.borderStrong}`, borderRadius: 8 }}>
+                <div>Total</div>
+                <div />
+                <div style={{ fontFamily: mono }}>{historyTotals.ticketsSold.toLocaleString()}</div>
+                <div style={{ fontFamily: mono }}>{money(historyTotals.cashPaid)}</div>
+                <div style={{ fontFamily: mono }}>{money(historyTotals.cashCollected)}</div>
+                <div style={{ fontFamily: mono, color: historyTotals.profitLoss >= 0 ? colors.success : colors.danger }}>
+                  {historyTotals.profitLoss >= 0 ? "+" : ""}
+                  {money(historyTotals.profitLoss)}
+                </div>
               </div>
             </div>
           )
