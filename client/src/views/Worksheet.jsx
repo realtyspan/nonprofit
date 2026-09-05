@@ -67,6 +67,23 @@ export default function Worksheet({ deals, onSaved }) {
 
   const filteredHistory = historyGameId ? history.filter((h) => h.dealId === historyGameId) : history;
 
+  // Only shown once the member has actually narrowed the view beyond the
+  // default — i.e. whatever the Reset button above would clear — since a
+  // total across the default 90-day/all-games window isn't a number anyone
+  // asked for.
+  const isHistoryFiltered = historyGameId !== "" || historyFrom !== daysAgoStr(DEFAULT_HISTORY_DAYS) || historyTo !== todayStr();
+  const historyTotals = filteredHistory.reduce(
+    (acc, h) => {
+      acc.ticketsSold += h.ticketsSold;
+      acc.cashPaid += h.cashPaid;
+      acc.cashCollected += h.cashCollected;
+      acc.profitLoss += h.profitLoss;
+      return acc;
+    },
+    { ticketsSold: 0, cashPaid: 0, cashCollected: 0, profitLoss: 0 }
+  );
+  const historyCols = "1.2fr 1.1fr 0.9fr 0.9fr 0.9fr 0.9fr";
+
   function resetHistoryFilters() {
     setHistoryFrom(daysAgoStr(DEFAULT_HISTORY_DAYS));
     setHistoryTo(todayStr());
@@ -347,6 +364,45 @@ export default function Worksheet({ deals, onSaved }) {
             },
           ]}
         />
+
+        {isHistoryFiltered && filteredHistory.length > 0 && (
+          isMobile ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "12px 18px", borderTop: `1px solid ${colors.borderLight}`, fontSize: 13.5, fontWeight: 700 }}>
+              <div>Total</div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
+                <span style={{ color: colors.textSecondary }}>Tickets sold</span>
+                <span style={{ fontFamily: mono, fontWeight: 700 }}>{historyTotals.ticketsSold.toLocaleString()}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
+                <span style={{ color: colors.textSecondary }}>Cash paid</span>
+                <span style={{ fontFamily: mono, fontWeight: 700 }}>{money(historyTotals.cashPaid)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
+                <span style={{ color: colors.textSecondary }}>Cash collected</span>
+                <span style={{ fontFamily: mono, fontWeight: 700 }}>{money(historyTotals.cashCollected)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 400 }}>
+                <span style={{ color: colors.textSecondary }}>Profit / loss</span>
+                <span style={{ fontFamily: mono, fontWeight: 700, color: historyTotals.profitLoss >= 0 ? colors.success : colors.danger }}>
+                  {historyTotals.profitLoss >= 0 ? "+" : ""}
+                  {money(historyTotals.profitLoss)}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: historyCols, padding: "12px 18px", alignItems: "center", fontSize: 13.5, fontWeight: 700, borderTop: `1px solid ${colors.borderLight}` }}>
+              <div>Total</div>
+              <div />
+              <div style={{ fontFamily: mono }}>{historyTotals.ticketsSold.toLocaleString()}</div>
+              <div style={{ fontFamily: mono }}>{money(historyTotals.cashPaid)}</div>
+              <div style={{ fontFamily: mono }}>{money(historyTotals.cashCollected)}</div>
+              <div style={{ fontFamily: mono, color: historyTotals.profitLoss >= 0 ? colors.success : colors.danger }}>
+                {historyTotals.profitLoss >= 0 ? "+" : ""}
+                {money(historyTotals.profitLoss)}
+              </div>
+            </div>
+          )
+        )}
       </div>
 
       {editingEntry && (
