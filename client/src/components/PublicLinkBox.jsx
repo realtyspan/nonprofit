@@ -14,6 +14,7 @@ import { api } from "../lib/api";
 export default function PublicLinkBox({ basePath, description, embedBasePath, embedTitle = "Embed" }) {
   const [org, setOrg] = useState(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [isModuleAdmin, setIsModuleAdmin] = useState(false);
   const [slug, setSlug] = useState("");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -31,12 +32,23 @@ export default function PublicLinkBox({ basePath, description, embedBasePath, em
     // Changing the org's public link is Owner-only (see org.js's PATCH
     // /identity) — the slug isn't scoped to any one module, so this checks
     // org-wide tier directly rather than taking it as a prop from every
-    // module screen that embeds this component.
-    api.getMyPermissions().then((p) => setIsOwner(p.orgTier === "Owner")).catch(() => {});
-  }, []);
+    // module screen that embeds this component. The embed panel below (code,
+    // theme, "where did you put this") is different: it's genuinely
+    // module-scoped, so that module's own Admin gets it too, not just Owner.
+    api.getMyPermissions().then((p) => {
+      setIsOwner(p.orgTier === "Owner");
+      setIsModuleAdmin(p.moduleGrants?.[basePath] === "Admin");
+    }).catch(() => {});
+  }, [basePath]);
 
   const publicUrl = org?.slug ? `${window.location.origin}/${basePath}/${org.slug}` : null;
   const embedUrl = org?.slug ? `${window.location.origin}/${embedBasePath}/${org.slug}` : null;
+  // Anyone with access to this screen can see and share the plain public
+  // link — that's the point of it. The embed code and the "where did you
+  // put this" control are gated to this module's Admin (or org Owner):
+  // pasting embed code onto an external site, or changing where the public
+  // link's QR code sends people, is an admin-level action.
+  const canManageEmbed = isOwner || isModuleAdmin;
 
   async function save() {
     setError("");
@@ -143,7 +155,7 @@ window.addEventListener("message", function (e) {
               ) : (
                 !publicUrl && <span style={{ fontSize: 12, color: colors.textSecondary }}>Ask your organization's Owner to set this up.</span>
               )}
-              {embedBasePath && publicUrl && (
+              {embedBasePath && publicUrl && canManageEmbed && (
                 <button style={button.ghost} onClick={() => setShowEmbed((s) => !s)}>{showEmbed ? "Hide embed code" : "Embed on your website"}</button>
               )}
             </>
@@ -152,7 +164,7 @@ window.addEventListener("message", function (e) {
       </div>
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 
-      {showEmbed && embedUrl && (
+      {showEmbed && embedUrl && canManageEmbed && (
         <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontSize: 11.5, color: colors.textSecondary }}>
             Paste this into an HTML/Embed block on your site (Brizy's "Code" element works the same way). Colors and font are optional — leave them to match your site, or adjust to match it exactly.
@@ -186,7 +198,7 @@ window.addEventListener("message", function (e) {
                 <span style={{ fontSize: 12.5, color: pageUrl ? colors.textPrimary : colors.textSecondary, fontFamily: pageUrl ? "monospace" : undefined }}>
                   {pageUrl || "Not set — QR codes will use our page above instead"}
                 </span>
-                {isOwner && <button style={button.ghost} onClick={() => setPageUrlEditing(true)}>{pageUrl ? "Edit" : "Set it"}</button>}
+                {canManageEmbed && <button style={button.ghost} onClick={() => setPageUrlEditing(true)}>{pageUrl ? "Edit" : "Set it"}</button>}
               </div>
             )}
             {pageUrlError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{pageUrlError}</div>}

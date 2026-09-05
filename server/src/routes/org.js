@@ -97,10 +97,18 @@ router.patch("/flyer-colors", requireOwnerOrGolfAdmin, async (req, res) => {
 
 // The actual external webpage where an org has pasted a module's embed code
 // (see PublicLinkBox.jsx) — merged into the existing map by module key so
-// setting golf's URL never touches any other module's. Owner-only, same as
-// the rest of org identity above and matching PublicLinkBox's own edit gate
-// (this field lives in that same "Public link" card).
-router.patch("/identity/embed-page", requireOwner, async (req, res) => {
+// setting golf's URL never touches any other module's. Unlike the shared
+// slug above, this field is genuinely per-module, so that module's own Admin
+// may set it too, not just the org-wide Owner — matching PublicLinkBox's own
+// edit gate (this field lives in that same "Public link" card, but the "Edit
+// link" control for the shared slug itself stays Owner-only).
+function requireOwnerOrEmbedModuleAdmin(req, res, next) {
+  if (req.orgTier === "Owner") return next();
+  const module = req.body.module;
+  if (module && req.moduleGrants[module] === "Admin") return next();
+  return res.status(403).json({ error: "Requires Admin on this module (or org Owner)" });
+}
+router.patch("/identity/embed-page", requireOwnerOrEmbedModuleAdmin, async (req, res) => {
   const { module, url } = req.body;
   if (!module || typeof module !== "string") {
     return res.status(400).json({ error: "module is required" });
