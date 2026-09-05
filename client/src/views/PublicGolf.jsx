@@ -673,7 +673,7 @@ function RegisterForm({ tournament, slug, onCancel }) {
         <div style={{ fontSize: 13 }}>
           {result.team.players.map((p) => p.name).join(", ")} — {money(tournament.costPerPlayer)} per player.
         </div>
-        {(payment.allowCheckPayment || payment.allowInPersonPayment) && result.payUrl ? (
+        {(payment.allowCheckPayment || payment.allowInPersonPayment || payment.payOnlineAvailable) && result.payUrl ? (
           <div style={{ fontSize: 12.5 }}>
             When you're ready, <a href={result.payUrl}>pay for your team here</a>.
           </div>

@@ -7,6 +7,7 @@
 // Mounted in index.js with express.raw(), same as stripeWebhook.js.
 const prisma = require("../lib/prisma");
 const { stripe } = require("../lib/stripe");
+const { addGolfLog, markGolfCheckoutSessionPaid, revertGolfCheckoutSession } = require("../lib/golfLogic");
 
 function onboardingStatusFor(account) {
   if (account.charges_enabled) return "complete";
@@ -55,8 +56,45 @@ async function stripeConnectWebhookHandler(req, res) {
         });
         break;
       }
+      // The authoritative backstop for golf pay-page checkouts — the
+      // client's own /pay/sync and /pay/cancel calls (publicGolf.js) race
+      // to handle the same outcome for instant feedback on return, but
+      // this is what catches anyone who closes the tab before either of
+      // those ever fires. markGolfCheckoutSessionPaid/
+      // revertGolfCheckoutSession are both guarded on paymentStatus:
+      // "pending", so running the same outcome twice (once from the
+      // client, once from here) is always a documented no-op.
+      case "checkout.session.completed": {
+        const session = event.data.object;
+        if (session.payment_status === "paid") {
+          const result = await markGolfCheckoutSessionPaid(session.id, { paymentIntentId: session.payment_intent });
+          if (result.count > 0) {
+            await addGolfLog(result.orgId, result.tournamentId, {
+              type: "payment_recorded",
+              text: `${result.count} player(s) paid online via Stripe`,
+              teamId: result.teamId,
+            });
+          }
+        }
+        break;
+      }
+      case "checkout.session.expired": {
+        // Stripe's own ~24h timeout on a session nobody ever completed or
+        // explicitly canceled — reverts it the same way /pay/cancel does,
+        // so an abandoned attempt doesn't leave a team stuck showing
+        // "pending" indefinitely.
+        const result = await revertGolfCheckoutSession(event.data.object.id);
+        if (result.count > 0) {
+          await addGolfLog(result.orgId, result.tournamentId, {
+            type: "payment_recorded",
+            text: `${result.count} player(s)' online payment attempt expired`,
+            teamId: result.teamId,
+          });
+        }
+        break;
+      }
       default:
-        break; // checkout.session.* events for golf payments land once step 9 creates them
+        break;
     }
   } catch (err) {
     // Stripe retries on a non-2xx response — log and still ack the event

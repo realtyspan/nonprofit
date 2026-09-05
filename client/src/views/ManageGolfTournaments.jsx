@@ -780,6 +780,18 @@ function StripeConnectCard() {
 
   const connected = connect.chargesEnabled;
   const startedNotFinished = connect.stripeAccountId && !connect.chargesEnabled;
+  // "restricted" only ever comes from real Stripe data (sync/webhook), never
+  // from anything the admin clicks — so its banner can be direct. A
+  // deliberate "Disconnect" click and an unexpected Stripe-side
+  // deauthorization leave the exact same shape (disconnectedAt set,
+  // stripeAccountId untouched — see golf.js's DELETE /stripe-connect and
+  // stripeConnectWebhook.js's account.application.deauthorized), so that
+  // banner is worded neutrally rather than assuming either cause. Gated on
+  // `startedNotFinished` (i.e. !connected) so a stale disconnectedAt from
+  // before a successful reconnect never keeps showing this after the fact.
+  const restricted = startedNotFinished && connect.onboardingStatus === "restricted";
+  const disconnected = startedNotFinished && !restricted && !!connect.disconnectedAt;
+  const primaryActionLabel = restricted ? "Continue with Stripe" : disconnected ? "Reconnect Stripe" : "Finish Stripe setup";
 
   return (
     <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -792,13 +804,23 @@ function StripeConnectCard() {
       <div style={{ fontSize: 12, color: colors.textSecondary }}>
         Connect your own Stripe account so players can pay their entry fee online. This app never holds or transfers your funds — Stripe pays your organization directly.
       </div>
+      {restricted && (
+        <div style={{ fontSize: 12, color: colors.warning, background: colors.warningBg, padding: "8px 10px", borderRadius: 7 }}>
+          <strong>Stripe needs more information from you.</strong> This can happen even after setup is mostly done — players can't pay online until it's finished, usually just a few minutes on Stripe's own form.
+        </div>
+      )}
+      {disconnected && (
+        <div style={{ fontSize: 12, color: colors.danger, background: colors.dangerBg, padding: "8px 10px", borderRadius: 7 }}>
+          <strong>Online payment is currently turned off for this org.</strong> Reconnect whenever you're ready.
+        </div>
+      )}
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         {!connect.stripeAccountId && (
           <button style={button.primary} disabled={busy} onClick={startOnboarding}>{busy ? "Redirecting…" : "Connect Stripe"}</button>
         )}
         {startedNotFinished && (
-          <button style={button.primary} disabled={busy} onClick={startOnboarding}>{busy ? "Redirecting…" : "Finish Stripe setup"}</button>
+          <button style={button.primary} disabled={busy} onClick={startOnboarding}>{busy ? "Redirecting…" : primaryActionLabel}</button>
         )}
         {connect.stripeAccountId && (
           <button style={button.ghost} disabled={busy} onClick={refreshStatus}>Refresh status</button>

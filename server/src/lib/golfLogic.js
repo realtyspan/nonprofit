@@ -68,4 +68,55 @@ async function addGolfLog(orgId, tournamentId, { type, text, actorName = "", tea
   await prisma.golfLog.create({ data: { orgId, tournamentId, type, text, actorName, teamId, playerId, sponsorshipId } });
 }
 
-module.exports = { normalizeEmail, findOrCreatePlayer, registerTeam, addGolfLog };
+// The only two places a golf Checkout session's outcome is ever written —
+// shared by three independent callers (publicGolf.js's /pay/sync, its
+// /pay/cancel, and stripeConnectWebhook.js's checkout.session.* handling),
+// so a duplicate webhook delivery, or a race between the client's own sync
+// call and the webhook, always converges on the same result instead of
+// double-processing. Both are guarded on `paymentStatus: "pending"` in the
+// query itself — once a row's already `paid` (or already reverted), a
+// second call here finds nothing and safely no-ops (`count: 0`).
+
+// Marks every still-pending row for a session as paid. Per-row updates
+// (not updateMany) because `amountPaid` is set from each row's own
+// `amountDue` snapshot, which can differ player to player — mirrors
+// registerTeam's own per-row transaction style above.
+async function markGolfCheckoutSessionPaid(sessionId, { paymentIntentId } = {}) {
+  const rows = await prisma.golfTeamPlayer.findMany({
+    where: { stripeCheckoutSessionId: sessionId, paymentStatus: "pending" },
+  });
+  if (rows.length === 0) return { count: 0 };
+
+  await prisma.$transaction(
+    rows.map((row) =>
+      prisma.golfTeamPlayer.update({
+        where: { id: row.id },
+        data: { paymentStatus: "paid", amountPaid: row.amountDue, stripePaymentIntentId: paymentIntentId || null },
+      })
+    )
+  );
+  return { count: rows.length, orgId: rows[0].orgId, tournamentId: rows[0].tournamentId, teamId: rows[0].teamId };
+}
+
+// Reverts a session's still-pending rows back to unpaid — an abandoned or
+// canceled Checkout attempt shouldn't leave a team stuck showing "pending"
+// forever. Can never touch an already-`paid` row (the query itself
+// excludes them), so calling this after the session was actually
+// completed elsewhere is always a safe no-op.
+async function revertGolfCheckoutSession(sessionId) {
+  const rows = await prisma.golfTeamPlayer.findMany({
+    where: { stripeCheckoutSessionId: sessionId, paymentStatus: "pending" },
+  });
+  if (rows.length === 0) return { count: 0 };
+
+  await prisma.golfTeamPlayer.updateMany({
+    where: { id: { in: rows.map((r) => r.id) } },
+    data: { paymentStatus: "unpaid", paymentMethod: null, stripeCheckoutSessionId: null },
+  });
+  return { count: rows.length, orgId: rows[0].orgId, tournamentId: rows[0].tournamentId, teamId: rows[0].teamId };
+}
+
+module.exports = {
+  normalizeEmail, findOrCreatePlayer, registerTeam, addGolfLog,
+  markGolfCheckoutSessionPaid, revertGolfCheckoutSession,
+};

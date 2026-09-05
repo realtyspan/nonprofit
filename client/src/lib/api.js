@@ -431,6 +431,26 @@ export const publicApi = {
     if (!res.ok) throw new Error(data.error || "Request failed");
     return data;
   },
+  async syncGolfPayment(slug, tournamentId, teamId, sessionId) {
+    const res = await fetch(`/api/public/golf/${slug}/tournaments/${tournamentId}/teams/${teamId}/pay/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  },
+  async cancelGolfPayment(slug, tournamentId, teamId, sessionId) {
+    const res = await fetch(`/api/public/golf/${slug}/tournaments/${tournamentId}/teams/${teamId}/pay/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  },
   async getRaffleTicket(ticketId) {
     const res = await fetch(`/api/public/raffle/ticket/${ticketId}`);
     const data = await res.json().catch(() => ({}));

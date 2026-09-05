@@ -1,8 +1,9 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
 const { rateLimit } = require("../lib/rateLimit");
-const { registerTeam, addGolfLog, normalizeEmail } = require("../lib/golfLogic");
+const { registerTeam, addGolfLog, normalizeEmail, markGolfCheckoutSessionPaid, revertGolfCheckoutSession } = require("../lib/golfLogic");
 const { stripPhone } = require("../lib/phone");
+const { stripe } = require("../lib/stripe");
 const { verifyUnsubscribeToken, normalizeEmail: normalizeUnsubEmail } = require("../lib/golfUnsubscribe");
 const { resolveGolfAlertRecipients } = require("../lib/golfAlerts");
 const { golfInterestAlertHtml } = require("../lib/golfInterestEmail");
@@ -222,7 +223,9 @@ router.post(
   "/:slug/tournaments/:tournamentId/register",
   rateLimit({ windowMs: 10 * 60 * 1000, max: 5 }),
   async (req, res) => {
-    const org = await prisma.organization.findUnique({ where: { slug: req.params.slug } });
+    // orgStripeConnect included so the response's payOnlineAvailable
+    // reflects reality — see publicPaymentInfo() below.
+    const org = await prisma.organization.findUnique({ where: { slug: req.params.slug }, include: { orgStripeConnect: true } });
     if (!org) return res.status(404).json({ error: "Not found" });
 
     if (req.body.website) {
@@ -252,7 +255,7 @@ router.post(
       ok: true,
       team: publicTeamShape(team),
       payUrl: `/golf/${req.params.slug}/tournaments/${tournament.id}/teams/${team.id}/pay`,
-      payment: { ...publicPaymentInfo(tournament, org), payOnlineAvailable: false }, // wired up once Stripe Connect lands
+      payment: publicPaymentInfo(tournament, org),
     });
 
     // Fire-and-forget: the team is already created and the visitor already
@@ -289,9 +292,13 @@ router.get("/:slug/tournaments/:tournamentId/teams/:teamId", async (req, res) =>
 });
 
 // Records how a visitor intends to pay for a chosen subset of the roster.
-// check/in_person only stamp paymentMethod and leave paymentStatus "unpaid"
-// pending admin reconciliation — Stripe isn't wired up yet, so it's
-// explicitly rejected here even though the shape is already in place.
+// check/in_person just stamp paymentMethod and leave paymentStatus "unpaid"
+// pending admin reconciliation. stripe creates a real Checkout session for
+// a direct charge on the org's own connected account (see stripe.js's
+// comment on why: platform never touches player money) and stamps the
+// rows "pending" until the client's own return-triggered sync call, or
+// (the reliable backstop) stripeConnectWebhook.js's checkout.session.*
+// handling, confirms it via markGolfCheckoutSessionPaid.
 router.post(
   "/:slug/tournaments/:tournamentId/teams/:teamId/pay",
   rateLimit({ windowMs: 10 * 60 * 1000, max: 10 }),
@@ -316,7 +323,7 @@ router.post(
     if (!Array.isArray(teamPlayerIds) || teamPlayerIds.length === 0) {
       return res.status(400).json({ error: "Select at least one player to pay for" });
     }
-    const selected = team.players.filter((p) => teamPlayerIds.includes(p.id));
+    let selected = team.players.filter((p) => teamPlayerIds.includes(p.id));
     if (selected.length !== teamPlayerIds.length) {
       return res.status(400).json({ error: "One or more selected players aren't on this team" });
     }
@@ -329,7 +336,84 @@ router.post(
     } else if (paymentMethod === "in_person" && !tournament.allowInPersonPayment) {
       return res.status(400).json({ error: "Paying in person isn't available for this tournament" });
     } else if (paymentMethod === "stripe") {
-      return res.status(400).json({ error: "Online payment isn't set up for this tournament yet" });
+      // Defense in depth — the client shouldn't offer this option otherwise,
+      // but never trust that alone for a route that opens a real charge.
+      if (!org.orgStripeConnect?.chargesEnabled) {
+        return res.status(400).json({ error: "Online payment isn't available for this tournament" });
+      }
+      const stripeAccountId = org.orgStripeConnect.stripeAccountId;
+
+      // Stale-session sweep: a visitor who abandoned a previous checkout
+      // attempt (closed the tab instead of using cancel_url) could still
+      // have a live, un-expired session on one or more of these rows.
+      // Resolve every distinct old session before opening a new one, so a
+      // row is never attached to two live sessions at once.
+      const staleSessionIds = [...new Set(
+        selected.filter((p) => p.paymentStatus === "pending" && p.stripeCheckoutSessionId).map((p) => p.stripeCheckoutSessionId)
+      )];
+      for (const oldSessionId of staleSessionIds) {
+        try {
+          const oldSession = await stripe.checkout.sessions.retrieve(oldSessionId, {}, { stripeAccount: stripeAccountId });
+          if (oldSession.payment_status === "paid") {
+            await markGolfCheckoutSessionPaid(oldSessionId, { paymentIntentId: oldSession.payment_intent });
+          } else {
+            await stripe.checkout.sessions.expire(oldSessionId, {}, { stripeAccount: stripeAccountId }).catch(() => {});
+            await revertGolfCheckoutSession(oldSessionId);
+          }
+        } catch (err) {
+          console.error(`Stale golf checkout session ${oldSessionId} sweep failed:`, err.message);
+        }
+      }
+
+      // Re-fetch — the sweep above may have just paid or reverted some of
+      // the originally-selected rows.
+      const refreshedTeam = await prisma.golfTeam.findUnique({
+        where: { id: team.id },
+        include: { players: { include: { player: true } } },
+      });
+      selected = refreshedTeam.players.filter((p) => teamPlayerIds.includes(p.id) && p.paymentStatus !== "paid");
+      if (selected.length === 0) {
+        // Everything selected just got resolved by the sweep above (e.g. an
+        // abandoned session actually turned out to already be paid).
+        return res.json({ team: publicTeamShape(refreshedTeam), payment: publicPaymentInfo(tournament, org) });
+      }
+
+      const appUrl = process.env.APP_URL || "http://localhost:5173";
+      const payPageUrl = `${appUrl}/golf/${req.params.slug}/tournaments/${tournament.id}/teams/${team.id}/pay`;
+
+      // Per-player line items priced from each row's own amountDue (a
+      // snapshot from registration time), never tournament.costPerPlayer
+      // read live — the two are allowed to diverge if the price changes
+      // after someone's already registered.
+      const session = await stripe.checkout.sessions.create(
+        {
+          mode: "payment",
+          payment_method_types: ["card"],
+          line_items: selected.map((p) => ({
+            price_data: {
+              currency: org.orgStripeConnect.defaultCurrency || "usd",
+              product_data: { name: `${tournament.name} — ${p.player.name}` },
+              unit_amount: Math.round(p.amountDue * 100),
+            },
+            quantity: 1,
+          })),
+          client_reference_id: team.id,
+          metadata: { orgId: org.id, tournamentId: tournament.id, teamId: team.id, teamPlayerIds: JSON.stringify(selected.map((p) => p.id)) },
+          success_url: `${payPageUrl}?stripeReturn=1&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${payPageUrl}?stripeCanceled=1&session_id={CHECKOUT_SESSION_ID}`,
+        },
+        { stripeAccount: stripeAccountId } // direct charge — this connected account is the merchant of record, not the platform
+      );
+
+      await prisma.golfTeamPlayer.updateMany({
+        where: { id: { in: selected.map((p) => p.id) } },
+        data: { paymentMethod: "stripe", paymentStatus: "pending", stripeCheckoutSessionId: session.id },
+      });
+
+      // sessionId is included so the client can stash it as a fallback for
+      // reading back on cancel_url, in case {CHECKOUT_SESSION_ID} doesn't
+      // interpolate the way success_url's does on every API version.
+      return res.json({ checkoutUrl: session.url, sessionId: session.id });
     } else if (!["check", "in_person"].includes(paymentMethod)) {
       return res.status(400).json({ error: "Choose a valid payment method" });
     }
@@ -351,6 +435,98 @@ router.post(
       text: `${names} marked as paying by ${paymentMethod === "check" ? "check" : "in person"} (online submission, pending confirmation)`,
       teamId: team.id,
     }).catch((err) => console.error(`Golf payment log failed for team ${team.id}:`, err.message));
+  }
+);
+
+// Called by the client the moment it lands back on the pay page from a
+// completed Stripe Checkout — Stripe doesn't push the webhook instantly,
+// so this gives the visitor an immediate, accurate status instead of
+// waiting on it, same "sync" motivation as golf.js's own
+// /stripe-connect/sync. The webhook remains the authoritative backstop
+// for anyone who closes the tab before this ever fires.
+router.post(
+  "/:slug/tournaments/:tournamentId/teams/:teamId/pay/sync",
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 20 }),
+  async (req, res) => {
+    const org = await prisma.organization.findUnique({ where: { slug: req.params.slug }, include: { orgStripeConnect: true } });
+    if (!org?.orgStripeConnect?.stripeAccountId) return res.status(404).json({ error: "Not found" });
+
+    const tournament = await prisma.golfTournament.findFirst({ where: { id: req.params.tournamentId, orgId: org.id } });
+    if (!tournament) return res.status(404).json({ error: "Not found" });
+
+    const team = await prisma.golfTeam.findFirst({ where: { id: req.params.teamId, orgId: org.id, tournamentId: tournament.id } });
+    if (!team) return res.status(404).json({ error: "Not found" });
+
+    const { sessionId } = req.body;
+    if (sessionId) {
+      try {
+        const session = await stripe.checkout.sessions.retrieve(sessionId, {}, { stripeAccount: org.orgStripeConnect.stripeAccountId });
+        if (session.payment_status === "paid") {
+          const result = await markGolfCheckoutSessionPaid(sessionId, { paymentIntentId: session.payment_intent });
+          if (result.count > 0) {
+            await addGolfLog(org.id, tournament.id, {
+              type: "payment_recorded",
+              text: `${result.count} player(s) paid online via Stripe`,
+              teamId: team.id,
+            });
+          }
+        }
+      } catch (err) {
+        console.error(`Golf checkout sync failed for session ${sessionId}:`, err.message);
+      }
+    }
+
+    const updated = await prisma.golfTeam.findUnique({
+      where: { id: team.id },
+      include: { players: { include: { player: true } } },
+    });
+    res.json({ team: publicTeamShape(updated), payment: publicPaymentInfo(tournament, org) });
+  }
+);
+
+// Called when the client detects it landed back from Stripe's own
+// "back"/cancel action. A Checkout session doesn't become genuinely
+// unpayable just because the browser navigated to cancel_url — its status
+// stays "open" — so this expires it first before reverting the rows,
+// otherwise someone finishing payment in a lingering tab afterward would
+// have no row left to match the completed payment back to.
+router.post(
+  "/:slug/tournaments/:tournamentId/teams/:teamId/pay/cancel",
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 20 }),
+  async (req, res) => {
+    const org = await prisma.organization.findUnique({ where: { slug: req.params.slug }, include: { orgStripeConnect: true } });
+    if (!org?.orgStripeConnect?.stripeAccountId) return res.status(404).json({ error: "Not found" });
+
+    const tournament = await prisma.golfTournament.findFirst({ where: { id: req.params.tournamentId, orgId: org.id } });
+    if (!tournament) return res.status(404).json({ error: "Not found" });
+
+    const team = await prisma.golfTeam.findFirst({ where: { id: req.params.teamId, orgId: org.id, tournamentId: tournament.id } });
+    if (!team) return res.status(404).json({ error: "Not found" });
+
+    const { sessionId } = req.body;
+    if (sessionId) {
+      try {
+        await stripe.checkout.sessions.expire(sessionId, {}, { stripeAccount: org.orgStripeConnect.stripeAccountId });
+      } catch (err) {
+        // Already expired/completed elsewhere (e.g. the sync call already
+        // won this race) — nothing to do, revertGolfCheckoutSession below
+        // will safely no-op too if that's the case.
+      }
+      const result = await revertGolfCheckoutSession(sessionId);
+      if (result.count > 0) {
+        await addGolfLog(org.id, tournament.id, {
+          type: "payment_recorded",
+          text: `${result.count} player(s)' online payment attempt was canceled`,
+          teamId: team.id,
+        });
+      }
+    }
+
+    const updated = await prisma.golfTeam.findUnique({
+      where: { id: team.id },
+      include: { players: { include: { player: true } } },
+    });
+    res.json({ team: publicTeamShape(updated), payment: publicPaymentInfo(tournament, org) });
   }
 );
 
