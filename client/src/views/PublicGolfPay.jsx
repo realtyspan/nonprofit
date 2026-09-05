@@ -161,12 +161,18 @@ function PayCard({ slug, tournamentId, teamId, data, onPaid }) {
       </div>
 
       {unpaid.length === 0 ? (
-        <div style={{ fontSize: 13.5, color: colors.success, fontWeight: 600 }}>Everyone on this team is paid up. Thank you!</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 13.5, color: colors.success, fontWeight: 600 }}>Everyone on this team is paid up. Thank you!</div>
+          <BackToTournamentButton slug={slug} />
+        </div>
       ) : confirmed ? (
-        <div style={{ padding: 14, background: colors.successBg, borderRadius: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: colors.success }}>Got it — thanks!</div>
-          {confirmed === "check" && <div style={{ fontSize: 12.5 }}>{payment.checkPayableInstructions || "Contact the organizer for check instructions."}</div>}
-          {confirmed === "in_person" && <div style={{ fontSize: 12.5 }}>{payment.inPersonPaymentInstructions || "Contact the organizer for in-person payment instructions."}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ padding: 14, background: colors.successBg, borderRadius: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: colors.success }}>Got it — thanks!</div>
+            {confirmed === "check" && <div style={{ fontSize: 12.5 }}>{payment.checkPayableInstructions || "Contact the organizer for check instructions."}</div>}
+            {confirmed === "in_person" && <div style={{ fontSize: 12.5 }}>{payment.inPersonPaymentInstructions || "Contact the organizer for in-person payment instructions."}</div>}
+          </div>
+          <BackToTournamentButton slug={slug} />
         </div>
       ) : (
         <>
@@ -207,6 +213,14 @@ function PayCard({ slug, tournamentId, teamId, data, onPaid }) {
         </>
       )}
     </div>
+  );
+}
+
+function BackToTournamentButton({ slug }) {
+  return (
+    <button style={button.ghost} onClick={() => { window.location.href = `/golf/${slug}`; }}>
+      Back to tournament page
+    </button>
   );
 }
 
