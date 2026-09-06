@@ -354,6 +354,7 @@ export const api = {
   unpublishEvent: (eventId) => request(`/events/${eventId}/unpublish`, { method: "POST" }),
   cancelEvent: (eventId) => request(`/events/${eventId}/cancel`, { method: "POST" }),
   deleteEvent: (eventId) => request(`/events/${eventId}`, { method: "DELETE" }),
+  downloadEventFlyerPdf: (eventId, eventTitle) => download(`/events/${eventId}/flyer`, `${(eventTitle || "Event").replace(/\s+/g, "_")}_Flyer.pdf`),
 };
 
 export { downloadTextFile };

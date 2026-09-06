@@ -1,44 +1,53 @@
 import React, { useEffect, useRef, useState } from "react";
 import { publicApi } from "../lib/api";
+import { colors } from "../lib/tokens";
 import { parseThemeFromQuery, postEmbedResize } from "../lib/embedTheme";
 import logo from "../assets/logo.png";
 
-// A dedicated, self-contained visual system for this one page — not the
-// app's own tokens.js palette. Per the commissioned design's own README:
-// "High-fidelity. Colors, typography, spacing, radii and shadows are
-// final." Scoped entirely under .pev (same technique as PublicGolf.jsx's
-// own .evt-prefixed embed design system) so it can never leak into, or be
-// leaked into by, the rest of the app. The query-param theme override
-// (accent/bg/surface/text/textSecondary/border/font — see embedTheme.js)
-// still applies on top via pevStyleVars below, for embedding on an org's
-// own site with matching colors.
+// This page's visual system now mirrors the app's own tokens.js palette
+// and font (Inter, already loaded app-wide via index.html — no separate
+// font loading needed here) rather than the commissioned design's original
+// standalone cream/Caprasimo look. Scoped entirely under .pev (same
+// technique as PublicGolf.jsx's own .evt-prefixed embed design system) so
+// it can never leak into, or be leaked into by, the rest of the app. The
+// query-param theme override (accent/bg/surface/text/textSecondary/border/
+// font — see embedTheme.js) still applies on top via pevStyleVars below,
+// so an org can still restyle this to match their own website when they
+// embed it — same as every other public page already works.
+//
+// Color mapping, one hue family in for one hue family out (the design's
+// own structural split, just re-hued): the design's single main "accent"
+// (used broadly — buttons, selection, focus ring) becomes the app's own
+// teal accent; its separate secondary "accent-2" (used only for the two
+// tag flavors, e.g. the recurrence label) becomes the app's terracotta
+// focus color.
 const PEV_CSS = `
 .pev {
-  --pev-bg:            #f5ead8;
-  --pev-surface:       #ebddc5;
-  --pev-neutral-100:   #f9f4ed;
-  --pev-neutral-500:   #a19786;
-  --pev-neutral-600:   #82796a;
-  --pev-neutral-700:   #645c50;
-  --pev-neutral-800:   #474238;
-  --pev-text:          #201e1d;
-  --pev-divider:       rgba(32, 30, 29, .16);
-  --pev-accent:        #c67139;
-  --pev-accent-100:    #fff2eb;
-  --pev-accent-300:    #ffc6a5;
-  --pev-accent-400:    #f6a06b;
-  --pev-accent-700:    #8c491a;
-  --pev-accent-2:      #7a8a5e;
-  --pev-accent-2-100:  #f0fae1;
-  --pev-accent-2-300:  #ccdbb2;
+  --pev-bg:            ${colors.bg};
+  --pev-surface:       ${colors.surface};
+  --pev-neutral-100:   ${colors.surface};
+  --pev-neutral-500:   ${colors.textTertiary};
+  --pev-neutral-600:   ${colors.textTertiary};
+  --pev-neutral-700:   ${colors.textSecondary};
+  --pev-neutral-800:   ${colors.textPrimary};
+  --pev-text:          ${colors.textPrimary};
+  --pev-divider:       ${colors.border};
+  --pev-accent:        ${colors.accent};
+  --pev-accent-100:    ${colors.accentSoft};
+  --pev-accent-300:    ${colors.accentSoft};
+  --pev-accent-400:    ${colors.accent};
+  --pev-accent-700:    ${colors.accentHover};
+  --pev-accent-2:      ${colors.focus};
+  --pev-accent-2-100:  ${colors.focusBg};
+  --pev-accent-2-700:  ${colors.focusHover};
   --pev-radius-sm:     8px;
   --pev-radius-md:     16px;
   --pev-radius-lg:     28px;
   --pev-shadow-sm:     0 1px 2px rgba(46,43,37,.14);
   --pev-shadow-md:     0 3px 10px rgba(46,43,37,.16);
   --pev-shadow-lg:     0 12px 32px rgba(46,43,37,.22);
-  --pev-heading:       "Caprasimo", Georgia, serif;
-  --pev-body:          "Figtree", system-ui, -apple-system, sans-serif;
+  --pev-heading:       "Inter", system-ui, -apple-system, sans-serif;
+  --pev-body:          "Inter", system-ui, -apple-system, sans-serif;
 
   background: var(--pev-bg);
   color: var(--pev-text);
@@ -58,7 +67,7 @@ const PEV_CSS = `
   padding: 18px 32px;
 }
 .pev-brand { display: flex; align-items: center; gap: 12px; }
-.pev-brand-name { font-family: var(--pev-heading); font-weight: 400; font-size: 17px; line-height: 1.2; }
+.pev-brand-name { font-family: var(--pev-heading); font-weight: 700; font-size: 17px; line-height: 1.2; }
 .pev-brand-sub { font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--pev-neutral-700); }
 .pev-nav { display: flex; gap: 22px; flex-wrap: wrap; }
 .pev-nav a { font-size: 14px; font-weight: 600; color: var(--pev-neutral-700); }
@@ -76,14 +85,14 @@ const PEV_CSS = `
   padding: 5px 12px; border-radius: 999px; white-space: nowrap;
 }
 .pev-tag-accent { background: var(--pev-accent-100); color: var(--pev-accent-700); }
-.pev-tag-accent-2 { background: var(--pev-accent-2-100); color: #4b5a34; }
+.pev-tag-accent-2 { background: var(--pev-accent-2-100); color: var(--pev-accent-2-700); }
 
 .pev-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   border-radius: 999px; font-family: var(--pev-body); font-weight: 600; font-size: 14px;
   padding: 12px 22px; border: none; cursor: pointer;
 }
-.pev-btn-primary { background: var(--pev-accent); color: #fff9f3; }
+.pev-btn-primary { background: var(--pev-accent); color: #fff; }
 .pev-btn-primary:hover { background: var(--pev-accent-700); }
 .pev-btn-secondary { background: var(--pev-neutral-100); color: var(--pev-text); border: 1px solid var(--pev-divider); }
 .pev-btn-secondary:hover { border-color: var(--pev-accent-400); }
@@ -98,7 +107,7 @@ const PEV_CSS = `
 .pev-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; align-items: center; }
 .pev-hero-left { display: flex; flex-direction: column; gap: 18px; }
 .pev-hero-tags { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.pev-title { font-family: var(--pev-heading); font-weight: 400; font-size: clamp(38px, 5.6vw, 64px); line-height: 1.02; letter-spacing: -.01em; text-wrap: balance; }
+.pev-title { font-family: var(--pev-heading); font-weight: 700; font-size: clamp(38px, 5.6vw, 64px); line-height: 1.02; letter-spacing: -.01em; text-wrap: balance; }
 .pev-tagline { font-size: 19px; line-height: 1.55; max-width: 44ch; color: var(--pev-neutral-800); text-wrap: pretty; }
 .pev-hero-photo { aspect-ratio: 4/3; }
 .pev-hero-photo img { width: 100%; height: 100%; object-fit: cover; }
@@ -108,19 +117,19 @@ const PEV_CSS = `
   padding: 34px 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 34px; align-items: center;
 }
 .pev-details-left { display: flex; flex-direction: column; gap: 10px; }
-.pev-date { font-family: var(--pev-heading); font-weight: 400; font-size: clamp(30px, 3.4vw, 42px); line-height: 1.1; }
+.pev-date { font-family: var(--pev-heading); font-weight: 700; font-size: clamp(30px, 3.4vw, 42px); line-height: 1.1; }
 .pev-time { font-size: 17px; font-weight: 600; color: var(--pev-neutral-800); }
 .pev-status-note { font-size: 15px; line-height: 1.5; color: var(--pev-neutral-700); max-width: 38ch; }
 .pev-details-right { display: flex; flex-direction: column; gap: 14px; }
 .pev-price-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.pev-price { font-family: var(--pev-heading); font-weight: 400; font-size: 44px; color: var(--pev-accent-700); }
+.pev-price { font-family: var(--pev-heading); font-weight: 700; font-size: 44px; color: var(--pev-accent-700); }
 .pev-price-unit { font-size: 15px; font-weight: 600; color: var(--pev-neutral-700); }
 .pev-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .pev-admission-note { font-size: 14px; color: var(--pev-neutral-700); }
 
 .pev-includes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 40px; align-items: start; }
 .pev-includes-left { display: flex; flex-direction: column; gap: 18px; }
-.pev-includes-heading { font-family: var(--pev-heading); font-weight: 400; font-size: 30px; }
+.pev-includes-heading { font-family: var(--pev-heading); font-weight: 700; font-size: 30px; }
 .pev-includes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .pev-includes-list li { display: flex; align-items: baseline; gap: 12px; font-size: 17px; line-height: 1.45; }
 .pev-includes-list li::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--pev-accent); flex: none; transform: translateY(-2px); }
@@ -129,7 +138,7 @@ const PEV_CSS = `
 .pev-includes-photo img { width: 100%; height: 100%; object-fit: cover; }
 
 .pev-sidebar-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
-.pev-sidebar-title { font-family: var(--pev-heading); font-weight: 400; font-size: 22px; }
+.pev-sidebar-title { font-family: var(--pev-heading); font-weight: 700; font-size: 22px; }
 .pev-sidebar-link { font-size: 13px; font-weight: 600; color: var(--pev-accent-700); }
 .pev-sidebar-list { display: flex; flex-direction: column; gap: 8px; max-height: 64vh; overflow-y: auto; }
 .pev-row {
@@ -140,7 +149,7 @@ const PEV_CSS = `
 .pev-row.selected { border-color: var(--pev-accent); background: var(--pev-accent-100); }
 .pev-row-date { width: 44px; flex: none; text-align: center; }
 .pev-row-month { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--pev-accent-700); }
-.pev-row-day { font-family: var(--pev-heading); font-weight: 400; font-size: 22px; line-height: 1.1; }
+.pev-row-day { font-family: var(--pev-heading); font-weight: 700; font-size: 22px; line-height: 1.1; }
 .pev-row-body { flex: 1; min-width: 0; }
 .pev-row-title { font-size: 15px; font-weight: 700; line-height: 1.25; }
 .pev-row-meta { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--pev-neutral-700); margin-top: 3px; }
@@ -155,7 +164,7 @@ const PEV_CSS = `
 .pev-footer-copy { font-size: 13px; color: var(--pev-neutral-600); }
 
 .pev-empty { max-width: 480px; margin: 80px auto; text-align: center; display: flex; flex-direction: column; gap: 10px; padding: 0 24px; }
-.pev-empty-title { font-family: var(--pev-heading); font-weight: 400; font-size: 28px; }
+.pev-empty-title { font-family: var(--pev-heading); font-weight: 700; font-size: 28px; }
 
 @media (max-width: 640px) {
   .pev-main { padding: 32px 20px 56px; gap: 36px; }
@@ -176,19 +185,6 @@ function pevStyleVars(theme, font) {
   if (theme.border) vars["--pev-divider"] = theme.border;
   if (font) vars["--pev-body"] = `"${font}", system-ui, -apple-system, sans-serif`;
   return vars;
-}
-
-// The design's own two display faces — loaded once regardless of embed
-// theming (a font override replaces the body face via pevStyleVars above,
-// but Caprasimo headings are part of the commissioned look itself).
-function useEventFonts() {
-  useEffect(() => {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;600;700&display=swap";
-    document.head.appendChild(link);
-    return () => document.head.removeChild(link);
-  }, []);
 }
 
 function ClockIcon() {
@@ -217,7 +213,6 @@ function monthDay(iso) {
 }
 
 export default function PublicEvents({ slug, embed }) {
-  useEventFonts();
   const [orgName, setOrgName] = useState(null);
   const [events, setEvents] = useState([]);
   const [error, setError] = useState("");

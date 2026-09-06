@@ -204,6 +204,8 @@ function loadFonts() {
 //   date,                            // Date | ISO string — drives the corner date tab
 //   stats: [{ label, value }],       // up to 3, e.g. Format/Cost/Venue
 //   includedItems: string[],
+//   includedItemsHeading,             // optional — defaults to "What's Included" (golf never sets this; Events uses its own per-event heading)
+//   ctaEyebrow, ctaHeadline,          // optional — default to "REGISTER YOUR TEAM" / "SCAN TO SIGN UP" (golf's wording; Events sets its own)
 //   scheduleItems: [{ time, label }],
 //   contactName, contactPhone,
 //   registerUrl,                     // absolute URL — encoded into the QR and printed as text
@@ -332,7 +334,7 @@ async function buildEventFlyerPdf(content) {
 
   if (content.includedItems && content.includedItems.length) {
     let ly = y2;
-    ly = drawSectionHeading(page, "What's Included", leftX, ly, interBold, theme.primaryDeep);
+    ly = drawSectionHeading(page, content.includedItemsHeading || "What's Included", leftX, ly, interBold, theme.primaryDeep);
     ly -= SECTION_HEADING_GAP;
     // Single column (not a 2-up grid) — matches the approved flyer rendering.
     content.includedItems.forEach((item, i) => {
@@ -388,9 +390,9 @@ async function buildEventFlyerPdf(content) {
 
   const copyX = MARGIN + qrSize + qrPad * 2 + 22;
   let cty = ctaY + ctaBandH - 24;
-  page.drawText("REGISTER YOUR TEAM", { x: copyX, y: cty, size: 10, font: interBold, color: theme.accentTintText });
+  page.drawText(content.ctaEyebrow || "REGISTER YOUR TEAM", { x: copyX, y: cty, size: 10, font: interBold, color: theme.accentTintText });
   cty -= 26;
-  page.drawText("SCAN TO SIGN UP", { x: copyX, y: cty, size: 24, font: displayBlack, color: NEUTRAL.white });
+  page.drawText(content.ctaHeadline || "SCAN TO SIGN UP", { x: copyX, y: cty, size: 24, font: displayBlack, color: NEUTRAL.white });
   cty -= 20;
   if (content.registerUrlLabel) {
     page.drawText(content.registerUrlLabel, { x: copyX, y: cty, size: 11, font: interSemiBold, color: NEUTRAL.white });

@@ -2,6 +2,7 @@ const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
 const { publishEvent, removeCalendarEventFor } = require("../lib/calendarSync");
+const { buildEventRecordFlyerPdf, resolveEventFlyerUrl } = require("../lib/eventFlyerPdf");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -95,6 +96,32 @@ function resolveEventFields(body) {
 router.get("/", requireReadAccess("events"), async (req, res) => {
   const events = await prisma.event.findMany({ where: { orgId: req.user.orgId }, orderBy: { startAt: "asc" } });
   res.json(events);
+});
+
+// Print-ready flyer PDF with a QR code — see resolveEventFlyerUrl for the
+// QR's destination. Same shape/permission level as golf.js's own tournament
+// flyer route.
+router.get("/:id/flyer", requireReadAccess("events"), async (req, res) => {
+  const event = await prisma.event.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!event) return res.status(404).json({ error: "Event not found" });
+
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const flyerUrl = resolveEventFlyerUrl(org, event);
+  if (!flyerUrl) {
+    return res.status(400).json({ error: "Set up your organization's public link first (Events → Public link), then download the flyer." });
+  }
+
+  let bytes;
+  try {
+    bytes = await buildEventRecordFlyerPdf({ org, event, flyerUrl });
+  } catch (err) {
+    return res.status(500).json({ error: "Couldn't generate the flyer: " + err.message });
+  }
+
+  const fileSafeName = event.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "event";
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileSafeName}-flyer.pdf"`);
+  res.send(Buffer.from(bytes));
 });
 
 router.post("/", requirePermission("events", "Admin"), async (req, res) => {
