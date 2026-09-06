@@ -42,8 +42,33 @@ async function publishRentalBlock(orgId, block, space) {
   }
 }
 
+// Only ever called for a "published" Event (see events.js) — a draft or
+// cancelled one has no business on the calendar at all, and removes any
+// stale entry via removeCalendarEventFor("event", event.id) instead. The
+// linkUrl sends Calendar's own "More info" straight to the full Events
+// page for that event, deep-linked via its slug.
+async function publishEvent(orgId, event, org) {
+  const existing = await prisma.calendarEvent.findFirst({ where: { source: "event", sourceId: event.id } });
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+  const data = {
+    title: event.title,
+    description: event.tagline || event.description || null,
+    location: event.location || null,
+    startAt: event.startAt,
+    endAt: event.endAt,
+    allDay: event.allDay,
+    visibility: "public",
+    linkUrl: org?.slug ? `${appUrl}/events/${org.slug}?event=${event.slug}` : null,
+  };
+  if (existing) {
+    await prisma.calendarEvent.update({ where: { id: existing.id }, data });
+  } else {
+    await prisma.calendarEvent.create({ data: { orgId, source: "event", sourceId: event.id, ...data } });
+  }
+}
+
 async function removeCalendarEventFor(source, sourceId) {
   await prisma.calendarEvent.deleteMany({ where: { source, sourceId } });
 }
 
-module.exports = { publishRentalBooking, publishRentalBlock, removeCalendarEventFor };
+module.exports = { publishRentalBooking, publishRentalBlock, publishEvent, removeCalendarEventFor };

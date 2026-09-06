@@ -346,6 +346,14 @@ export const api = {
   updatePlatformOrgCategory: (id, name) => request(`/platform-admin/org-categories/${id}`, { method: "PATCH", body: { name } }),
   deletePlatformOrgCategory: (id) => request(`/platform-admin/org-categories/${id}`, { method: "DELETE" }),
   updatePlatformOrgCategoryAssignment: (orgId, orgCategoryId) => request(`/platform-admin/organizations/${orgId}/category`, { method: "PATCH", body: { orgCategoryId } }),
+
+  listEvents: () => request("/events"),
+  createEvent: (payload) => request("/events", { method: "POST", body: payload }),
+  updateEvent: (eventId, payload) => request(`/events/${eventId}`, { method: "PATCH", body: payload }),
+  publishEvent: (eventId) => request(`/events/${eventId}/publish`, { method: "POST" }),
+  unpublishEvent: (eventId) => request(`/events/${eventId}/unpublish`, { method: "POST" }),
+  cancelEvent: (eventId) => request(`/events/${eventId}/cancel`, { method: "POST" }),
+  deleteEvent: (eventId) => request(`/events/${eventId}`, { method: "DELETE" }),
 };
 
 export { downloadTextFile };
@@ -370,6 +378,12 @@ export const publicApi = {
   },
   async getCalendarPage(slug, start, end) {
     const res = await fetch(`/api/public/calendar/${slug}?start=${start.toISOString()}&end=${end.toISOString()}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Not found");
+    return data;
+  },
+  async getEventsPage(slug) {
+    const res = await fetch(`/api/public/events/${slug}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Not found");
     return data;

@@ -74,6 +74,15 @@ export const MODULES = [
     ],
   },
   {
+    key: "events",
+    label: "Events",
+    icon: icons.star,
+    blurb: "Standalone events · Public page, details & payment info",
+    navItems: [
+      { key: "manage", label: "Events", icon: icons.star, title: "Events", subtitle: "Create, publish, and manage your public events" },
+    ],
+  },
+  {
     key: "elks-tools",
     label: "Elks Tools",
     icon: icons.apps,
