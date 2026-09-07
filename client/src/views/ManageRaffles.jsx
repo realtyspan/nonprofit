@@ -3,15 +3,18 @@ import { colors, card, pill, button, input as inputStyle, money } from "../lib/t
 import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
 import { formatPhone } from "../lib/phone";
+import { hasModuleTier } from "../lib/modules";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
+import AdminAccessNotice from "../components/AdminAccessNotice";
 import { useConfirm } from "../lib/ConfirmContext";
 
 // Game management (start a raffle, correct its details, open/close it) — kept
 // separate from Report, which is pure reporting (stats, payment reminders).
 // "Report" is a strange place to find "create a new raffle," which is what
 // this view exists to fix.
-export default function ManageRaffles({ games, gameId, onGamesChanged }) {
+export default function ManageRaffles({ games, gameId, onGamesChanged, permissions }) {
+  const isAdmin = hasModuleTier(permissions, "raffle", "Admin");
   const [showNewGameForm, setShowNewGameForm] = useState(false);
   const [editingGame, setEditingGame] = useState(null);
   const [deletingGame, setDeletingGame] = useState(null);
@@ -42,6 +45,8 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <AdminAccessNotice permissions={permissions} moduleKey="raffle" moduleLabel="Raffle" itemLabel="a raffle" />
+
       {selectedGame && (
         <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -72,8 +77,9 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
           {lifecycleError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{lifecycleError}</div>}
           <div>
             <button
-              style={selectedGame.status === "active" ? { ...button.ghost, color: colors.danger } : button.primary}
-              disabled={lifecycleBusy}
+              style={!isAdmin ? button.disabled : selectedGame.status === "active" ? { ...button.ghost, color: colors.danger } : button.primary}
+              disabled={lifecycleBusy || !isAdmin}
+              title={!isAdmin ? "Only a Raffle Admin can change a raffle's status" : ""}
               onClick={toggleLifecycle}
             >
               {lifecycleBusy ? "Working…" : selectedGame.status === "active" ? "Close raffle" : "Reopen raffle"}
@@ -103,8 +109,8 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
               key: "actions", label: "", footerRow: true,
               render: (g) => g.status === "active" ? (
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} onClick={() => setEditingGame(g)}>Edit</button>
-                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} onClick={() => setDeletingGame(g)}>Delete</button>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={!isAdmin} title={!isAdmin ? "Only a Raffle Admin can edit a raffle" : ""} onClick={() => setEditingGame(g)}>Edit</button>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} disabled={!isAdmin} title={!isAdmin ? "Only a Raffle Admin can delete a raffle" : ""} onClick={() => setDeletingGame(g)}>Delete</button>
                 </div>
               ) : null,
             },
@@ -118,7 +124,16 @@ export default function ManageRaffles({ games, gameId, onGamesChanged }) {
           <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
             Creating a new raffle never touches any other raffle — you can run more than one at the same time, each with its own ticket numbering, price, and dates.
           </div>
-          <div><button style={button.primary} onClick={() => setShowNewGameForm(true)}>+ New raffle</button></div>
+          <div>
+            <button
+              style={isAdmin ? button.primary : button.disabled}
+              disabled={!isAdmin}
+              title={!isAdmin ? "Only a Raffle Admin can create a raffle" : ""}
+              onClick={() => setShowNewGameForm(true)}
+            >
+              + New raffle
+            </button>
+          </div>
         </div>
       ) : (
         <NewGameForm

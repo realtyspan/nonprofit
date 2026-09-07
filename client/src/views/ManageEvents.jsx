@@ -2,9 +2,11 @@ import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import { resizeImageFile } from "../lib/imageResize";
+import { hasModuleTier } from "../lib/modules";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
 import PublicLinkBox from "../components/PublicLinkBox";
+import AdminAccessNotice from "../components/AdminAccessNotice";
 
 function toLocalInputValue(iso) {
   if (!iso) return "";
@@ -19,14 +21,13 @@ function statusStyle(status) {
   return ["#f1ece0", colors.textSecondary]; // draft
 }
 
-export default function ManageEvents() {
+export default function ManageEvents({ permissions }) {
   const [events, setEvents] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [editing, setEditing] = useState(null); // event being edited, or {} for new
   const [deleting, setDeleting] = useState(null);
   const [lifecycleBusy, setLifecycleBusy] = useState(null); // event id currently transitioning
   const [lifecycleError, setLifecycleError] = useState("");
-  const [canManage, setCanManage] = useState(false);
   const [flyerBusyId, setFlyerBusyId] = useState(null);
   const [flyerError, setFlyerError] = useState("");
 
@@ -37,13 +38,13 @@ export default function ManageEvents() {
 
   // A Helper on this module can see every event (read access is granted by
   // holding any grant at all — see requireReadAccess("events") server-side),
-  // but creating/editing/publishing/cancelling/deleting is Admin-or-Owner
-  // only, same tier rule as every other module's own management screen.
-  // The server already enforces this regardless; this just keeps the UI from
-  // offering a Helper a button that would only 403.
-  useEffect(() => {
-    api.getMyPermissions().then((p) => setCanManage(p.orgTier === "Owner" || p.moduleGrants?.events === "Admin")).catch(() => {});
-  }, []);
+  // but creating/editing/publishing/cancelling/deleting is Admin-only —
+  // never an Owner bypass, see server/src/lib/auth.js's requirePermission.
+  // hasModuleTier() (client/src/lib/modules.js) is the one correct check for
+  // this — it deliberately does NOT give Owner a free pass either, so this
+  // stays in lockstep with what the server actually enforces instead of
+  // letting someone fill out a whole form only to be 403'd at the end.
+  const canManage = hasModuleTier(permissions, "events", "Admin");
 
   async function transition(event, action) {
     setLifecycleBusy(event.id);
@@ -95,13 +96,22 @@ export default function ManageEvents() {
         description="Set a link so visitors can see your published events and how to reserve or pay."
       />
 
+      <AdminAccessNotice permissions={permissions} moduleKey="events" moduleLabel="Events" itemLabel="an event" />
+
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>Events</div>
             <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>Create, publish, and manage your public events.</div>
           </div>
-          {canManage && <button style={button.primary} onClick={() => setEditing({})}>+ New event</button>}
+          <button
+            style={canManage ? button.primary : button.disabled}
+            disabled={!canManage}
+            title={!canManage ? "Only an Events Admin can create an event" : ""}
+            onClick={() => setEditing({})}
+          >
+            + New event
+          </button>
         </div>
 
         {lifecycleError && <div style={{ padding: "10px 18px 0", color: colors.danger, fontSize: 12.5, fontWeight: 600 }}>{lifecycleError}</div>}
@@ -136,21 +146,17 @@ export default function ManageEvents() {
                       <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={flyerBusy} onClick={() => downloadFlyer(e)}>
                         {flyerBusy ? "Preparing…" : "Download flyer"}
                       </button>
-                      {canManage && (
-                        <>
-                          <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} onClick={() => setEditing(e)}>Edit</button>
-                          {e.status !== "published" && e.status !== "cancelled" && (
-                            <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={busy} onClick={() => transition(e, "publish")}>Publish</button>
-                          )}
-                          {e.status === "published" && (
-                            <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={busy} onClick={() => transition(e, "unpublish")}>Unpublish</button>
-                          )}
-                          {e.status !== "cancelled" && (
-                            <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} disabled={busy} onClick={() => transition(e, "cancel")}>Cancel</button>
-                          )}
-                          <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} disabled={busy} onClick={() => setDeleting(e)}>Delete</button>
-                        </>
+                      <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={!canManage} title={!canManage ? "Only an Events Admin can edit an event" : ""} onClick={() => setEditing(e)}>Edit</button>
+                      {e.status !== "published" && e.status !== "cancelled" && (
+                        <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={busy || !canManage} title={!canManage ? "Only an Events Admin can publish an event" : ""} onClick={() => transition(e, "publish")}>Publish</button>
                       )}
+                      {e.status === "published" && (
+                        <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={busy || !canManage} title={!canManage ? "Only an Events Admin can unpublish an event" : ""} onClick={() => transition(e, "unpublish")}>Unpublish</button>
+                      )}
+                      {e.status !== "cancelled" && (
+                        <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} disabled={busy || !canManage} title={!canManage ? "Only an Events Admin can cancel an event" : ""} onClick={() => transition(e, "cancel")}>Cancel</button>
+                      )}
+                      <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} disabled={busy || !canManage} title={!canManage ? "Only an Events Admin can delete an event" : ""} onClick={() => setDeleting(e)}>Delete</button>
                     </div>
                   );
                 },

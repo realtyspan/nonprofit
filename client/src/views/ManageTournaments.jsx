@@ -4,16 +4,19 @@ import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
 import { resizeImageFile } from "../lib/imageResize";
 import { formatPhone, stripPhone } from "../lib/phone";
+import { hasModuleTier } from "../lib/modules";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
 import PublicLinkBox from "../components/PublicLinkBox";
+import AdminAccessNotice from "../components/AdminAccessNotice";
 import { useConfirm } from "../lib/ConfirmContext";
 
 // Direct port of ManageGolfTournaments.jsx, generalized off "golf" and
 // adding the org-managed tournament-type list. Marketing email, check-in,
 // sponsorships, and historical import are deliberately not ported yet —
 // see the plan doc's slice-1 scope.
-export default function ManageTournaments({ tournaments, tournamentId, onTournamentsChanged }) {
+export default function ManageTournaments({ tournaments, tournamentId, onTournamentsChanged, permissions }) {
+  const isAdmin = hasModuleTier(permissions, "tournaments", "Admin");
   const [showNewForm, setShowNewForm] = useState(false);
   const [editingTournament, setEditingTournament] = useState(null);
   const [deletingTournament, setDeletingTournament] = useState(null);
@@ -64,6 +67,8 @@ export default function ManageTournaments({ tournaments, tournamentId, onTournam
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <AdminAccessNotice permissions={permissions} moduleKey="tournaments" moduleLabel="Tournaments" itemLabel="a tournament" />
+
       {selected && (
         <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -94,8 +99,9 @@ export default function ManageTournaments({ tournaments, tournamentId, onTournam
           {flyerError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{flyerError}</div>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
-              style={selected.status === "open" ? { ...button.ghost, color: colors.danger } : button.primary}
-              disabled={lifecycleBusy}
+              style={!isAdmin ? button.disabled : selected.status === "open" ? { ...button.ghost, color: colors.danger } : button.primary}
+              disabled={lifecycleBusy || !isAdmin}
+              title={!isAdmin ? "Only a Tournaments Admin can change a tournament's status" : ""}
               onClick={toggleLifecycle}
             >
               {lifecycleBusy ? "Working…" : lifecycleLabel}
@@ -129,8 +135,8 @@ export default function ManageTournaments({ tournaments, tournamentId, onTournam
               key: "actions", label: "", footerRow: true,
               render: (t) => t.status !== "closed" ? (
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} onClick={() => setEditingTournament(t)}>Edit</button>
-                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} onClick={() => setDeletingTournament(t)}>Delete</button>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={!isAdmin} title={!isAdmin ? "Only a Tournaments Admin can edit a tournament" : ""} onClick={() => setEditingTournament(t)}>Edit</button>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} disabled={!isAdmin} title={!isAdmin ? "Only a Tournaments Admin can delete a tournament" : ""} onClick={() => setDeletingTournament(t)}>Delete</button>
                 </div>
               ) : null,
             },
@@ -138,7 +144,7 @@ export default function ManageTournaments({ tournaments, tournamentId, onTournam
         />
       </div>
 
-      <TournamentTypesCard types={types} onChanged={refreshTypes} />
+      <TournamentTypesCard types={types} onChanged={refreshTypes} isAdmin={isAdmin} />
 
       {!showNewForm ? (
         <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -149,7 +155,16 @@ export default function ManageTournaments({ tournaments, tournamentId, onTournam
           {types.length === 0 ? (
             <div style={{ fontSize: 12.5, color: colors.warning }}>Add a tournament type above first (e.g. "Golf," "Horseshoes," "Cornhole").</div>
           ) : (
-            <div><button style={button.primary} onClick={() => setShowNewForm(true)}>+ New tournament</button></div>
+            <div>
+              <button
+                style={isAdmin ? button.primary : button.disabled}
+                disabled={!isAdmin}
+                title={!isAdmin ? "Only a Tournaments Admin can create a tournament" : ""}
+                onClick={() => setShowNewForm(true)}
+              >
+                + New tournament
+              </button>
+            </div>
           )}
         </div>
       ) : (
@@ -195,7 +210,7 @@ export default function ManageTournaments({ tournaments, tournamentId, onTournam
 // Org-managed list of tournament types — the control the user asked for so
 // "type" is a chosen list, not free text. Small enough to live inline here
 // rather than earn its own nav item.
-function TournamentTypesCard({ types, onChanged }) {
+function TournamentTypesCard({ types, onChanged, isAdmin }) {
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -241,14 +256,14 @@ function TournamentTypesCard({ types, onChanged }) {
         {types.map((t) => (
           <span key={t.id} style={{ ...pill("#f1ece0", colors.textSecondary), display: "flex", alignItems: "center", gap: 6 }}>
             {t.name}
-            <button type="button" onClick={() => remove(t)} disabled={busy} style={{ background: "none", border: "none", cursor: "pointer", color: colors.danger, fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
+            <button type="button" onClick={() => remove(t)} disabled={busy || !isAdmin} title={!isAdmin ? "Only a Tournaments Admin can remove a type" : ""} style={{ background: "none", border: "none", cursor: isAdmin ? "pointer" : "not-allowed", color: isAdmin ? colors.danger : colors.textTertiary, fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
           </span>
         ))}
         {types.length === 0 && <span style={{ fontSize: 12.5, color: colors.textSecondary }}>No types yet — add one below.</span>}
       </div>
       <form onSubmit={add} style={{ display: "flex", gap: 8 }}>
-        <input style={{ ...inputStyle, maxWidth: 220 }} placeholder="e.g. Horseshoes" value={newName} onChange={(e) => setNewName(e.target.value)} />
-        <button type="submit" style={button.ghost} disabled={busy}>{busy ? "Adding…" : "+ Add type"}</button>
+        <input style={{ ...inputStyle, maxWidth: 220 }} placeholder="e.g. Horseshoes" value={newName} onChange={(e) => setNewName(e.target.value)} disabled={!isAdmin} />
+        <button type="submit" style={isAdmin ? button.ghost : button.disabled} disabled={busy || !isAdmin} title={!isAdmin ? "Only a Tournaments Admin can add a type" : ""}>{busy ? "Adding…" : "+ Add type"}</button>
       </form>
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
     </div>

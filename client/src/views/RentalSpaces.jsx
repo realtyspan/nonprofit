@@ -1,16 +1,21 @@
 import React, { useState } from "react";
 import { colors, card, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
+import { hasModuleTier } from "../lib/modules";
 import PublicLinkBox from "../components/PublicLinkBox";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
+import AdminAccessNotice from "../components/AdminAccessNotice";
 
-export default function RentalSpaces({ spaces, onChanged }) {
+export default function RentalSpaces({ spaces, onChanged, permissions }) {
+  const isAdmin = hasModuleTier(permissions, "rentals", "Admin");
   const [editing, setEditing] = useState(null); // space being edited, or {} for new
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <PublicLinkBox basePath="rentals" embedBasePath="rentals/embed" embedTitle="Rental Request" description="Set a link so renters can check availability and submit a request from your website." />
+
+      <AdminAccessNotice permissions={permissions} moduleKey="rentals" moduleLabel="Rental Space" itemLabel="a space" />
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
@@ -18,7 +23,7 @@ export default function RentalSpaces({ spaces, onChanged }) {
             <div style={{ fontSize: 15, fontWeight: 700 }}>Spaces & rates</div>
             <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>Hall, Pavilion, Club Deck — pricing, bartender add-on, and equipment fees.</div>
           </div>
-          <button style={button.ghost} onClick={() => setEditing({})}>+ Add space</button>
+          <button style={isAdmin ? button.ghost : button.disabled} disabled={!isAdmin} title={!isAdmin ? "Only a Rental Space Admin can add a space" : ""} onClick={() => setEditing({})}>+ Add space</button>
         </div>
 
         <DataList
@@ -38,7 +43,7 @@ export default function RentalSpaces({ spaces, onChanged }) {
             { key: "memberRate", label: "Member rate", grid: "1fr", render: (s) => `${money(s.baseRateMember)} / ${s.blockHours}hr` },
             { key: "nonMemberRate", label: "Non-member rate", grid: "1fr", render: (s) => `${money(s.baseRateNonMember)} / ${s.blockHours}hr` },
             { key: "deposit", label: "Deposit", grid: "1fr", render: (s) => money(s.depositAmount) },
-            { key: "action", label: "", grid: "auto", fullWidthOnMobile: true, render: (s) => <button style={button.ghost} onClick={() => setEditing(s)}>Edit</button> },
+            { key: "action", label: "", grid: "auto", fullWidthOnMobile: true, render: (s) => <button style={isAdmin ? button.ghost : button.disabled} disabled={!isAdmin} title={!isAdmin ? "Only a Rental Space Admin can edit a space" : ""} onClick={() => setEditing(s)}>Edit</button> },
           ]}
         />
       </div>

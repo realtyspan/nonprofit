@@ -4,16 +4,19 @@ import { api } from "../lib/api";
 import { formatUtcDate } from "../lib/dates";
 import { resizeImageFile } from "../lib/imageResize";
 import { formatPhone, stripPhone } from "../lib/phone";
+import { hasModuleTier } from "../lib/modules";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
 import PublicLinkBox from "../components/PublicLinkBox";
+import AdminAccessNotice from "../components/AdminAccessNotice";
 import { useConfirm } from "../lib/ConfirmContext";
 
 // Tournament management (start a tournament, correct its details, open/close
 // it) — mirrors ManageRaffles.jsx's game-management pattern. Roster, sponsors,
 // check-in, and marketing email are separate views/build steps; this screen
 // is scoped to the tournament record itself.
-export default function ManageGolfTournaments({ tournaments, tournamentId, onTournamentsChanged }) {
+export default function ManageGolfTournaments({ tournaments, tournamentId, onTournamentsChanged, permissions }) {
+  const isAdmin = hasModuleTier(permissions, "golf", "Admin");
   const [showNewForm, setShowNewForm] = useState(false);
   const [editingTournament, setEditingTournament] = useState(null);
   const [deletingTournament, setDeletingTournament] = useState(null);
@@ -64,6 +67,8 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <AdminAccessNotice permissions={permissions} moduleKey="golf" moduleLabel="Golf Tournament" itemLabel="a tournament" />
+
       {selected && (
         <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -100,8 +105,9 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
           {flyerError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{flyerError}</div>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
-              style={selected.status === "open" ? { ...button.ghost, color: colors.danger } : button.primary}
-              disabled={lifecycleBusy}
+              style={!isAdmin ? button.disabled : selected.status === "open" ? { ...button.ghost, color: colors.danger } : button.primary}
+              disabled={lifecycleBusy || !isAdmin}
+              title={!isAdmin ? "Only a Golf Tournament Admin can change a tournament's status" : ""}
               onClick={toggleLifecycle}
             >
               {lifecycleBusy ? "Working…" : lifecycleLabel}
@@ -134,8 +140,8 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
               key: "actions", label: "", footerRow: true,
               render: (t) => t.status !== "closed" ? (
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} onClick={() => setEditingTournament(t)}>Edit</button>
-                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} onClick={() => setDeletingTournament(t)}>Delete</button>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={!isAdmin} title={!isAdmin ? "Only a Golf Tournament Admin can edit a tournament" : ""} onClick={() => setEditingTournament(t)}>Edit</button>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} disabled={!isAdmin} title={!isAdmin ? "Only a Golf Tournament Admin can delete a tournament" : ""} onClick={() => setDeletingTournament(t)}>Delete</button>
                 </div>
               ) : null,
             },
@@ -149,7 +155,16 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
           <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
             Creating a new tournament never touches any other tournament — you can run more than one, each with its own roster, pricing, and dates.
           </div>
-          <div><button style={button.primary} onClick={() => setShowNewForm(true)}>+ New tournament</button></div>
+          <div>
+            <button
+              style={isAdmin ? button.primary : button.disabled}
+              disabled={!isAdmin}
+              title={!isAdmin ? "Only a Golf Tournament Admin can create a tournament" : ""}
+              onClick={() => setShowNewForm(true)}
+            >
+              + New tournament
+            </button>
+          </div>
         </div>
       ) : (
         <TournamentForm

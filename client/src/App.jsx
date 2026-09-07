@@ -374,10 +374,10 @@ function Shell() {
             {activeModuleKey === "bell-jar" && view === "reports" && <Reports permissions={permissions} />}
             {activeModuleKey === "rentals" && view === "bookings" && <RentalBookings spaces={rentalSpaces} onChanged={refreshRentals} permissions={permissions} />}
             {activeModuleKey === "rentals" && view === "funds" && <RentalFundsTurnover permissions={permissions} />}
-            {activeModuleKey === "rentals" && view === "spaces" && <RentalSpaces spaces={rentalSpaces} onChanged={refreshRentals} />}
+            {activeModuleKey === "rentals" && view === "spaces" && <RentalSpaces spaces={rentalSpaces} onChanged={refreshRentals} permissions={permissions} />}
             {activeModuleKey === "rentals" && view === "blocks" && <RentalBlocks spaces={rentalSpaces} />}
             {activeModuleKey === "calendar" && view === "month" && <CalendarView rentalSpaces={rentalSpaces} permissions={permissions} currentUserId={session?.user?.id} />}
-            {activeModuleKey === "raffle" && view === "manage" && <ManageRaffles games={raffleGames} gameId={selectedRaffleGameId} onGamesChanged={refreshRaffleGames} />}
+            {activeModuleKey === "raffle" && view === "manage" && <ManageRaffles games={raffleGames} gameId={selectedRaffleGameId} onGamesChanged={refreshRaffleGames} permissions={permissions} />}
             {activeModuleKey === "raffle" && view === "grid" && <RaffleGrid gameId={selectedRaffleGameId} permissions={permissions} currentUserId={session?.user?.id} />}
             {activeModuleKey === "raffle" && view === "sellers" && <RaffleSellers gameId={selectedRaffleGameId} permissions={permissions} />}
             {activeModuleKey === "raffle" && view === "assign" && <RaffleAssign gameId={selectedRaffleGameId} />}
@@ -388,21 +388,21 @@ function Shell() {
             {activeModuleKey === "raffle" && view === "drawings" && <RaffleDrawings gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "financials" && <RaffleFinancials />}
             {activeModuleKey === "raffle" && view === "checkin" && <RaffleCheckIn gameId={selectedRaffleGameId} />}
-            {activeModuleKey === "golf" && view === "manage" && <ManageGolfTournaments tournaments={golfTournaments} tournamentId={selectedGolfTournamentId} onTournamentsChanged={refreshGolfTournaments} />}
+            {activeModuleKey === "golf" && view === "manage" && <ManageGolfTournaments tournaments={golfTournaments} tournamentId={selectedGolfTournamentId} onTournamentsChanged={refreshGolfTournaments} permissions={permissions} />}
             {activeModuleKey === "golf" && view === "players" && <GolfPlayerDirectory />}
             {activeModuleKey === "golf" && view === "sponsor-directory" && <GolfSponsorDirectory />}
             {activeModuleKey === "golf" && view === "roster" && <GolfRoster tournament={selectedGolfTournament} />}
             {activeModuleKey === "golf" && view === "sponsors" && <GolfSponsors tournament={selectedGolfTournament} />}
             {activeModuleKey === "golf" && view === "checkin" && <GolfCheckIn tournament={selectedGolfTournament} />}
             {activeModuleKey === "golf" && view === "log" && <GolfLog tournament={selectedGolfTournament} />}
-            {activeModuleKey === "tournaments" && view === "manage" && <ManageTournaments tournaments={tournaments} tournamentId={selectedTournamentId} onTournamentsChanged={refreshTournaments} />}
+            {activeModuleKey === "tournaments" && view === "manage" && <ManageTournaments tournaments={tournaments} tournamentId={selectedTournamentId} onTournamentsChanged={refreshTournaments} permissions={permissions} />}
             {activeModuleKey === "tournaments" && view === "players" && <TournamentPlayerDirectory />}
             {activeModuleKey === "tournaments" && view === "sponsor-directory" && <TournamentSponsorDirectory />}
             {activeModuleKey === "tournaments" && view === "roster" && <TournamentRoster tournament={selectedTournament} />}
             {activeModuleKey === "tournaments" && view === "sponsors" && <TournamentSponsors tournament={selectedTournament} />}
             {activeModuleKey === "tournaments" && view === "checkin" && <TournamentCheckIn tournament={selectedTournament} />}
             {activeModuleKey === "tournaments" && view === "log" && <TournamentLog tournament={selectedTournament} />}
-            {activeModuleKey === "events" && view === "manage" && <ManageEvents />}
+            {activeModuleKey === "events" && view === "manage" && <ManageEvents permissions={permissions} />}
             {activeModuleKey === "elks-tools" && view === "frs" && <FrsReport permissions={permissions} />}
             {view === "team" && canSeeTeam && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}
             {view === "profile" && <Profile />}
