@@ -388,6 +388,9 @@ export const api = {
   listTournamentSponsorDirectory: () => request("/tournaments/sponsors"),
   updateTournamentSponsorContact: (sponsorId, payload) => request(`/tournaments/sponsors/${sponsorId}`, { method: "PATCH", body: payload }),
 
+  listTournamentInterestSignups: () => request("/tournaments/interest-signups"),
+  setTournamentInterestSignupContacted: (id, contacted) => request(`/tournaments/interest-signups/${id}`, { method: "PATCH", body: { contacted } }),
+
   getTournamentsStripeConnect: () => request("/tournaments/stripe-connect"),
   onboardTournamentsStripeConnect: () => request("/tournaments/stripe-connect/onboard", { method: "POST" }),
   syncTournamentsStripeConnect: () => request("/tournaments/stripe-connect/sync", { method: "POST" }),
@@ -494,6 +497,16 @@ export const publicApi = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  },
+  async submitTournamentInterest(orgSlug, payload) {
+    const res = await fetch(`/api/public/tournaments/${orgSlug}/interest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Request failed");

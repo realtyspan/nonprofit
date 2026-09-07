@@ -104,6 +104,7 @@ model Organization {
   tournamentSponsorContacts TournamentSponsorContact[]
   tournamentSponsorships   TournamentSponsorship[]
   tournamentCheckIns       TournamentCheckIn[]
+  tournamentInterestSignups TournamentInterestSignup[]
 }
 
 // Platform-admin-managed list (e.g. "Elks Lodge", "VFW Post", "Fire
@@ -1248,6 +1249,7 @@ model TournamentType {
   createdAt DateTime     @default(now())
 
   tournaments Tournament[]
+  interestSignups TournamentInterestSignup[]
 
   @@unique([orgId, name])
   @@index([orgId])
@@ -1453,4 +1455,29 @@ model TournamentCheckIn {
   checkedInAt       DateTime             @default(now())
 
   @@index([tournamentId])
+}
+
+// Leads captured from the public tournaments page's "Notify me" form
+// while nothing is open for registration — direct port of
+// GolfInterestSignup, plus typeId so a visitor can (optionally) say which
+// sport they're waiting on, since unlike Golf this org may run several.
+// Not scoped to any one Tournament — a signup can exist before any
+// tournament does.
+model TournamentInterestSignup {
+  id          String         @id @default(cuid())
+  orgId       String
+  org         Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  role        String // player | sponsor
+  name        String
+  email       String         @default("")
+  phone       String         @default("")
+  companyName String? // sponsor interest only
+  note        String?
+  typeId      String? // null = "any tournament"
+  type        TournamentType? @relation(fields: [typeId], references: [id], onDelete: SetNull)
+  contactedAt DateTime? // set by an admin once they've followed up
+  createdAt   DateTime       @default(now())
+
+  @@index([orgId])
+  @@index([typeId])
 }

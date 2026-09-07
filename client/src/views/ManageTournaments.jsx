@@ -203,6 +203,111 @@ export default function ManageTournaments({ tournaments, tournamentId, onTournam
       />
 
       <StripeConnectCard />
+
+      <PreviewEmptyStateCard />
+
+      <InterestSignupsCard />
+    </div>
+  );
+}
+
+// Lets an admin see exactly what a visitor sees when nothing's open for
+// registration — reusing PublicTournaments.jsx's real preview-tournament/
+// "Notify Me" layout — without having to close every real tournament just
+// to check. `?preview=empty` (recognized by PublicTournaments.jsx) forces
+// that view using whatever real tournament data is available, and
+// disables the Notify Me form's actual submission so trying it out never
+// leaves a fake entry in the real Interest Signups list below. Direct
+// port of ManageGolfTournaments.jsx's own PreviewEmptyStateCard.
+function PreviewEmptyStateCard() {
+  const [slug, setSlug] = useState("");
+
+  useEffect(() => {
+    api.getOrg().then((o) => setSlug(o.slug || "")).catch(() => {});
+  }, []);
+
+  if (!slug) return null;
+
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 15, fontWeight: 700 }}>Preview "no active tournament" page</div>
+      <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+        See exactly what visitors see when nothing's open for registration, using your own tournament's details — without changing anything or touching a real tournament's status.
+      </div>
+      <div>
+        <a href={`/tournaments/${slug}?preview=empty`} target="_blank" rel="noreferrer" style={{ ...button.secondary, textDecoration: "none", display: "inline-block" }}>
+          Open preview ↗
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// Org-wide (not per-tournament) — leads captured from the public
+// tournaments page's "Notify Me" form while nothing was open (see
+// PublicTournaments.jsx's PreviewTournamentCard/NotifyForm). A signup can
+// exist before any tournament does, so this isn't scoped to `selected`.
+// Direct port of ManageGolfTournaments.jsx's own InterestSignupsCard, plus
+// an added "Interested in" column for the type a visitor optionally chose.
+function InterestSignupsCard() {
+  const [signups, setSignups] = useState([]);
+  const [busyId, setBusyId] = useState(null);
+  const [error, setError] = useState("");
+
+  function reload() {
+    api.listTournamentInterestSignups().then(setSignups).catch((err) => setError(err.message));
+  }
+  useEffect(reload, []);
+
+  async function toggleContacted(signup) {
+    setBusyId(signup.id);
+    setError("");
+    try {
+      const updated = await api.setTournamentInterestSignupContacted(signup.id, !signup.contactedAt);
+      setSignups((rows) => rows.map((r) => (r.id === updated.id ? updated : r)));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+      <div style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Interest signups</div>
+        <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>
+          People who asked to be notified when your next tournament opens for registration.
+        </div>
+        {error && <div style={{ color: colors.danger, fontSize: 12.5, marginTop: 6 }}>{error}</div>}
+      </div>
+      <DataList
+        rows={signups}
+        emptyMessage="No one has signed up for a notification yet."
+        columns={[
+          { key: "name", label: "Name", grid: "1.1fr", primary: true, render: (s) => s.name },
+          { key: "role", label: "Interested as", grid: "0.8fr", render: (s) => (s.role === "sponsor" ? "Sponsor" : "Player") },
+          { key: "typeName", label: "Interested in", grid: "0.9fr", render: (s) => s.typeName || "Any" },
+          {
+            key: "contact", label: "Contact", grid: "1.3fr",
+            render: (s) => [s.email, s.phone && formatPhone(s.phone)].filter(Boolean).join(" · ") || "—",
+          },
+          { key: "companyName", label: "Company", grid: "1fr", render: (s) => s.companyName || "—" },
+          { key: "submitted", label: "Submitted", grid: "1fr", render: (s) => new Date(s.createdAt).toLocaleString() },
+          {
+            key: "actions", label: "", footerRow: true,
+            render: (s) => (
+              <button
+                style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: s.contactedAt ? colors.textSecondary : undefined }}
+                disabled={busyId === s.id}
+                onClick={() => toggleContacted(s)}
+              >
+                {busyId === s.id ? "Working…" : s.contactedAt ? "Contacted ✓" : "Mark contacted"}
+              </button>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

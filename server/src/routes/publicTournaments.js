@@ -1,8 +1,12 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
 const { rateLimit } = require("../lib/rateLimit");
-const { registerTeam, addLog, markCheckoutSessionPaid, revertCheckoutSession } = require("../lib/tournamentLogic");
+const { normalizeEmail, registerTeam, addLog, markCheckoutSessionPaid, revertCheckoutSession } = require("../lib/tournamentLogic");
+const { stripPhone } = require("../lib/phone");
 const { stripe } = require("../lib/stripe");
+const { resolveTournamentAlertRecipients } = require("../lib/tournamentAlerts");
+const { tournamentInterestAlertHtml } = require("../lib/tournamentInterestEmail");
+const { sendEmail } = require("../lib/notifications");
 
 const router = express.Router();
 
@@ -50,19 +54,100 @@ function shapeTournament(t) {
 
 // Every open tournament across every type, soonest first — the
 // multi-open-tournament index Golf doesn't have today (Golf assumes
-// roughly one active tournament; this module doesn't).
+// roughly one active tournament; this module doesn't). Also carries what
+// the empty state (see PublicTournaments.jsx) needs when nothing's open:
+// previewTournament (the org's single most recent tournament, any status/
+// type — direct port of publicGolf.js's own fallback, minus the
+// isHistorical filter Golf needs and this module doesn't have yet) and
+// types (the org's own TournamentType list, for the notify form's "which
+// tournament?" dropdown).
 router.get("/:orgSlug", async (req, res) => {
   const org = await prisma.organization.findUnique({ where: { slug: req.params.orgSlug } });
   if (!org) return res.status(404).json({ error: "Not found" });
 
-  const tournaments = await prisma.tournament.findMany({
-    where: { orgId: org.id, status: "open" },
-    select: PUBLIC_TOURNAMENT_FIELDS,
-    orderBy: { date: "asc" },
-  });
+  const [tournaments, types] = await Promise.all([
+    prisma.tournament.findMany({
+      where: { orgId: org.id, status: "open" },
+      select: PUBLIC_TOURNAMENT_FIELDS,
+      orderBy: { date: "asc" },
+    }),
+    prisma.tournamentType.findMany({ where: { orgId: org.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
 
-  res.json({ orgName: org.name, tournaments: tournaments.map(shapeTournament) });
+  let previewTournament = null;
+  if (tournaments.length === 0) {
+    const preview = await prisma.tournament.findFirst({
+      where: { orgId: org.id },
+      select: PUBLIC_TOURNAMENT_FIELDS,
+      orderBy: { date: "desc" },
+    });
+    previewTournament = preview ? shapeTournament(preview) : null;
+  }
+
+  res.json({ orgName: org.name, tournaments: tournaments.map(shapeTournament), previewTournament, types });
 });
+
+// Captures a "notify me" lead when a visitor lands on the page with
+// nothing open — see PublicTournaments.jsx's empty-state NotifyForm.
+// Deliberately its own model/route rather than folding into register:
+// there's no tournament to register against yet, and this person hasn't
+// played or sponsored, so they don't belong in the real player/sponsor
+// directories either. `website` is a honeypot field, same convention as
+// every other public route here. Direct port of publicGolf.js's own
+// POST /:slug/interest.
+router.post(
+  "/:orgSlug/interest",
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 5 }),
+  async (req, res) => {
+    const org = await prisma.organization.findUnique({ where: { slug: req.params.orgSlug } });
+    if (!org) return res.status(404).json({ error: "Not found" });
+
+    if (req.body.website) return res.json({ ok: true }); // silently drop suspected bot submissions
+
+    const { role, name, email, phone, companyName, note, typeId } = req.body;
+    if (!["player", "sponsor"].includes(role)) return res.status(400).json({ error: "Choose player or sponsor" });
+    if (!name || !name.trim()) return res.status(400).json({ error: "Name is required" });
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedPhone = stripPhone(phone);
+    if (!normalizedEmail && !normalizedPhone) return res.status(400).json({ error: "Enter an email or phone number so we can reach you" });
+
+    let type = null;
+    if (typeId) {
+      type = await prisma.tournamentType.findFirst({ where: { id: typeId, orgId: org.id } });
+    }
+
+    const signup = await prisma.tournamentInterestSignup.create({
+      data: {
+        orgId: org.id,
+        role,
+        name: name.trim(),
+        email: normalizedEmail || "",
+        phone: normalizedPhone || "",
+        companyName: role === "sponsor" && companyName ? companyName.trim() : null,
+        note: note && note.trim() ? note.trim() : null,
+        typeId: type?.id || null,
+      },
+    });
+    res.json({ ok: true });
+
+    // Fire-and-forget: the signup is already saved and the visitor already
+    // has their on-screen confirmation, so an alert-email hiccup here
+    // shouldn't turn into a failed request.
+    const recipients = await resolveTournamentAlertRecipients(org.id, org);
+    for (const recipient of recipients) {
+      try {
+        await sendEmail({
+          to: recipient.email, toName: recipient.name,
+          subject: `New tournament interest signup — ${signup.name}`,
+          html: tournamentInterestAlertHtml({ signup, org, typeName: type?.name || null }),
+          fromName: org.name, replyTo: signup.email || undefined,
+        });
+      } catch (err) {
+        console.error(`Tournament interest alert email failed for signup ${signup.id} -> ${recipient.email}:`, err.message);
+      }
+    }
+  }
+);
 
 // One tournament's full public detail, by its own slug — reachable
 // independently of the index above so a flyer's QR code or a shared link

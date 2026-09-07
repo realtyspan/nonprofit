@@ -771,6 +771,33 @@ router.patch("/sponsors/:sponsorId", requirePermission("tournaments", "Helper"),
   res.json(updated);
 });
 
+// --- Interest signups ---
+// Leads captured from the public tournaments page's "Notify me" form
+// while nothing is open — see publicTournaments.js's POST
+// /:orgSlug/interest. Not nested under /:tournamentId since a signup can
+// exist before any tournament does. Direct port of golf.js's own pair.
+
+router.get("/interest-signups", requireReadAccess("tournaments"), async (req, res) => {
+  const signups = await prisma.tournamentInterestSignup.findMany({
+    where: { orgId: req.user.orgId },
+    include: { type: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(signups.map(({ type, ...s }) => ({ ...s, typeName: type?.name || null })));
+});
+
+router.patch("/interest-signups/:id", requirePermission("tournaments", "Helper"), async (req, res) => {
+  const signup = await prisma.tournamentInterestSignup.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!signup) return res.status(404).json({ error: "Signup not found" });
+  const updated = await prisma.tournamentInterestSignup.update({
+    where: { id: signup.id },
+    data: { contactedAt: req.body.contacted ? new Date() : null },
+    include: { type: { select: { name: true } } },
+  });
+  const { type, ...rest } = updated;
+  res.json({ ...rest, typeName: type?.name || null });
+});
+
 router.get("/:tournamentId/stats", requireReadAccess("tournaments"), async (req, res) => {
   const [teams, teamPlayers] = await Promise.all([
     prisma.tournamentTeam.findMany({ where: { tournamentId: req.tournament.id, orgId: req.user.orgId } }),
