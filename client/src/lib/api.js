@@ -347,6 +347,39 @@ export const api = {
   deletePlatformOrgCategory: (id) => request(`/platform-admin/org-categories/${id}`, { method: "DELETE" }),
   updatePlatformOrgCategoryAssignment: (orgId, orgCategoryId) => request(`/platform-admin/organizations/${orgId}/category`, { method: "PATCH", body: { orgCategoryId } }),
 
+  listTournamentTypes: () => request("/tournaments/types"),
+  createTournamentType: (name) => request("/tournaments/types", { method: "POST", body: { name } }),
+  updateTournamentType: (typeId, name) => request(`/tournaments/types/${typeId}`, { method: "PATCH", body: { name } }),
+  deleteTournamentType: (typeId) => request(`/tournaments/types/${typeId}`, { method: "DELETE" }),
+
+  listTournaments: () => request("/tournaments"),
+  createTournament: (payload) => request("/tournaments", { method: "POST", body: payload }),
+  updateTournament: (tournamentId, payload) => request(`/tournaments/${tournamentId}`, { method: "PATCH", body: payload }),
+  deleteTournament: (tournamentId) => request(`/tournaments/${tournamentId}`, { method: "DELETE" }),
+  openTournament: (tournamentId) => request(`/tournaments/${tournamentId}/open`, { method: "POST" }),
+  closeTournament: (tournamentId) => request(`/tournaments/${tournamentId}/close`, { method: "POST" }),
+  reopenTournament: (tournamentId) => request(`/tournaments/${tournamentId}/reopen`, { method: "POST" }),
+  listTournamentLog: (tournamentId) => request(`/tournaments/${tournamentId}/log`),
+  downloadTournamentFlyerPdf: (tournamentId, tournamentName) => download(`/tournaments/${tournamentId}/flyer`, `${(tournamentName || "Tournament").replace(/\s+/g, "_")}_Flyer.pdf`),
+
+  listTournamentTeams: (tournamentId) => request(`/tournaments/${tournamentId}/teams`),
+  createTournamentTeam: (tournamentId, payload) => request(`/tournaments/${tournamentId}/teams`, { method: "POST", body: payload }),
+  updateTournamentTeam: (tournamentId, teamId, payload) => request(`/tournaments/${tournamentId}/teams/${teamId}`, { method: "PATCH", body: payload }),
+  deleteTournamentTeam: (tournamentId, teamId) => request(`/tournaments/${tournamentId}/teams/${teamId}`, { method: "DELETE" }),
+  addTournamentTeamPlayer: (tournamentId, teamId, payload) => request(`/tournaments/${tournamentId}/teams/${teamId}/players`, { method: "POST", body: payload }),
+  updateTournamentTeamPlayer: (tournamentId, teamId, teamPlayerId, payload) => request(`/tournaments/${tournamentId}/teams/${teamId}/players/${teamPlayerId}`, { method: "PATCH", body: payload }),
+  removeTournamentTeamPlayer: (tournamentId, teamId, teamPlayerId) => request(`/tournaments/${tournamentId}/teams/${teamId}/players/${teamPlayerId}`, { method: "DELETE" }),
+  markTournamentTeamPaid: (tournamentId, teamId, payload) => request(`/tournaments/${tournamentId}/teams/${teamId}/mark-paid`, { method: "POST", body: payload }),
+  getTournamentStats: (tournamentId) => request(`/tournaments/${tournamentId}/stats`),
+  searchTournamentPlayers: (search) => request(`/tournaments/players?search=${encodeURIComponent(search)}`),
+  listTournamentPlayers: () => request("/tournaments/players"),
+  updateTournamentPlayer: (playerId, payload) => request(`/tournaments/players/${playerId}`, { method: "PATCH", body: payload }),
+
+  getTournamentsStripeConnect: () => request("/tournaments/stripe-connect"),
+  onboardTournamentsStripeConnect: () => request("/tournaments/stripe-connect/onboard", { method: "POST" }),
+  syncTournamentsStripeConnect: () => request("/tournaments/stripe-connect/sync", { method: "POST" }),
+  disconnectTournamentsStripeConnect: () => request("/tournaments/stripe-connect", { method: "DELETE" }),
+
   listEvents: () => request("/events"),
   createEvent: (payload) => request("/events", { method: "POST", body: payload }),
   updateEvent: (eventId, payload) => request(`/events/${eventId}`, { method: "PATCH", body: payload }),
@@ -393,6 +426,64 @@ export const publicApi = {
     const res = await fetch(`/api/public/golf/${slug}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Not found");
+    return data;
+  },
+  async getTournamentsIndexPage(orgSlug) {
+    const res = await fetch(`/api/public/tournaments/${orgSlug}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Not found");
+    return data;
+  },
+  async getTournamentPage(orgSlug, tournamentSlug) {
+    const res = await fetch(`/api/public/tournaments/${orgSlug}/${tournamentSlug}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Not found");
+    return data;
+  },
+  async registerTournamentTeam(orgSlug, tournamentSlug, payload) {
+    const res = await fetch(`/api/public/tournaments/${orgSlug}/${tournamentSlug}/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Registration failed");
+    return data;
+  },
+  async getTournamentTeamForPay(orgSlug, tournamentSlug, teamId) {
+    const res = await fetch(`/api/public/tournaments/${orgSlug}/${tournamentSlug}/teams/${teamId}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Not found");
+    return data;
+  },
+  async payForTournamentTeam(orgSlug, tournamentSlug, teamId, payload) {
+    const res = await fetch(`/api/public/tournaments/${orgSlug}/${tournamentSlug}/teams/${teamId}/pay`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  },
+  async syncTournamentPayment(orgSlug, tournamentSlug, teamId, sessionId) {
+    const res = await fetch(`/api/public/tournaments/${orgSlug}/${tournamentSlug}/teams/${teamId}/pay/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  },
+  async cancelTournamentPayment(orgSlug, tournamentSlug, teamId, sessionId) {
+    const res = await fetch(`/api/public/tournaments/${orgSlug}/${tournamentSlug}/teams/${teamId}/pay/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
     return data;
   },
   // Always resolves (never throws) — a failed lookup should feel identical

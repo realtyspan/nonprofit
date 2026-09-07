@@ -8,6 +8,7 @@
 const prisma = require("../lib/prisma");
 const { stripe } = require("../lib/stripe");
 const { addGolfLog, markGolfCheckoutSessionPaid, revertGolfCheckoutSession } = require("../lib/golfLogic");
+const { addLog: addTournamentLog, markCheckoutSessionPaid: markTournamentCheckoutSessionPaid, revertCheckoutSession: revertTournamentCheckoutSession } = require("../lib/tournamentLogic");
 
 function onboardingStatusFor(account) {
   if (account.charges_enabled) return "complete";
@@ -56,23 +57,33 @@ async function stripeConnectWebhookHandler(req, res) {
         });
         break;
       }
-      // The authoritative backstop for golf pay-page checkouts — the
-      // client's own /pay/sync and /pay/cancel calls (publicGolf.js) race
+      // The authoritative backstop for golf- and tournament- pay-page
+      // checkouts — the client's own /pay/sync and /pay/cancel calls race
       // to handle the same outcome for instant feedback on return, but
       // this is what catches anyone who closes the tab before either of
-      // those ever fires. markGolfCheckoutSessionPaid/
-      // revertGolfCheckoutSession are both guarded on paymentStatus:
-      // "pending", so running the same outcome twice (once from the
-      // client, once from here) is always a documented no-op.
+      // those ever fires. A given session belongs to exactly one of Golf's
+      // or Tournaments' own tables, keyed by stripeCheckoutSessionId — both
+      // mark/revert helpers are guarded on paymentStatus: "pending" and
+      // return {count: 0} when the session isn't one of theirs, so trying
+      // both here (and running the same outcome twice from client+webhook)
+      // is always a safe, documented no-op.
       case "checkout.session.completed": {
         const session = event.data.object;
         if (session.payment_status === "paid") {
-          const result = await markGolfCheckoutSessionPaid(session.id, { paymentIntentId: session.payment_intent });
-          if (result.count > 0) {
-            await addGolfLog(result.orgId, result.tournamentId, {
+          const golfResult = await markGolfCheckoutSessionPaid(session.id, { paymentIntentId: session.payment_intent });
+          if (golfResult.count > 0) {
+            await addGolfLog(golfResult.orgId, golfResult.tournamentId, {
               type: "payment_recorded",
-              text: `${result.count} player(s) paid online via Stripe`,
-              teamId: result.teamId,
+              text: `${golfResult.count} player(s) paid online via Stripe`,
+              teamId: golfResult.teamId,
+            });
+          }
+          const tournamentResult = await markTournamentCheckoutSessionPaid(session.id, { paymentIntentId: session.payment_intent });
+          if (tournamentResult.count > 0) {
+            await addTournamentLog(tournamentResult.orgId, tournamentResult.tournamentId, {
+              type: "payment_recorded",
+              text: `${tournamentResult.count} player(s) paid online via Stripe`,
+              teamId: tournamentResult.teamId,
             });
           }
         }
@@ -83,12 +94,20 @@ async function stripeConnectWebhookHandler(req, res) {
         // explicitly canceled — reverts it the same way /pay/cancel does,
         // so an abandoned attempt doesn't leave a team stuck showing
         // "pending" indefinitely.
-        const result = await revertGolfCheckoutSession(event.data.object.id);
-        if (result.count > 0) {
-          await addGolfLog(result.orgId, result.tournamentId, {
+        const golfResult = await revertGolfCheckoutSession(event.data.object.id);
+        if (golfResult.count > 0) {
+          await addGolfLog(golfResult.orgId, golfResult.tournamentId, {
             type: "payment_recorded",
-            text: `${result.count} player(s)' online payment attempt expired`,
-            teamId: result.teamId,
+            text: `${golfResult.count} player(s)' online payment attempt expired`,
+            teamId: golfResult.teamId,
+          });
+        }
+        const tournamentResult = await revertTournamentCheckoutSession(event.data.object.id);
+        if (tournamentResult.count > 0) {
+          await addTournamentLog(tournamentResult.orgId, tournamentResult.tournamentId, {
+            type: "payment_recorded",
+            text: `${tournamentResult.count} player(s)' online payment attempt expired`,
+            teamId: tournamentResult.teamId,
           });
         }
         break;

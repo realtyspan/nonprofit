@@ -74,6 +74,18 @@ export const MODULES = [
     ],
   },
   {
+    key: "tournaments",
+    label: "Tournaments",
+    icon: icons.trophy,
+    blurb: "Team tournaments for any sport · Registration, roster & payment",
+    navItems: [
+      { key: "manage", label: "Tournaments", icon: icons.layers, title: "Tournaments", subtitle: "Start, edit, open, close, or reopen a tournament, and manage your tournament types", requiresTier: "Admin" },
+      { key: "players", label: "All Players", icon: icons.users, title: "All Players", subtitle: "Every player on file, across every tournament — for marketing and outreach" },
+      { key: "roster", label: "Tournament Roster", icon: icons.users, title: "Tournament Roster", subtitle: "Register teams and track payments" },
+      { key: "log", label: "Activity Log", icon: icons.fileCheck, title: "Activity Log", subtitle: "Every registration and payment, in order" },
+    ],
+  },
+  {
     key: "events",
     label: "Events",
     icon: icons.star,

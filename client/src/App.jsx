@@ -33,6 +33,9 @@ import PublicGolf from "./views/PublicGolf";
 import PublicGolfPay from "./views/PublicGolfPay";
 import PublicGolfUnsubscribe from "./views/PublicGolfUnsubscribe";
 import PublicEvents from "./views/PublicEvents";
+import PublicTournaments from "./views/PublicTournaments";
+import PublicTournament from "./views/PublicTournament";
+import PublicTournamentPay from "./views/PublicTournamentPay";
 import PublicRaffleUnsubscribe from "./views/PublicRaffleUnsubscribe";
 import PublicRaffleTicket from "./views/PublicRaffleTicket";
 import PlatformAdminApp from "./views/platform-admin/PlatformAdminApp";
@@ -55,6 +58,10 @@ import GolfRoster from "./views/GolfRoster";
 import GolfSponsors from "./views/GolfSponsors";
 import GolfCheckIn from "./views/GolfCheckIn";
 import GolfLog from "./views/GolfLog";
+import ManageTournaments from "./views/ManageTournaments";
+import TournamentRoster from "./views/TournamentRoster";
+import TournamentPlayerDirectory from "./views/TournamentPlayerDirectory";
+import TournamentLog from "./views/TournamentLog";
 import FrsReport from "./views/elks-tools/FrsReport";
 
 function PublicGate() {
@@ -97,6 +104,9 @@ function Shell() {
   const [golfTournaments, setGolfTournaments] = useState([]);
   const [selectedGolfTournamentId, setSelectedGolfTournamentId] = useState(null);
   const selectedGolfTournament = golfTournaments.find((t) => t.id === selectedGolfTournamentId) || null;
+  const [tournaments, setTournaments] = useState([]);
+  const [selectedTournamentId, setSelectedTournamentId] = useState(null);
+  const selectedTournament = tournaments.find((t) => t.id === selectedTournamentId) || null;
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -116,6 +126,10 @@ function Shell() {
 
   const refreshGolfTournaments = useCallback(() => {
     return api.listGolfTournaments().then(setGolfTournaments).catch(() => {});
+  }, []);
+
+  const refreshTournaments = useCallback(() => {
+    return api.listTournaments().then(setTournaments).catch(() => {});
   }, []);
 
   const refreshPermissions = useCallback(() => {
@@ -148,8 +162,9 @@ function Shell() {
     refreshRentals();
     refreshRaffleGames();
     refreshGolfTournaments();
+    refreshTournaments();
     refreshPermissions().then(() => setLoading(false));
-  }, [userId, refreshDeals, refreshRentals, refreshRaffleGames, refreshGolfTournaments, refreshPermissions]);
+  }, [userId, refreshDeals, refreshRentals, refreshRaffleGames, refreshGolfTournaments, refreshTournaments, refreshPermissions]);
 
   // Default to the most-recently-created active game whenever the game list
   // changes and nothing (or something that no longer exists) is selected —
@@ -168,6 +183,12 @@ function Shell() {
     const firstOpen = golfTournaments.find((t) => t.status === "open");
     setSelectedGolfTournamentId(firstOpen ? firstOpen.id : golfTournaments[0]?.id || null);
   }, [golfTournaments, selectedGolfTournamentId]);
+
+  useEffect(() => {
+    if (selectedTournamentId && tournaments.some((t) => t.id === selectedTournamentId)) return;
+    const firstOpen = tournaments.find((t) => t.status === "open");
+    setSelectedTournamentId(firstOpen ? firstOpen.id : tournaments[0]?.id || null);
+  }, [tournaments, selectedTournamentId]);
 
   // Once permissions load, return to wherever the user last was (so a page
   // refresh doesn't always bounce back to Bell Jar) if that module/view is
@@ -320,6 +341,28 @@ function Shell() {
             </div>
           )}
 
+          {activeModuleKey === "tournaments" && view !== "team" && view !== "profile" && (
+            <div style={{ padding: isMobile ? "10px 16px" : "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#f7f4ec", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Tournaments</span>
+              {selectedTournament && (
+                <span style={{ fontSize: 17, fontWeight: 700, color: colors.textPrimary }}>{selectedTournament.name}</span>
+              )}
+              {tournaments.length > 0 ? (
+                <select
+                  value={selectedTournamentId || ""}
+                  onChange={(e) => setSelectedTournamentId(e.target.value)}
+                  style={{ border: `1px solid ${colors.border}`, borderRadius: 7, padding: "6px 10px", fontSize: 13, minWidth: isMobile ? 0 : 220, flex: isMobile ? 1 : undefined }}
+                >
+                  {tournaments.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.status})</option>
+                  ))}
+                </select>
+              ) : (
+                <span style={{ fontSize: 13, color: colors.textSecondary }}>No tournaments yet</span>
+              )}
+            </div>
+          )}
+
           <div style={{ flex: 1, minWidth: 0, padding: isMobile ? "16px 16px 40px" : "28px 32px 60px", overflowY: "auto", overflowX: "hidden" }}>
             {activeModuleKey === "bell-jar" && view === "dashboard" && <Dashboard deals={deals} onOpenReports={() => setView("reports")} />}
             {activeModuleKey === "bell-jar" && view === "worksheet" && <Worksheet deals={deals} onSaved={refreshDeals} />}
@@ -349,6 +392,10 @@ function Shell() {
             {activeModuleKey === "golf" && view === "sponsors" && <GolfSponsors tournament={selectedGolfTournament} />}
             {activeModuleKey === "golf" && view === "checkin" && <GolfCheckIn tournament={selectedGolfTournament} />}
             {activeModuleKey === "golf" && view === "log" && <GolfLog tournament={selectedGolfTournament} />}
+            {activeModuleKey === "tournaments" && view === "manage" && <ManageTournaments tournaments={tournaments} tournamentId={selectedTournamentId} onTournamentsChanged={refreshTournaments} />}
+            {activeModuleKey === "tournaments" && view === "players" && <TournamentPlayerDirectory />}
+            {activeModuleKey === "tournaments" && view === "roster" && <TournamentRoster tournament={selectedTournament} />}
+            {activeModuleKey === "tournaments" && view === "log" && <TournamentLog tournament={selectedTournament} />}
             {activeModuleKey === "events" && view === "manage" && <ManageEvents />}
             {activeModuleKey === "elks-tools" && view === "frs" && <FrsReport permissions={permissions} />}
             {view === "team" && canSeeTeam && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}
@@ -361,15 +408,22 @@ function Shell() {
 }
 
 function matchPublicPath(pathname) {
-  const embedMatch = pathname.match(/^\/(rentals|calendar|golf|events)\/embed\/([a-z0-9-]+)\/?$/);
+  const embedMatch = pathname.match(/^\/(rentals|calendar|golf|events|tournaments)\/embed\/([a-z0-9-]+)\/?$/);
   if (embedMatch) return { module: embedMatch[1], slug: embedMatch[2], embed: true };
   const payMatch = pathname.match(/^\/golf\/([a-z0-9-]+)\/tournaments\/([^/]+)\/teams\/([^/]+)\/pay\/?$/);
   if (payMatch) return { module: "golf-pay", slug: payMatch[1], tournamentId: payMatch[2], teamId: payMatch[3] };
+  // Tournaments module: an org can have several tournaments open at once
+  // (each of a possibly different type), so unlike golf-pay above, the
+  // tournament itself is identified by its own slug, not just the org's.
+  const tournamentPayMatch = pathname.match(/^\/tournaments\/([a-z0-9-]+)\/([a-z0-9-]+)\/teams\/([^/]+)\/pay\/?$/);
+  if (tournamentPayMatch) return { module: "tournament-pay", orgSlug: tournamentPayMatch[1], tournamentSlug: tournamentPayMatch[2], teamId: tournamentPayMatch[3] };
+  const tournamentMatch = pathname.match(/^\/tournaments\/([a-z0-9-]+)\/([a-z0-9-]+)\/?$/);
+  if (tournamentMatch) return { module: "tournament", orgSlug: tournamentMatch[1], tournamentSlug: tournamentMatch[2] };
   // Keyed by the ticket's own id, not an org slug — see publicRaffle.js's
   // GET /ticket/:ticketId.
   const ticketMatch = pathname.match(/^\/raffle-ticket\/([a-z0-9]+)\/?$/i);
   if (ticketMatch) return { module: "raffle-ticket", ticketId: ticketMatch[1] };
-  const m = pathname.match(/^\/(rentals|calendar|golf|events)\/([a-z0-9-]+)\/?$/);
+  const m = pathname.match(/^\/(rentals|calendar|golf|events|tournaments)\/([a-z0-9-]+)\/?$/);
   return m ? { module: m[1], slug: m[2] } : null;
 }
 
@@ -407,6 +461,9 @@ export default function App() {
   if (publicMatch?.module === "golf") return <PublicGolf slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "events") return <PublicEvents slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "golf-pay") return <PublicGolfPay slug={publicMatch.slug} tournamentId={publicMatch.tournamentId} teamId={publicMatch.teamId} />;
+  if (publicMatch?.module === "tournaments") return <PublicTournaments slug={publicMatch.slug} embed={publicMatch.embed} />;
+  if (publicMatch?.module === "tournament") return <PublicTournament orgSlug={publicMatch.orgSlug} tournamentSlug={publicMatch.tournamentSlug} />;
+  if (publicMatch?.module === "tournament-pay") return <PublicTournamentPay orgSlug={publicMatch.orgSlug} tournamentSlug={publicMatch.tournamentSlug} teamId={publicMatch.teamId} />;
   if (publicMatch?.module === "raffle-ticket") return <PublicRaffleTicket ticketId={publicMatch.ticketId} />;
 
   // Needs to render for a logged-out visitor arriving from an email link, so

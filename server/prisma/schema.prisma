@@ -95,6 +95,12 @@ model Organization {
   golfInterestSignups      GolfInterestSignup[]
   orgStripeConnect         OrgStripeConnect?
   aiUsageLogs              AiUsageLog[]
+  tournamentTypes          TournamentType[]
+  tournaments              Tournament[]
+  tournamentPlayers        TournamentPlayer[]
+  tournamentTeams          TournamentTeam[]
+  tournamentTeamPlayers    TournamentTeamPlayer[]
+  tournamentLogs           TournamentLog[]
 }
 
 // Platform-admin-managed list (e.g. "Elks Lodge", "VFW Post", "Fire
@@ -1214,4 +1220,160 @@ model AiUsageLog {
 
   @@index([orgId, createdAt])
   @@index([feature, createdAt])
+}
+
+// --- Tournaments module (slice 1) ---
+// A generalized version of the Golf module — team-based tournament
+// registration, roster, and payment for any sport, not just golf. Built
+// fresh alongside Golf (not a rename-in-place) since there's no launch
+// deadline and no real Golf data to migrate. See the "New Tournaments
+// module" plan doc for full design rationale, including what's
+// deliberately deferred to a later slice (sponsors, check-in, marketing
+// emails, historical import).
+
+// Org-managed list of tournament types (e.g. "Golf", "Horseshoes",
+// "Cornhole") — deliberately not a platform-wide list (see moduleKeys.js's
+// MODULE_CATEGORY_RESTRICTIONS comment for the same reasoning elsewhere):
+// every org running this module picks its own sports, and a global list
+// editable only by a platform admin would make "add a new sport" a support
+// ticket for every other org on the platform.
+model TournamentType {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime     @default(now())
+
+  tournaments Tournament[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+model Tournament {
+  id                          String         @id @default(cuid())
+  orgId                       String
+  org                         Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  typeId                      String
+  type                        TournamentType @relation(fields: [typeId], references: [id])
+  slug                        String // unique per org — powers /tournaments/:orgSlug/:slug; multiple tournaments (of different types) can be open at once, unlike Golf's implicit single-active-tournament model
+  name                        String
+  year                        Int
+  date                        DateTime
+  format                      String? // freeform, e.g. "Four-Person Scramble", "Doubles Bracket" — never hardcode team size to this label
+  maxTeamSize                 Int            @default(4)
+  venueName                   String?
+  venueAddress                String?
+  flyerImage                  String? // base64 data URL, capped server-side — see tournaments.js
+  flyerImagePosition          String         @default("center") // top | center | bottom
+  costPerPlayer               Float
+  capacity                    Int? // max teams; null = unlimited
+  registeredTeamCount         Int            @default(0) // atomic counter guarding capacity, same pattern as GolfTournament
+  includedItems               Json? // string[]
+  scheduleItems               Json? // { time: string, label: string }[]
+  contactName                 String?
+  contactPhone                String?
+  contactEmail                String?
+  status                      String         @default("draft") // draft | open | closed
+  closedAt                    DateTime?
+  allowCheckPayment           Boolean        @default(false)
+  checkPayableInstructions    String?
+  allowInPersonPayment        Boolean        @default(false)
+  inPersonPaymentInstructions String?
+  previousTournamentId        String?
+  previousTournament          Tournament?    @relation("TournamentChain", fields: [previousTournamentId], references: [id], onDelete: SetNull)
+  nextTournaments             Tournament[]   @relation("TournamentChain")
+  createdAt                   DateTime       @default(now())
+  updatedAt                   DateTime       @updatedAt
+
+  teams       TournamentTeam[]
+  teamPlayers TournamentTeamPlayer[]
+  logs        TournamentLog[]
+
+  @@unique([orgId, slug])
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([typeId])
+  @@index([previousTournamentId])
+}
+
+// Org-scoped, persists across years — same as GolfPlayer.
+model TournamentPlayer {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name      String
+  email     String       @default("")
+  phone     String       @default("")
+  createdAt DateTime     @default(now())
+
+  teamPlayers TournamentTeamPlayer[]
+
+  @@index([orgId])
+  @@index([orgId, email])
+}
+
+model TournamentTeam {
+  id           String       @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tournamentId String
+  tournament   Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  name         String?
+  status       String       @default("registered") // registered | cancelled
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  players TournamentTeamPlayer[]
+
+  @@index([orgId])
+  @@index([tournamentId])
+}
+
+// The roster/registration join row — one per player per team per
+// tournament. Same shape as GolfTeamPlayer, including the payment fields.
+model TournamentTeamPlayer {
+  id                      String           @id @default(cuid())
+  orgId                   String
+  org                     Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tournamentId            String
+  tournament              Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teamId                  String
+  team                    TournamentTeam   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  playerId                String
+  player                  TournamentPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  isCaptain               Boolean          @default(false)
+  paymentMethod           String? // stripe | check | in_person
+  paymentStatus           String           @default("unpaid") // unpaid | pending | paid
+  amountDue               Float // snapshot of tournament.costPerPlayer at signup time
+  amountPaid              Float?
+  checkNumber             String?
+  stripeCheckoutSessionId String?
+  stripePaymentIntentId   String?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  @@unique([teamId, playerId])
+  @@index([orgId])
+  @@index([tournamentId])
+  @@index([teamId])
+  @@index([playerId])
+  @@index([stripeCheckoutSessionId])
+}
+
+model TournamentLog {
+  id           String       @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tournamentId String
+  tournament   Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  type         String // tournament_created | tournament_edited | tournament_opened | tournament_closed | team_registered | team_cancelled | player_added | player_removed | payment_recorded
+  text         String
+  actorName    String       @default("")
+  teamId       String?
+  playerId     String?
+  createdAt    DateTime     @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([tournamentId, createdAt])
 }
