@@ -101,6 +101,9 @@ model Organization {
   tournamentTeams          TournamentTeam[]
   tournamentTeamPlayers    TournamentTeamPlayer[]
   tournamentLogs           TournamentLog[]
+  tournamentSponsorContacts TournamentSponsorContact[]
+  tournamentSponsorships   TournamentSponsorship[]
+  tournamentCheckIns       TournamentCheckIn[]
 }
 
 // Platform-admin-managed list (e.g. "Elks Lodge", "VFW Post", "Fire
@@ -1286,9 +1289,11 @@ model Tournament {
   createdAt                   DateTime       @default(now())
   updatedAt                   DateTime       @updatedAt
 
-  teams       TournamentTeam[]
-  teamPlayers TournamentTeamPlayer[]
-  logs        TournamentLog[]
+  teams        TournamentTeam[]
+  teamPlayers  TournamentTeamPlayer[]
+  logs         TournamentLog[]
+  sponsorships TournamentSponsorship[]
+  checkIns     TournamentCheckIn[]
 
   @@unique([orgId, slug])
   @@index([orgId])
@@ -1321,6 +1326,8 @@ model TournamentTeam {
   tournament   Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   name         String?
   status       String       @default("registered") // registered | cancelled
+  sponsorshipId String?      // set when a confirmed sponsorship comps this team's entry — see TournamentSponsorship
+  sponsorship  TournamentSponsorship? @relation(fields: [sponsorshipId], references: [id], onDelete: SetNull)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -1328,6 +1335,7 @@ model TournamentTeam {
 
   @@index([orgId])
   @@index([tournamentId])
+  @@index([sponsorshipId])
 }
 
 // The roster/registration join row — one per player per team per
@@ -1343,7 +1351,7 @@ model TournamentTeamPlayer {
   playerId                String
   player                  TournamentPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
   isCaptain               Boolean          @default(false)
-  paymentMethod           String? // stripe | check | in_person
+  paymentMethod           String? // stripe | check | in_person | sponsor_covered
   paymentStatus           String           @default("unpaid") // unpaid | pending | paid
   amountDue               Float // snapshot of tournament.costPerPlayer at signup time
   amountPaid              Float?
@@ -1352,6 +1360,8 @@ model TournamentTeamPlayer {
   stripePaymentIntentId   String?
   createdAt               DateTime         @default(now())
   updatedAt               DateTime         @updatedAt
+
+  checkIn TournamentCheckIn?
 
   @@unique([teamId, playerId])
   @@index([orgId])
@@ -1367,13 +1377,80 @@ model TournamentLog {
   org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   tournamentId String
   tournament   Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  type         String // tournament_created | tournament_edited | tournament_opened | tournament_closed | team_registered | team_cancelled | player_added | player_removed | payment_recorded
+  type         String // tournament_created | tournament_edited | tournament_opened | tournament_closed | team_registered | team_cancelled | player_added | player_removed | payment_recorded | sponsorship_added | sponsorship_payment_recorded | sponsorship_comped_team | checkin
   text         String
   actorName    String       @default("")
   teamId       String?
   playerId     String?
+  sponsorshipId String?
   createdAt    DateTime     @default(now())
 
   @@index([orgId, createdAt])
   @@index([tournamentId, createdAt])
+}
+
+// Org-wide sponsor company directory — same shape as GolfSponsorContact.
+// One company can sponsor several tournaments (of any type) over the
+// years; this is the standing contact record that TournamentSponsorship
+// rows point back to.
+model TournamentSponsorContact {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  companyName String
+  contactName String?
+  email       String       @default("")
+  phone       String       @default("")
+  createdAt   DateTime     @default(now())
+
+  sponsorships TournamentSponsorship[]
+
+  @@index([orgId])
+  @@index([orgId, email])
+}
+
+// One sponsor's commitment to one tournament — same shape as
+// GolfSponsorship. Admin-entered only in this slice (source is always
+// "manual" for now; "public" is reserved for a future public
+// sponsor-inquiry form, not built yet).
+model TournamentSponsorship {
+  id            String                    @id @default(cuid())
+  orgId         String
+  org           Organization              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tournamentId  String
+  tournament    Tournament                @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  sponsorId     String
+  sponsor       TournamentSponsorContact  @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  tierName      String?
+  amount        Float?
+  paid          Boolean                   @default(false)
+  paidAt        DateTime?
+  paymentMethod String? // check | in_person | other — no Stripe integration for sponsorships
+  benefitsText  String?
+  status        String                    @default("confirmed") // inquiry | confirmed | declined — "inquiry" reserved for a future public form
+  source        String                    @default("manual") // manual | public
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  comppedTeams TournamentTeam[]
+
+  @@index([orgId])
+  @@index([tournamentId])
+  @@index([sponsorId])
+}
+
+// Same shape as GolfCheckIn — one row per checked-in roster slot.
+model TournamentCheckIn {
+  id                String               @id @default(cuid())
+  orgId             String
+  org               Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tournamentId      String
+  tournament        Tournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teamPlayerId      String               @unique
+  teamPlayer        TournamentTeamPlayer @relation(fields: [teamPlayerId], references: [id], onDelete: Cascade)
+  checkedInByUserId String?
+  checkedInByName   String               @default("")
+  checkedInAt       DateTime             @default(now())
+
+  @@index([tournamentId])
 }

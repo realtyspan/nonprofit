@@ -375,6 +375,19 @@ export const api = {
   listTournamentPlayers: () => request("/tournaments/players"),
   updateTournamentPlayer: (playerId, payload) => request(`/tournaments/players/${playerId}`, { method: "PATCH", body: payload }),
 
+  searchTournamentCheckIn: (tournamentId) => request(`/tournaments/${tournamentId}/checkin-search`),
+  listTournamentCheckIns: (tournamentId) => request(`/tournaments/${tournamentId}/checkins`),
+  toggleTournamentCheckIn: (tournamentId, teamPlayerId) => request(`/tournaments/${tournamentId}/checkins/${teamPlayerId}`, { method: "POST" }),
+
+  listTournamentSponsorships: (tournamentId) => request(`/tournaments/${tournamentId}/sponsorships`),
+  createTournamentSponsorship: (tournamentId, payload) => request(`/tournaments/${tournamentId}/sponsorships`, { method: "POST", body: payload }),
+  updateTournamentSponsorship: (tournamentId, sponsorshipId, payload) => request(`/tournaments/${tournamentId}/sponsorships/${sponsorshipId}`, { method: "PATCH", body: payload }),
+  deleteTournamentSponsorship: (tournamentId, sponsorshipId) => request(`/tournaments/${tournamentId}/sponsorships/${sponsorshipId}`, { method: "DELETE" }),
+  confirmTournamentSponsorship: (tournamentId, sponsorshipId) => request(`/tournaments/${tournamentId}/sponsorships/${sponsorshipId}/confirm`, { method: "POST" }),
+  searchTournamentSponsors: (search) => request(`/tournaments/sponsors?search=${encodeURIComponent(search)}`),
+  listTournamentSponsorDirectory: () => request("/tournaments/sponsors"),
+  updateTournamentSponsorContact: (sponsorId, payload) => request(`/tournaments/sponsors/${sponsorId}`, { method: "PATCH", body: payload }),
+
   getTournamentsStripeConnect: () => request("/tournaments/stripe-connect"),
   onboardTournamentsStripeConnect: () => request("/tournaments/stripe-connect/onboard", { method: "POST" }),
   syncTournamentsStripeConnect: () => request("/tournaments/stripe-connect/sync", { method: "POST" }),

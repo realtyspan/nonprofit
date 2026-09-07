@@ -1,7 +1,7 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess, requireOwner } = require("../lib/auth");
-const { findOrCreatePlayer, registerTeam, addLog } = require("../lib/tournamentLogic");
+const { normalizeEmail, findOrCreatePlayer, registerTeam, addLog } = require("../lib/tournamentLogic");
 const { stripe, createExpressAccount, createOnboardingLink } = require("../lib/stripe");
 const { buildTournamentFlyerPdf, resolveTournamentFlyerUrl } = require("../lib/tournamentFlyerPdf");
 
@@ -47,6 +47,13 @@ router.param("teamId", async (req, res, next, teamId) => {
   const team = await prisma.tournamentTeam.findFirst({ where: { id: teamId, orgId: req.user.orgId, tournamentId: req.tournament.id } });
   if (!team) return res.status(404).json({ error: "Team not found" });
   req.team = team;
+  next();
+});
+
+router.param("sponsorshipId", async (req, res, next, sponsorshipId) => {
+  const sponsorship = await prisma.tournamentSponsorship.findFirst({ where: { id: sponsorshipId, orgId: req.user.orgId, tournamentId: req.tournament.id } });
+  if (!sponsorship) return res.status(404).json({ error: "Sponsorship not found" });
+  req.sponsorship = sponsorship;
   next();
 });
 
@@ -374,7 +381,7 @@ router.get("/:tournamentId/flyer", requireReadAccess("tournaments"), async (req,
 // with publicTournaments.js so admin-entered and public self-service
 // registration go through the identical capacity-guarded logic.
 
-const teamInclude = { players: { include: { player: true } } };
+const teamInclude = { players: { include: { player: true, checkIn: true } }, sponsorship: { include: { sponsor: true } } };
 
 router.get("/:tournamentId/teams", requireReadAccess("tournaments"), async (req, res) => {
   const teams = await prisma.tournamentTeam.findMany({
@@ -405,18 +412,48 @@ router.post("/:tournamentId/teams", requirePermission("tournaments", "Helper"), 
 });
 
 router.patch("/:tournamentId/teams/:teamId", requirePermission("tournaments", "Helper"), requireActiveTournament, async (req, res) => {
-  const { teamName, status } = req.body;
+  const { teamName, status, sponsorshipId } = req.body;
   const data = {};
   if (teamName !== undefined) data.name = teamName?.trim() || null;
   if (status !== undefined) data.status = status;
 
-  const updated = await prisma.tournamentTeam.update({ where: { id: req.team.id }, data, include: teamInclude });
-  await addLog(req.user.orgId, req.tournament.id, {
-    type: "team_edited",
-    text: `Team${updated.name ? ` "${updated.name}"` : ""} updated`,
-    actorName: req.callerUser?.name || "",
-    teamId: updated.id,
-  });
+  const linkingSponsorship = sponsorshipId !== undefined && sponsorshipId !== req.team.sponsorshipId;
+  if (linkingSponsorship) {
+    if (sponsorshipId) {
+      const sponsorship = await prisma.tournamentSponsorship.findFirst({ where: { id: sponsorshipId, orgId: req.user.orgId, tournamentId: req.tournament.id } });
+      if (!sponsorship) return res.status(400).json({ error: "That sponsorship wasn't found" });
+    }
+    data.sponsorshipId = sponsorshipId || null;
+  }
+
+  let updated = await prisma.tournamentTeam.update({ where: { id: req.team.id }, data, include: teamInclude });
+
+  if (linkingSponsorship && data.sponsorshipId) {
+    // Comping a team's entry — every unpaid roster row on it is settled by
+    // the sponsorship, not by the individual players. Rows already paid some
+    // other way are left alone.
+    await prisma.tournamentTeamPlayer.updateMany({
+      where: { teamId: req.team.id, paymentStatus: { not: "paid" } },
+      data: { paymentMethod: "sponsor_covered", paymentStatus: "paid", amountPaid: 0 },
+    });
+    await addLog(req.user.orgId, req.tournament.id, {
+      type: "sponsorship_comped_team",
+      text: `Team${updated.name ? ` "${updated.name}"` : ""}'s entry comped by ${updated.sponsorship?.sponsor?.companyName || "a sponsorship"}`,
+      actorName: req.callerUser?.name || "",
+      teamId: updated.id,
+      sponsorshipId: data.sponsorshipId,
+    });
+    // Re-fetch — the object above still reflects each player's row from
+    // before the bulk update just above ran.
+    updated = await prisma.tournamentTeam.findUnique({ where: { id: req.team.id }, include: teamInclude });
+  } else {
+    await addLog(req.user.orgId, req.tournament.id, {
+      type: "team_edited",
+      text: `Team${updated.name ? ` "${updated.name}"` : ""} updated`,
+      actorName: req.callerUser?.name || "",
+      teamId: updated.id,
+    });
+  }
   res.json(updated);
 });
 
@@ -538,6 +575,200 @@ router.post("/:tournamentId/teams/:teamId/mark-paid", requirePermission("tournam
     teamId: req.team.id,
   });
   res.json({ ok: true, count: result.count });
+});
+
+// --- Check-in ---
+// Direct port of golf.js's check-in routes.
+
+// Deliberately unmasked and returns the full non-cancelled roster (not
+// filtered server-side by a search param) — mirrors golf.js's own
+// checkin-search: verifying who's at the door is a different concern
+// than any sales-credit masking elsewhere, and the admin UI does its own
+// client-side substring matching.
+router.get("/:tournamentId/checkin-search", requirePermission("tournaments", "Helper"), async (req, res) => {
+  const teamPlayers = await prisma.tournamentTeamPlayer.findMany({
+    where: { tournamentId: req.tournament.id, orgId: req.user.orgId, team: { status: { not: "cancelled" } } },
+    include: { player: true, team: true },
+    orderBy: { createdAt: "asc" },
+  });
+  res.json(teamPlayers.map((tp) => ({
+    id: tp.id, name: tp.player.name, phone: tp.player.phone, email: tp.player.email,
+    teamName: tp.team.name, isCaptain: tp.isCaptain, paymentStatus: tp.paymentStatus,
+  })));
+});
+
+router.get("/:tournamentId/checkins", requireReadAccess("tournaments"), async (req, res) => {
+  const checkIns = await prisma.tournamentCheckIn.findMany({ where: { tournamentId: req.tournament.id, orgId: req.user.orgId }, orderBy: { checkedInAt: "desc" } });
+  res.json(checkIns);
+});
+
+// Toggle — calling it again on an already-checked-in player removes the
+// check-in, so a mis-tap at the door doesn't need a separate "undo" action.
+router.post("/:tournamentId/checkins/:teamPlayerId", requirePermission("tournaments", "Helper"), requireActiveTournament, async (req, res) => {
+  const teamPlayer = await prisma.tournamentTeamPlayer.findFirst({
+    where: { id: req.params.teamPlayerId, orgId: req.user.orgId, tournamentId: req.tournament.id },
+    include: { player: true },
+  });
+  if (!teamPlayer) return res.status(404).json({ error: "Player not found" });
+
+  const existing = await prisma.tournamentCheckIn.findUnique({ where: { teamPlayerId: teamPlayer.id } });
+  if (existing) {
+    await prisma.tournamentCheckIn.delete({ where: { id: existing.id } });
+    await addLog(req.user.orgId, req.tournament.id, {
+      type: "checkin", text: `${teamPlayer.player.name}'s check-in removed`,
+      actorName: req.callerUser?.name || "", teamId: teamPlayer.teamId, playerId: teamPlayer.playerId,
+    });
+    return res.json({ checkedIn: false });
+  }
+
+  const checkIn = await prisma.tournamentCheckIn.create({
+    data: {
+      orgId: req.user.orgId, tournamentId: req.tournament.id, teamPlayerId: teamPlayer.id,
+      checkedInByUserId: req.user.userId, checkedInByName: req.callerUser?.name || "",
+    },
+  });
+  await addLog(req.user.orgId, req.tournament.id, {
+    type: "checkin", text: `${teamPlayer.player.name} checked in`,
+    actorName: req.callerUser?.name || "", teamId: teamPlayer.teamId, playerId: teamPlayer.playerId,
+  });
+  res.json({ checkedIn: true, checkIn });
+});
+
+// --- Sponsorships ---
+// Direct port of golf.js's sponsorship CRUD, onto the new tables.
+
+async function findOrCreateSponsorContact(orgId, { companyName, contactName, email, phone }) {
+  if (!companyName || !companyName.trim()) throw Object.assign(new Error("companyName is required"), { status: 400 });
+  const normalizedEmail = normalizeEmail(email);
+  if (normalizedEmail) {
+    const existing = await prisma.tournamentSponsorContact.findFirst({ where: { orgId, email: normalizedEmail } });
+    if (existing) return existing;
+  }
+  return prisma.tournamentSponsorContact.create({
+    data: { orgId, companyName: companyName.trim(), contactName: contactName?.trim() || null, email: normalizedEmail, phone: (phone || "").trim() },
+  });
+}
+
+router.get("/:tournamentId/sponsorships", requireReadAccess("tournaments"), async (req, res) => {
+  const sponsorships = await prisma.tournamentSponsorship.findMany({
+    where: { tournamentId: req.tournament.id, orgId: req.user.orgId },
+    include: { sponsor: true },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(sponsorships);
+});
+
+router.post("/:tournamentId/sponsorships", requirePermission("tournaments", "Helper"), requireActiveTournament, async (req, res) => {
+  const { companyName, contactName, email, phone, tierName, amount, benefitsText } = req.body;
+  // Required for a live-entered sponsor, but deliberately not enforced
+  // inside findOrCreateSponsorContact itself — that helper is shared with
+  // any future historical import, where a real past sponsor legitimately
+  // has no phone on record and shouldn't be dropped for it.
+  if (!phone || !phone.trim()) return res.status(400).json({ error: "phone is required" });
+  let sponsor;
+  try {
+    sponsor = await findOrCreateSponsorContact(req.user.orgId, { companyName, contactName, email, phone });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+
+  const sponsorship = await prisma.tournamentSponsorship.create({
+    data: {
+      orgId: req.user.orgId, tournamentId: req.tournament.id, sponsorId: sponsor.id,
+      tierName: tierName?.trim() || null, amount: amount === "" || amount == null ? null : Number(amount),
+      benefitsText: benefitsText?.trim() || null, status: "confirmed", source: "manual",
+    },
+    include: { sponsor: true },
+  });
+  await addLog(req.user.orgId, req.tournament.id, {
+    type: "sponsorship_added",
+    text: `${sponsor.companyName} added as a sponsor${tierName ? ` (${tierName})` : ""}`,
+    actorName: req.callerUser?.name || "", sponsorshipId: sponsorship.id,
+  });
+  res.json(sponsorship);
+});
+
+router.patch("/:tournamentId/sponsorships/:sponsorshipId", requirePermission("tournaments", "Helper"), requireActiveTournament, async (req, res) => {
+  const { tierName, amount, paid, paymentMethod, benefitsText, status } = req.body;
+  const data = {};
+  if (tierName !== undefined) data.tierName = tierName?.trim() || null;
+  if (amount !== undefined) data.amount = amount === "" || amount == null ? null : Number(amount);
+  if (benefitsText !== undefined) data.benefitsText = benefitsText?.trim() || null;
+  if (status !== undefined) data.status = status;
+  if (paymentMethod !== undefined) data.paymentMethod = paymentMethod || null;
+
+  const wasPaid = req.sponsorship.paid;
+  if (paid !== undefined) {
+    data.paid = !!paid;
+    data.paidAt = paid ? (wasPaid ? req.sponsorship.paidAt : new Date()) : null;
+  }
+
+  const updated = await prisma.tournamentSponsorship.update({ where: { id: req.sponsorship.id }, data, include: { sponsor: true } });
+
+  if (paid !== undefined && !!paid !== wasPaid && paid) {
+    await addLog(req.user.orgId, req.tournament.id, {
+      type: "sponsorship_payment_recorded",
+      text: `${updated.sponsor.companyName}'s sponsorship marked paid`,
+      actorName: req.callerUser?.name || "", sponsorshipId: updated.id,
+    });
+  }
+  res.json(updated);
+});
+
+router.delete("/:tournamentId/sponsorships/:sponsorshipId", requirePermission("tournaments", "Admin"), requireActiveTournament, async (req, res) => {
+  // TournamentTeam.sponsorshipId is onDelete: SetNull, so any comped team is
+  // automatically unlinked — its players' payment status from the comp is
+  // left as-is (an admin can revert it manually if the comp is being undone).
+  await prisma.tournamentSponsorship.delete({ where: { id: req.sponsorship.id } });
+  res.json({ ok: true });
+});
+
+router.post("/:tournamentId/sponsorships/:sponsorshipId/confirm", requirePermission("tournaments", "Admin"), requireActiveTournament, async (req, res) => {
+  const updated = await prisma.tournamentSponsorship.update({ where: { id: req.sponsorship.id }, data: { status: "confirmed" } });
+  res.json(updated);
+});
+
+// Org-wide sponsor directory — same shape as /players above: every sponsor
+// ever recorded, one shared table. No query means "list everyone" (the
+// Sponsor Directory screen); a query filters (admin autocomplete when
+// manually adding a sponsorship).
+router.get("/sponsors", requireReadAccess("tournaments"), async (req, res) => {
+  const q = (req.query.search || "").trim();
+  const sponsors = await prisma.tournamentSponsorContact.findMany({
+    where: {
+      orgId: req.user.orgId,
+      ...(q ? { OR: [{ companyName: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] } : {}),
+    },
+    take: q ? 20 : 500,
+    orderBy: { companyName: "asc" },
+    include: { sponsorships: { select: { amount: true, paid: true, tournament: { select: { year: true } } } } },
+  });
+  res.json(sponsors.map(({ sponsorships, ...sponsor }) => {
+    const years = sponsorships.map((s) => s.tournament.year);
+    return {
+      ...sponsor,
+      sponsorshipCount: sponsorships.length,
+      totalRaised: sponsorships.filter((s) => s.paid).reduce((sum, s) => sum + (s.amount || 0), 0),
+      lastYear: years.length ? Math.max(...years) : null,
+    };
+  }));
+});
+
+router.patch("/sponsors/:sponsorId", requirePermission("tournaments", "Helper"), async (req, res) => {
+  const sponsor = await prisma.tournamentSponsorContact.findFirst({ where: { id: req.params.sponsorId, orgId: req.user.orgId } });
+  if (!sponsor) return res.status(404).json({ error: "Sponsor not found" });
+  const { companyName, contactName, email, phone } = req.body;
+  if (companyName !== undefined && !(companyName || "").trim()) return res.status(400).json({ error: "Company name is required" });
+  const updated = await prisma.tournamentSponsorContact.update({
+    where: { id: sponsor.id },
+    data: {
+      ...(companyName !== undefined ? { companyName: companyName.trim() } : {}),
+      ...(contactName !== undefined ? { contactName: (contactName || "").trim() } : {}),
+      ...(email !== undefined ? { email: normalizeEmail(email) } : {}),
+      ...(phone !== undefined ? { phone: (phone || "").trim() } : {}),
+    },
+  });
+  res.json(updated);
 });
 
 router.get("/:tournamentId/stats", requireReadAccess("tournaments"), async (req, res) => {

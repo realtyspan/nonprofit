@@ -61,6 +61,9 @@ import GolfLog from "./views/GolfLog";
 import ManageTournaments from "./views/ManageTournaments";
 import TournamentRoster from "./views/TournamentRoster";
 import TournamentPlayerDirectory from "./views/TournamentPlayerDirectory";
+import TournamentSponsorDirectory from "./views/TournamentSponsorDirectory";
+import TournamentSponsors from "./views/TournamentSponsors";
+import TournamentCheckIn from "./views/TournamentCheckIn";
 import TournamentLog from "./views/TournamentLog";
 import FrsReport from "./views/elks-tools/FrsReport";
 
@@ -394,7 +397,10 @@ function Shell() {
             {activeModuleKey === "golf" && view === "log" && <GolfLog tournament={selectedGolfTournament} />}
             {activeModuleKey === "tournaments" && view === "manage" && <ManageTournaments tournaments={tournaments} tournamentId={selectedTournamentId} onTournamentsChanged={refreshTournaments} />}
             {activeModuleKey === "tournaments" && view === "players" && <TournamentPlayerDirectory />}
+            {activeModuleKey === "tournaments" && view === "sponsor-directory" && <TournamentSponsorDirectory />}
             {activeModuleKey === "tournaments" && view === "roster" && <TournamentRoster tournament={selectedTournament} />}
+            {activeModuleKey === "tournaments" && view === "sponsors" && <TournamentSponsors tournament={selectedTournament} />}
+            {activeModuleKey === "tournaments" && view === "checkin" && <TournamentCheckIn tournament={selectedTournament} />}
             {activeModuleKey === "tournaments" && view === "log" && <TournamentLog tournament={selectedTournament} />}
             {activeModuleKey === "events" && view === "manage" && <ManageEvents />}
             {activeModuleKey === "elks-tools" && view === "frs" && <FrsReport permissions={permissions} />}

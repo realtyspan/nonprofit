@@ -67,8 +67,8 @@ async function registerTeam(orgId, tournament, { teamName, players }) {
 // Single canonical activity-log writer, shared across tournaments.js and
 // publicTournaments.js so admin-entered and public-registered actions both
 // leave the same trail.
-async function addLog(orgId, tournamentId, { type, text, actorName = "", teamId = null, playerId = null }) {
-  await prisma.tournamentLog.create({ data: { orgId, tournamentId, type, text, actorName, teamId, playerId } });
+async function addLog(orgId, tournamentId, { type, text, actorName = "", teamId = null, playerId = null, sponsorshipId = null }) {
+  await prisma.tournamentLog.create({ data: { orgId, tournamentId, type, text, actorName, teamId, playerId, sponsorshipId } });
 }
 
 // The only two places a tournament Checkout session's outcome is ever

@@ -11,12 +11,15 @@ const PAYMENT_STYLE = {
   paid: [colors.successBg, colors.success, "Paid"],
 };
 
-// Roster/team management for the selected tournament — direct port of
-// GolfRoster.jsx, minus sponsorship-comping and check-in status (both
-// deferred to a later slice — see the plan doc).
+// Roster/team management for the selected tournament — add teams and
+// players manually (phone-in registrations, or seeding data before the
+// public signup page exists), record check/in-person payments, and comp a
+// team's entry against a confirmed sponsorship. Direct port of
+// GolfRoster.jsx.
 export default function TournamentRoster({ tournament }) {
   const [teams, setTeams] = useState([]);
   const [stats, setStats] = useState(null);
+  const [sponsorships, setSponsorships] = useState([]);
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [loadError, setLoadError] = useState("");
 
@@ -24,12 +27,15 @@ export default function TournamentRoster({ tournament }) {
     if (!tournament) return;
     api.listTournamentTeams(tournament.id).then(setTeams).catch((err) => setLoadError(err.message));
     api.getTournamentStats(tournament.id).then(setStats).catch(() => {});
+    api.listTournamentSponsorships(tournament.id).then(setSponsorships).catch(() => {});
   }
   useEffect(refresh, [tournament?.id]);
 
   if (!tournament) {
     return <div style={{ ...card, fontSize: 13, color: colors.textSecondary }}>No tournament selected.</div>;
   }
+
+  const confirmedSponsorships = sponsorships.filter((s) => s.status === "confirmed");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -57,7 +63,7 @@ export default function TournamentRoster({ tournament }) {
       )}
 
       {teams.map((team) => (
-        <TeamCard key={team.id} team={team} tournament={tournament} onChanged={refresh} />
+        <TeamCard key={team.id} team={team} tournament={tournament} confirmedSponsorships={confirmedSponsorships} onChanged={refresh} />
       ))}
 
       {showAddTeam && (
@@ -67,8 +73,9 @@ export default function TournamentRoster({ tournament }) {
   );
 }
 
-function TeamCard({ team, tournament, onChanged }) {
+function TeamCard({ team, tournament, confirmedSponsorships, onChanged }) {
   const [showAddPlayer, setShowAddPlayer] = useState(false);
+  const [showComp, setShowComp] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const confirm = useConfirm();
@@ -117,7 +124,12 @@ function TeamCard({ team, tournament, onChanged }) {
     <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ fontSize: 15, fontWeight: 700 }}>{team.name || `Team (${team.players.length} player${team.players.length === 1 ? "" : "s"})`}</div>
-        <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} onClick={removeTeam} disabled={busy}>Remove team</button>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {team.sponsorship && (
+            <span style={pill(colors.indigoBg, colors.indigo)}>Comped by {team.sponsorship.sponsor.companyName}</span>
+          )}
+          <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} onClick={removeTeam} disabled={busy}>Remove team</button>
+        </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -130,6 +142,7 @@ function TeamCard({ team, tournament, onChanged }) {
                 {tp.player.email && <div style={{ fontSize: 11.5, color: colors.textSecondary }}>{tp.player.email}</div>}
               </div>
               <span style={pill(bg, text)}>{label}{tp.paymentMethod ? ` · ${tp.paymentMethod.replace("_", " ")}` : ""}</span>
+              {tp.checkIn && <span style={pill(colors.successBg, colors.success)}>Checked in</span>}
               {tp.paymentStatus !== "paid" && (
                 <div style={{ display: "flex", gap: 6 }}>
                   <button style={{ ...button.ghost, padding: "4px 8px", fontSize: 11.5 }} disabled={busy} onClick={() => markPaid(tp.id, "check")}>Mark paid (check)</button>
@@ -144,15 +157,28 @@ function TeamCard({ team, tournament, onChanged }) {
 
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
 
-      {team.players.length < tournament.maxTeamSize && (
-        <div><button style={button.ghost} onClick={() => setShowAddPlayer(true)}>+ Add player</button></div>
-      )}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {team.players.length < tournament.maxTeamSize && (
+          <button style={button.ghost} onClick={() => setShowAddPlayer(true)}>+ Add player</button>
+        )}
+        {!team.sponsorship && confirmedSponsorships.length > 0 && (
+          <button style={button.ghost} onClick={() => setShowComp(true)}>Comp with a sponsorship</button>
+        )}
+      </div>
 
       {showAddPlayer && (
         <AddPlayerForm
           tournament={tournament} team={team}
           onCancel={() => setShowAddPlayer(false)}
           onAdded={() => { setShowAddPlayer(false); onChanged(); }}
+        />
+      )}
+
+      {showComp && (
+        <CompTeamForm
+          tournament={tournament} team={team} sponsorships={confirmedSponsorships}
+          onCancel={() => setShowComp(false)}
+          onComped={() => { setShowComp(false); onChanged(); }}
         />
       )}
     </div>
@@ -207,6 +233,43 @@ function AddPlayerForm({ tournament, team, onCancel, onAdded }) {
       {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
         <button type="submit" style={button.primary} disabled={busy}>{busy ? "Adding…" : "Add player"}</button>
+        <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+function CompTeamForm({ tournament, team, sponsorships, onCancel, onComped }) {
+  const [sponsorshipId, setSponsorshipId] = useState(sponsorships[0]?.id || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!sponsorshipId) return setError("Choose a sponsorship");
+    setBusy(true);
+    setError("");
+    try {
+      await api.updateTournamentTeam(tournament.id, team.id, { sponsorshipId });
+      onComped();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, background: "#f7f4ec", borderRadius: 8 }}>
+      <div style={{ fontSize: 12, color: colors.textSecondary }}>Every unpaid player on this team will be marked paid, covered by the sponsorship. Already-paid players are left alone.</div>
+      <select style={inputStyle} value={sponsorshipId} onChange={(e) => setSponsorshipId(e.target.value)}>
+        {sponsorships.map((s) => (
+          <option key={s.id} value={s.id}>{s.sponsor.companyName}{s.tierName ? ` (${s.tierName})` : ""}</option>
+        ))}
+      </select>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="submit" style={button.primary} disabled={busy}>{busy ? "Working…" : "Comp this team"}</button>
         <button type="button" style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
       </div>
     </form>
