@@ -391,6 +391,19 @@ export const api = {
   listTournamentInterestSignups: () => request("/tournaments/interest-signups"),
   setTournamentInterestSignupContacted: (id, contacted) => request(`/tournaments/interest-signups/${id}`, { method: "PATCH", body: { contacted } }),
 
+  getTournamentKickoffEmail: (tournamentId) => request(`/tournaments/${tournamentId}/kickoff-email`),
+  getTournamentKickoffRecipients: (tournamentId) => request(`/tournaments/${tournamentId}/kickoff-email/recipients`),
+  sendTournamentKickoffEmail: (tournamentId) => request(`/tournaments/${tournamentId}/kickoff-email/send`, { method: "POST" }),
+  sendTournamentKickoffTestEmail: (tournamentId, email) => request(`/tournaments/${tournamentId}/kickoff-email/send-test`, { method: "POST", body: { email } }),
+
+  getTournamentSponsorEmail: (tournamentId) => request(`/tournaments/${tournamentId}/sponsor-email`),
+  getTournamentSponsorEmailRecipients: (tournamentId) => request(`/tournaments/${tournamentId}/sponsor-email/recipients`),
+  sendTournamentSponsorEmail: (tournamentId) => request(`/tournaments/${tournamentId}/sponsor-email/send`, { method: "POST" }),
+  sendTournamentSponsorTestEmail: (tournamentId, email) => request(`/tournaments/${tournamentId}/sponsor-email/send-test`, { method: "POST", body: { email } }),
+
+  getTournamentsUnsubscribeInfo: (token) => request(`/public/tournaments/unsubscribe-info?token=${encodeURIComponent(token)}`),
+  confirmTournamentsUnsubscribe: (token) => request("/public/tournaments/unsubscribe", { method: "POST", body: { token } }),
+
   getTournamentsStripeConnect: () => request("/tournaments/stripe-connect"),
   onboardTournamentsStripeConnect: () => request("/tournaments/stripe-connect/onboard", { method: "POST" }),
   syncTournamentsStripeConnect: () => request("/tournaments/stripe-connect/sync", { method: "POST" }),

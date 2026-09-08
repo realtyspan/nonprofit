@@ -204,6 +204,13 @@ export default function ManageTournaments({ tournaments, tournamentId, onTournam
 
       <StripeConnectCard />
 
+      {selected && (
+        <>
+          <TournamentKickoffEmailCard tournament={selected} isAdmin={isAdmin} />
+          <TournamentSponsorEmailCard tournament={selected} isAdmin={isAdmin} />
+        </>
+      )}
+
       <PreviewEmptyStateCard />
 
       <InterestSignupsCard />
@@ -556,6 +563,397 @@ function StripeConnectCard() {
         )}
       </div>
     </div>
+  );
+}
+
+// Invites a linked tournament's past players back for this one — the
+// payoff of the "Player/sponsor history source" link set on the
+// tournament form. Direct port of ManageGolfTournaments.jsx's own
+// GolfKickoffEmailCard, plus isAdmin gating (the server enforces Admin
+// on every one of these routes — see tournaments.js — so this stays
+// consistent with the rest of this screen's disabled+tooltip pattern
+// rather than letting a Helper fill out a test-send only to be 403'd).
+function TournamentKickoffEmailCard({ tournament, isAdmin }) {
+  const [html, setHtml] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [recipients, setRecipients] = useState(null);
+  const [recipientsBusy, setRecipientsBusy] = useState(false);
+  const [recipientsError, setRecipientsError] = useState("");
+  const [showSendConfirm, setShowSendConfirm] = useState(false);
+  const [sendResult, setSendResult] = useState(null);
+  const [testEmail, setTestEmail] = useState("");
+  const [testBusy, setTestBusy] = useState(false);
+  const [testError, setTestError] = useState("");
+  const [testSentTo, setTestSentTo] = useState("");
+
+  useEffect(() => {
+    setHtml(null); setRecipients(null); setSendResult(null); setError(""); setRecipientsError("");
+    setTestEmail(""); setTestError(""); setTestSentTo("");
+  }, [tournament.id]);
+
+  async function sendTest(e) {
+    e.preventDefault();
+    setTestBusy(true);
+    setTestError("");
+    setTestSentTo("");
+    try {
+      await api.sendTournamentKickoffTestEmail(tournament.id, testEmail.trim());
+      setTestSentTo(testEmail.trim());
+    } catch (err) {
+      setTestError(err.message);
+    } finally {
+      setTestBusy(false);
+    }
+  }
+
+  async function preview() {
+    setBusy(true);
+    setError("");
+    try {
+      setHtml((await api.getTournamentKickoffEmail(tournament.id)).html);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function download() {
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${tournament.name.replace(/\s+/g, "_")}_Kickoff_Email.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function buildRecipients() {
+    setRecipientsBusy(true);
+    setRecipientsError("");
+    setSendResult(null);
+    try {
+      setRecipients(await api.getTournamentKickoffRecipients(tournament.id));
+    } catch (err) {
+      setRecipientsError(err.message);
+    } finally {
+      setRecipientsBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Player marketing email</div>
+        <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>
+          Invites past players back for "{tournament.name}", sent to everyone who played in its linked tournament history.
+        </div>
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+      <div><button style={isAdmin ? button.ghost : button.disabled} disabled={busy || !isAdmin} title={!isAdmin ? "Only a Tournaments Admin can preview marketing email" : ""} onClick={preview}>{busy ? "Building…" : "Preview email"}</button></div>
+
+      {html && (
+        <Modal onCancel={() => setHtml(null)} width={660} title={`${tournament.name} — player email`}>
+          <iframe title="Kickoff email preview" srcDoc={html} style={{ width: "100%", height: "65vh", border: `1px solid ${colors.borderLight}`, borderRadius: 8 }} />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
+            <button style={button.ghost} onClick={() => setHtml(null)}>Close</button>
+            <button style={button.primary} onClick={download}>Download HTML</button>
+          </div>
+        </Modal>
+      )}
+
+      <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Send yourself a test</div>
+        <div style={{ fontSize: 12, color: colors.textSecondary }}>
+          Sends one real copy to an address you choose, marked [TEST] in the subject line. It doesn't count against or affect the real recipient list below.
+        </div>
+        <form onSubmit={sendTest} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input type="email" required placeholder="you@example.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} style={{ ...inputStyle, flex: "1 1 220px" }} disabled={!isAdmin} />
+          <button type="submit" style={isAdmin ? button.ghost : button.disabled} disabled={testBusy || !isAdmin} title={!isAdmin ? "Only a Tournaments Admin can send marketing email" : ""}>{testBusy ? "Sending…" : "Send test"}</button>
+        </form>
+        {testError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{testError}</div>}
+        {testSentTo && <div style={{ color: colors.success, fontSize: 12.5 }}>Test email sent to {testSentTo}.</div>}
+      </div>
+
+      <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Recipients</div>
+        {!tournament.previousTournamentId ? (
+          <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+            This tournament isn't linked to a prior one — edit it and set "Pull past players/sponsors from" to build a recipient list from that history.
+          </div>
+        ) : (
+          <>
+            {recipientsError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{recipientsError}</div>}
+            <div><button style={isAdmin ? button.ghost : button.disabled} disabled={recipientsBusy || !isAdmin} title={!isAdmin ? "Only a Tournaments Admin can build a recipient list" : ""} onClick={buildRecipients}>{recipientsBusy ? "Building…" : "Build recipient list"}</button></div>
+            {recipients && (() => {
+              const sendable = recipients.recipients.filter((r) => !r.suppressed);
+              const suppressedCount = recipients.recipients.length - sendable.length;
+              return (
+                <>
+                  <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+                    <strong>{recipients.recipients.length}</strong> player{recipients.recipients.length === 1 ? "" : "s"} with an email on file across {recipients.seriesYears.length} linked tournament year{recipients.seriesYears.length === 1 ? "" : "s"}
+                    {recipients.missingEmailCount > 0 ? ` (${recipients.missingEmailCount} past roster entr${recipients.missingEmailCount === 1 ? "y" : "ies"} had no email on record)` : ""}.
+                    {suppressedCount > 0 ? ` ${suppressedCount} of those unsubscribed and won't be emailed.` : ""}
+                  </div>
+                  {recipients.recipients.length > 0 && (
+                    <>
+                      <div style={{ maxHeight: 280, overflowY: "auto", border: `1px solid ${colors.borderLight}`, borderRadius: 8 }}>
+                        <DataList
+                          rows={recipients.recipients}
+                          emptyMessage="No recipients."
+                          rowStyle={(r) => (r.suppressed ? { opacity: 0.55 } : undefined)}
+                          columns={[
+                            { key: "name", label: "Name", grid: "1.3fr", primary: true, render: (r) => r.name },
+                            { key: "email", label: "Email", grid: "1.5fr", render: (r) => r.email },
+                            { key: "phone", label: "Phone", grid: "1fr", render: (r) => formatPhone(r.phone) || "—" },
+                            { key: "years", label: "Years", grid: "0.8fr", render: (r) => r.years.join(", ") },
+                            { key: "status", label: "", grid: "0.9fr", render: (r) => (r.suppressed ? <span style={pill("#f1ece0", colors.textSecondary)}>Unsubscribed</span> : null) },
+                          ]}
+                        />
+                      </div>
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <button style={{ ...button.primary, background: colors.danger }} disabled={sendable.length === 0 || !isAdmin} title={!isAdmin ? "Only a Tournaments Admin can send marketing email" : ""} onClick={() => setShowSendConfirm(true)}>
+                          Send to {sendable.length}
+                        </button>
+                      </div>
+                      {sendResult && (
+                        <div style={{ fontSize: 12.5, color: colors.success }}>
+                          Sent to {sendResult.sent} of {sendResult.total} recipients.
+                          {sendResult.sent < sendResult.total ? ` ${sendResult.total - sendResult.sent} failed to send — check the server log for details.` : ""}
+                          {sendResult.suppressed > 0 ? ` ${sendResult.suppressed} skipped — unsubscribed.` : ""}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              );
+            })()}
+          </>
+        )}
+      </div>
+
+      {showSendConfirm && recipients && (
+        <SendTournamentMarketingEmailModal
+          title={`Send player email to ${recipients.recipients.filter((r) => !r.suppressed).length} recipient${recipients.recipients.filter((r) => !r.suppressed).length === 1 ? "" : "s"}?`}
+          description={`This sends the "${tournament.name}" player email to ${recipients.recipients.filter((r) => !r.suppressed).length} past player${recipients.recipients.filter((r) => !r.suppressed).length === 1 ? "" : "s"} from its linked tournament history, each personalized with their own name.`}
+          send={() => api.sendTournamentKickoffEmail(tournament.id)}
+          onCancel={() => setShowSendConfirm(false)}
+          onSent={(result) => { setShowSendConfirm(false); setSendResult(result); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Invites this tournament's linked history of past sponsors back — same
+// mechanics as TournamentKickoffEmailCard, over confirmed sponsorships
+// instead of rosters. Direct port of
+// ManageGolfTournaments.jsx's own GolfSponsorEmailCard.
+function TournamentSponsorEmailCard({ tournament, isAdmin }) {
+  const [html, setHtml] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [recipients, setRecipients] = useState(null);
+  const [recipientsBusy, setRecipientsBusy] = useState(false);
+  const [recipientsError, setRecipientsError] = useState("");
+  const [showSendConfirm, setShowSendConfirm] = useState(false);
+  const [sendResult, setSendResult] = useState(null);
+  const [testEmail, setTestEmail] = useState("");
+  const [testBusy, setTestBusy] = useState(false);
+  const [testError, setTestError] = useState("");
+  const [testSentTo, setTestSentTo] = useState("");
+
+  useEffect(() => {
+    setHtml(null); setRecipients(null); setSendResult(null); setError(""); setRecipientsError("");
+    setTestEmail(""); setTestError(""); setTestSentTo("");
+  }, [tournament.id]);
+
+  async function sendTest(e) {
+    e.preventDefault();
+    setTestBusy(true);
+    setTestError("");
+    setTestSentTo("");
+    try {
+      await api.sendTournamentSponsorTestEmail(tournament.id, testEmail.trim());
+      setTestSentTo(testEmail.trim());
+    } catch (err) {
+      setTestError(err.message);
+    } finally {
+      setTestBusy(false);
+    }
+  }
+
+  async function preview() {
+    setBusy(true);
+    setError("");
+    try {
+      setHtml((await api.getTournamentSponsorEmail(tournament.id)).html);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function download() {
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${tournament.name.replace(/\s+/g, "_")}_Sponsor_Email.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function buildRecipients() {
+    setRecipientsBusy(true);
+    setRecipientsError("");
+    setSendResult(null);
+    try {
+      setRecipients(await api.getTournamentSponsorEmailRecipients(tournament.id));
+    } catch (err) {
+      setRecipientsError(err.message);
+    } finally {
+      setRecipientsBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Sponsor marketing email</div>
+        <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>
+          Invites past sponsors back for "{tournament.name}", sent to every confirmed sponsor across its linked tournament history.
+        </div>
+      </div>
+      {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+      <div><button style={isAdmin ? button.ghost : button.disabled} disabled={busy || !isAdmin} title={!isAdmin ? "Only a Tournaments Admin can preview marketing email" : ""} onClick={preview}>{busy ? "Building…" : "Preview email"}</button></div>
+
+      {html && (
+        <Modal onCancel={() => setHtml(null)} width={660} title={`${tournament.name} — sponsor email`}>
+          <iframe title="Sponsor email preview" srcDoc={html} style={{ width: "100%", height: "65vh", border: `1px solid ${colors.borderLight}`, borderRadius: 8 }} />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
+            <button style={button.ghost} onClick={() => setHtml(null)}>Close</button>
+            <button style={button.primary} onClick={download}>Download HTML</button>
+          </div>
+        </Modal>
+      )}
+
+      <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Send yourself a test</div>
+        <div style={{ fontSize: 12, color: colors.textSecondary }}>
+          Sends one real copy to an address you choose, marked [TEST] in the subject line. It doesn't count against or affect the real recipient list below.
+        </div>
+        <form onSubmit={sendTest} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input type="email" required placeholder="you@example.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} style={{ ...inputStyle, flex: "1 1 220px" }} disabled={!isAdmin} />
+          <button type="submit" style={isAdmin ? button.ghost : button.disabled} disabled={testBusy || !isAdmin} title={!isAdmin ? "Only a Tournaments Admin can send marketing email" : ""}>{testBusy ? "Sending…" : "Send test"}</button>
+        </form>
+        {testError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{testError}</div>}
+        {testSentTo && <div style={{ color: colors.success, fontSize: 12.5 }}>Test email sent to {testSentTo}.</div>}
+      </div>
+
+      <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Recipients</div>
+        {!tournament.previousTournamentId ? (
+          <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+            This tournament isn't linked to a prior one — edit it and set "Pull past players/sponsors from" to build a recipient list from that history.
+          </div>
+        ) : (
+          <>
+            {recipientsError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{recipientsError}</div>}
+            <div><button style={isAdmin ? button.ghost : button.disabled} disabled={recipientsBusy || !isAdmin} title={!isAdmin ? "Only a Tournaments Admin can build a recipient list" : ""} onClick={buildRecipients}>{recipientsBusy ? "Building…" : "Build recipient list"}</button></div>
+            {recipients && (() => {
+              const sendable = recipients.recipients.filter((r) => !r.suppressed);
+              const suppressedCount = recipients.recipients.length - sendable.length;
+              return (
+                <>
+                  <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
+                    <strong>{recipients.recipients.length}</strong> sponsor{recipients.recipients.length === 1 ? "" : "s"} with an email on file across {recipients.seriesYears.length} linked tournament year{recipients.seriesYears.length === 1 ? "" : "s"}
+                    {recipients.missingEmailCount > 0 ? ` (${recipients.missingEmailCount} past sponsorship${recipients.missingEmailCount === 1 ? "" : "s"} had no email on record)` : ""}.
+                    {suppressedCount > 0 ? ` ${suppressedCount} of those unsubscribed and won't be emailed.` : ""}
+                  </div>
+                  {recipients.recipients.length > 0 && (
+                    <>
+                      <div style={{ maxHeight: 280, overflowY: "auto", border: `1px solid ${colors.borderLight}`, borderRadius: 8 }}>
+                        <DataList
+                          rows={recipients.recipients}
+                          emptyMessage="No recipients."
+                          rowStyle={(r) => (r.suppressed ? { opacity: 0.55 } : undefined)}
+                          columns={[
+                            { key: "name", label: "Contact", grid: "1.2fr", primary: true, render: (r) => r.name },
+                            { key: "companyName", label: "Company", grid: "1.2fr", render: (r) => r.companyName || "—" },
+                            { key: "email", label: "Email", grid: "1.4fr", render: (r) => r.email },
+                            { key: "years", label: "Years", grid: "0.8fr", render: (r) => r.years.join(", ") },
+                            { key: "status", label: "", grid: "0.9fr", render: (r) => (r.suppressed ? <span style={pill("#f1ece0", colors.textSecondary)}>Unsubscribed</span> : null) },
+                          ]}
+                        />
+                      </div>
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <button style={{ ...button.primary, background: colors.danger }} disabled={sendable.length === 0 || !isAdmin} title={!isAdmin ? "Only a Tournaments Admin can send marketing email" : ""} onClick={() => setShowSendConfirm(true)}>
+                          Send to {sendable.length}
+                        </button>
+                      </div>
+                      {sendResult && (
+                        <div style={{ fontSize: 12.5, color: colors.success }}>
+                          Sent to {sendResult.sent} of {sendResult.total} recipients.
+                          {sendResult.sent < sendResult.total ? ` ${sendResult.total - sendResult.sent} failed to send — check the server log for details.` : ""}
+                          {sendResult.suppressed > 0 ? ` ${sendResult.suppressed} skipped — unsubscribed.` : ""}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              );
+            })()}
+          </>
+        )}
+      </div>
+
+      {showSendConfirm && recipients && (
+        <SendTournamentMarketingEmailModal
+          title={`Send sponsor email to ${recipients.recipients.filter((r) => !r.suppressed).length} recipient${recipients.recipients.filter((r) => !r.suppressed).length === 1 ? "" : "s"}?`}
+          description={`This sends the "${tournament.name}" sponsor email to ${recipients.recipients.filter((r) => !r.suppressed).length} confirmed sponsor${recipients.recipients.filter((r) => !r.suppressed).length === 1 ? "" : "s"} from its linked tournament history, each personalized with their own name.`}
+          send={() => api.sendTournamentSponsorEmail(tournament.id)}
+          onCancel={() => setShowSendConfirm(false)}
+          onSent={(result) => { setShowSendConfirm(false); setSendResult(result); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Direct port of ManageGolfTournaments.jsx's own SendGolfMarketingEmailModal.
+function SendTournamentMarketingEmailModal({ title, description, send, onCancel, onSent }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function confirmSend() {
+    setBusy(true);
+    setError("");
+    try {
+      onSent(await send());
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onCancel={onCancel} width={460} title={title}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ fontSize: 13, color: colors.textSecondary, lineHeight: 1.5 }}>{description} This can't be undone.</div>
+        {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button style={button.ghost} onClick={onCancel} disabled={busy}>Cancel</button>
+          <button style={{ ...button.primary, background: colors.danger }} onClick={confirmSend} disabled={busy}>{busy ? "Sending…" : "Send"}</button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

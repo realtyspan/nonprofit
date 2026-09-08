@@ -4,6 +4,10 @@ const { requireAuth, loadPermissions, requirePermission, requireReadAccess, requ
 const { normalizeEmail, findOrCreatePlayer, registerTeam, addLog } = require("../lib/tournamentLogic");
 const { stripe, createExpressAccount, createOnboardingLink } = require("../lib/stripe");
 const { buildTournamentFlyerPdf, resolveTournamentFlyerUrl } = require("../lib/tournamentFlyerPdf");
+const { tournamentKickoffEmailHtml } = require("../lib/tournamentKickoffEmail");
+const { tournamentSponsorEmailHtml } = require("../lib/tournamentSponsorEmail");
+const { buildUnsubscribeToken } = require("../lib/tournamentUnsubscribe");
+const { sendEmail } = require("../lib/notifications");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -374,6 +378,270 @@ router.get("/:tournamentId/flyer", requireReadAccess("tournaments"), async (req,
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="${fileSafeName}-flyer.pdf"`);
   res.send(Buffer.from(bytes));
+});
+
+// --- Marketing email ---
+// Invites a linked tournament's past players/sponsors back for this one —
+// the payoff of the previousTournamentId chain set via "Player/sponsor
+// history source." Direct port of golf.js's own kickoff/sponsor-email
+// section (collectGolfPlayerRecipients/collectGolfSponsorRecipients ->
+// collectTournamentPlayerRecipients/collectTournamentSponsorRecipients,
+// same suppression/dedupe/missing-email handling), just walking
+// TournamentTeamPlayer/TournamentSponsorship rows instead of Golf's own.
+
+// Buyer/player/sponsor emails come from one shared platform sender address,
+// but should still look like they're from the org running the tournament
+// and route replies to that org, not the platform. Mirrors golf.js's own
+// resolveReplyTo — route files in this codebase don't import from each
+// other, so this small helper is duplicated rather than shared.
+async function resolveReplyTo(orgId, org) {
+  if (org.contactEmail) return org.contactEmail;
+  const ownerMembership = await prisma.orgMembership.findFirst({
+    where: { orgId, tier: "Owner" },
+    include: { user: { select: { email: true } } },
+  });
+  return ownerMembership?.user?.email || undefined;
+}
+
+// Walks previousTournamentId starting at startTournamentId itself (already
+// the *previous* tournament by the time a caller passes
+// req.tournament.previousTournamentId in), cycle-guarded, capped at 50
+// hops. Only rosters on non-cancelled teams count as real past players.
+// Because the chain is per-tournament, this only ever walks that
+// tournament's own type's history.
+async function collectTournamentPlayerRecipients(orgId, startTournamentId) {
+  const seriesYears = [];
+  const recipients = new Map();
+  let missingEmailCount = 0;
+
+  let cursorId = startTournamentId || null;
+  const visited = new Set();
+
+  for (let hops = 0; cursorId && hops < 50; hops++) {
+    if (visited.has(cursorId)) break;
+    visited.add(cursorId);
+    const tournament = await prisma.tournament.findFirst({ where: { id: cursorId, orgId } });
+    if (!tournament) break;
+    seriesYears.push({ id: tournament.id, name: tournament.name, year: tournament.year });
+
+    const teamPlayers = await prisma.tournamentTeamPlayer.findMany({
+      where: { tournamentId: tournament.id, orgId, team: { status: { not: "cancelled" } } },
+      include: { player: true },
+    });
+    for (const tp of teamPlayers) {
+      const email = normalizeEmail(tp.player.email);
+      if (!email) {
+        missingEmailCount += 1;
+        continue;
+      }
+      if (!recipients.has(email)) {
+        recipients.set(email, { name: tp.player.name, email: tp.player.email.trim(), phone: tp.player.phone || "", years: [tournament.year] });
+      } else {
+        recipients.get(email).years.push(tournament.year);
+      }
+    }
+    cursorId = tournament.previousTournamentId;
+  }
+
+  const suppressed = await prisma.tournamentEmailSuppression.findMany({ where: { orgId }, select: { email: true } });
+  const suppressedSet = new Set(suppressed.map((s) => s.email));
+
+  const list = Array.from(recipients.values())
+    .map((r) => ({ ...r, suppressed: suppressedSet.has(normalizeEmail(r.email)) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { recipients: list, missingEmailCount, seriesYears };
+}
+
+// Same chain walk, over confirmed sponsorships instead of rosters — an
+// "inquiry" that was never confirmed or was declined isn't a real past
+// sponsor, so those are excluded rather than just uncounted.
+async function collectTournamentSponsorRecipients(orgId, startTournamentId) {
+  const seriesYears = [];
+  const recipients = new Map();
+  let missingEmailCount = 0;
+
+  let cursorId = startTournamentId || null;
+  const visited = new Set();
+
+  for (let hops = 0; cursorId && hops < 50; hops++) {
+    if (visited.has(cursorId)) break;
+    visited.add(cursorId);
+    const tournament = await prisma.tournament.findFirst({ where: { id: cursorId, orgId } });
+    if (!tournament) break;
+    seriesYears.push({ id: tournament.id, name: tournament.name, year: tournament.year });
+
+    const sponsorships = await prisma.tournamentSponsorship.findMany({
+      where: { tournamentId: tournament.id, orgId, status: "confirmed" },
+      include: { sponsor: true },
+    });
+    for (const s of sponsorships) {
+      const email = normalizeEmail(s.sponsor.email);
+      if (!email) {
+        missingEmailCount += 1;
+        continue;
+      }
+      if (!recipients.has(email)) {
+        recipients.set(email, {
+          name: s.sponsor.contactName || s.sponsor.companyName, companyName: s.sponsor.companyName,
+          email: s.sponsor.email.trim(), phone: s.sponsor.phone || "",
+          years: [tournament.year], lastTierName: s.tierName || "", lastAmount: s.amount,
+        });
+      } else {
+        const existing = recipients.get(email);
+        existing.years.push(tournament.year);
+        // Most recent (highest-year) sponsorship wins for the "renew at this level" prompt.
+        if (tournament.year >= Math.max(...existing.years)) {
+          existing.lastTierName = s.tierName || "";
+          existing.lastAmount = s.amount;
+        }
+      }
+    }
+    cursorId = tournament.previousTournamentId;
+  }
+
+  const suppressed = await prisma.tournamentEmailSuppression.findMany({ where: { orgId }, select: { email: true } });
+  const suppressedSet = new Set(suppressed.map((s) => s.email));
+
+  const list = Array.from(recipients.values())
+    .map((r) => ({ ...r, suppressed: suppressedSet.has(normalizeEmail(r.email)) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { recipients: list, missingEmailCount, seriesYears };
+}
+
+router.get("/:tournamentId/kickoff-email", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const registerUrl = resolveTournamentFlyerUrl(org, req.tournament) || "#";
+  const html = tournamentKickoffEmailHtml({ org, tournament: req.tournament, registerUrl });
+  res.json({ html });
+});
+
+router.get("/:tournamentId/kickoff-email/recipients", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const result = await collectTournamentPlayerRecipients(req.user.orgId, req.tournament.previousTournamentId);
+  res.json(result);
+});
+
+router.post("/:tournamentId/kickoff-email/send-test", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const email = (req.body.email || "").trim();
+  if (!email) return res.status(400).json({ error: "An email address is required" });
+
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const registerUrl = resolveTournamentFlyerUrl(org, req.tournament) || "#";
+  const replyTo = await resolveReplyTo(req.user.orgId, org);
+  const firstName = (req.callerUser?.name || "").trim().split(/\s+/)[0] || "there";
+  const unsubscribeUrl = `${process.env.APP_URL || "http://localhost:5173"}/tournaments-unsubscribe?token=${buildUnsubscribeToken(req.user.orgId, email)}`;
+  const html = tournamentKickoffEmailHtml({ org, tournament: req.tournament, registerUrl, recipientFirstName: firstName, unsubscribeUrl });
+
+  try {
+    await sendEmail({ to: email, toName: firstName, subject: `[TEST] ${req.tournament.name} is back — save your spot`, html, fromName: org.name, replyTo, unsubscribeUrl });
+  } catch (err) {
+    return res.status(502).json({ error: `Send failed: ${err.message}` });
+  }
+
+  await addLog(req.user.orgId, req.tournament.id, { type: "kickoff_email_test_sent", text: `Test kickoff email sent to ${email}`, actorName: req.callerUser?.name || "" });
+  res.json({ ok: true });
+});
+
+router.post("/:tournamentId/kickoff-email/send", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const registerUrl = resolveTournamentFlyerUrl(org, req.tournament) || "#";
+  const { recipients: allRecipients } = await collectTournamentPlayerRecipients(req.user.orgId, req.tournament.previousTournamentId);
+  const recipients = allRecipients.filter((r) => !r.suppressed);
+  const suppressedCount = allRecipients.length - recipients.length;
+  if (recipients.length === 0) {
+    return res.status(400).json({ error: "No recipients to send to — build the recipient list first" });
+  }
+  const replyTo = await resolveReplyTo(req.user.orgId, org);
+  const subject = `${req.tournament.name} is back — save your spot`;
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+
+  let sent = 0;
+  for (const recipient of recipients) {
+    const firstName = recipient.name.trim().split(/\s+/)[0];
+    const unsubscribeUrl = `${appUrl}/tournaments-unsubscribe?token=${buildUnsubscribeToken(req.user.orgId, recipient.email)}`;
+    const html = tournamentKickoffEmailHtml({ org, tournament: req.tournament, registerUrl, recipientFirstName: firstName, unsubscribeUrl });
+    try {
+      await sendEmail({ to: recipient.email, toName: recipient.name, subject, html, fromName: org.name, replyTo, unsubscribeUrl });
+      sent++;
+    } catch (err) {
+      console.error(`Tournament kickoff email send failed for ${recipient.email}:`, err.message);
+    }
+  }
+
+  await addLog(req.user.orgId, req.tournament.id, {
+    type: "kickoff_email_sent",
+    text: `Kickoff email sent to ${sent} of ${recipients.length} recipient${recipients.length === 1 ? "" : "s"}${suppressedCount ? ` (${suppressedCount} unsubscribed and skipped)` : ""}`,
+    actorName: req.callerUser?.name || "",
+  });
+  res.json({ sent, total: recipients.length, suppressed: suppressedCount });
+});
+
+router.get("/:tournamentId/sponsor-email", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const registerUrl = resolveTournamentFlyerUrl(org, req.tournament) || "#";
+  const html = tournamentSponsorEmailHtml({ org, tournament: req.tournament, registerUrl });
+  res.json({ html });
+});
+
+router.get("/:tournamentId/sponsor-email/recipients", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const result = await collectTournamentSponsorRecipients(req.user.orgId, req.tournament.previousTournamentId);
+  res.json(result);
+});
+
+router.post("/:tournamentId/sponsor-email/send-test", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const email = (req.body.email || "").trim();
+  if (!email) return res.status(400).json({ error: "An email address is required" });
+
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const registerUrl = resolveTournamentFlyerUrl(org, req.tournament) || "#";
+  const replyTo = await resolveReplyTo(req.user.orgId, org);
+  const firstName = (req.callerUser?.name || "").trim().split(/\s+/)[0] || "there";
+  const unsubscribeUrl = `${process.env.APP_URL || "http://localhost:5173"}/tournaments-unsubscribe?token=${buildUnsubscribeToken(req.user.orgId, email)}`;
+  const html = tournamentSponsorEmailHtml({ org, tournament: req.tournament, registerUrl, recipientName: firstName, unsubscribeUrl });
+
+  try {
+    await sendEmail({ to: email, toName: firstName, subject: `[TEST] ${req.tournament.name} sponsorship opportunities are open`, html, fromName: org.name, replyTo, unsubscribeUrl });
+  } catch (err) {
+    return res.status(502).json({ error: `Send failed: ${err.message}` });
+  }
+
+  await addLog(req.user.orgId, req.tournament.id, { type: "sponsor_email_test_sent", text: `Test sponsor email sent to ${email}`, actorName: req.callerUser?.name || "" });
+  res.json({ ok: true });
+});
+
+router.post("/:tournamentId/sponsor-email/send", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const registerUrl = resolveTournamentFlyerUrl(org, req.tournament) || "#";
+  const { recipients: allRecipients } = await collectTournamentSponsorRecipients(req.user.orgId, req.tournament.previousTournamentId);
+  const recipients = allRecipients.filter((r) => !r.suppressed);
+  const suppressedCount = allRecipients.length - recipients.length;
+  if (recipients.length === 0) {
+    return res.status(400).json({ error: "No recipients to send to — build the recipient list first" });
+  }
+  const replyTo = await resolveReplyTo(req.user.orgId, org);
+  const subject = `${req.tournament.name} sponsorship opportunities are open`;
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+
+  let sent = 0;
+  for (const recipient of recipients) {
+    const unsubscribeUrl = `${appUrl}/tournaments-unsubscribe?token=${buildUnsubscribeToken(req.user.orgId, recipient.email)}`;
+    const html = tournamentSponsorEmailHtml({
+      org, tournament: req.tournament, registerUrl, recipientName: recipient.name,
+      lastTierName: recipient.lastTierName, lastAmount: recipient.lastAmount, unsubscribeUrl,
+    });
+    try {
+      await sendEmail({ to: recipient.email, toName: recipient.name, subject, html, fromName: org.name, replyTo, unsubscribeUrl });
+      sent++;
+    } catch (err) {
+      console.error(`Tournament sponsor email send failed for ${recipient.email}:`, err.message);
+    }
+  }
+
+  await addLog(req.user.orgId, req.tournament.id, {
+    type: "sponsor_email_sent",
+    text: `Sponsor email sent to ${sent} of ${recipients.length} recipient${recipients.length === 1 ? "" : "s"}${suppressedCount ? ` (${suppressedCount} unsubscribed and skipped)` : ""}`,
+    actorName: req.callerUser?.name || "",
+  });
+  res.json({ sent, total: recipients.length, suppressed: suppressedCount });
 });
 
 // --- Roster / team management ---

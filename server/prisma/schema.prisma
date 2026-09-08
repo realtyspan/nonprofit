@@ -105,6 +105,7 @@ model Organization {
   tournamentSponsorships   TournamentSponsorship[]
   tournamentCheckIns       TournamentCheckIn[]
   tournamentInterestSignups TournamentInterestSignup[]
+  tournamentEmailSuppressions TournamentEmailSuppression[]
 }
 
 // Platform-admin-managed list (e.g. "Elks Lodge", "VFW Post", "Fire
@@ -1379,7 +1380,7 @@ model TournamentLog {
   org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   tournamentId String
   tournament   Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  type         String // tournament_created | tournament_edited | tournament_opened | tournament_closed | team_registered | team_cancelled | player_added | player_removed | payment_recorded | sponsorship_added | sponsorship_payment_recorded | sponsorship_comped_team | checkin
+  type         String // tournament_created | tournament_edited | tournament_opened | tournament_closed | team_registered | team_cancelled | player_added | player_removed | payment_recorded | sponsorship_added | sponsorship_payment_recorded | sponsorship_comped_team | checkin | kickoff_email_sent | kickoff_email_test_sent | sponsor_email_sent | sponsor_email_test_sent
   text         String
   actorName    String       @default("")
   teamId       String?
@@ -1480,4 +1481,17 @@ model TournamentInterestSignup {
 
   @@index([orgId])
   @@index([typeId])
+}
+
+// One org-wide unsubscribe list shared by both the kickoff (player) and
+// sponsor marketing-email tracks — direct port of GolfEmailSuppression.
+model TournamentEmailSuppression {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  email     String
+  createdAt DateTime     @default(now())
+
+  @@unique([orgId, email])
+  @@index([orgId])
 }

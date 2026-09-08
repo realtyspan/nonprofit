@@ -32,6 +32,7 @@ import PublicCalendar from "./views/PublicCalendar";
 import PublicGolf from "./views/PublicGolf";
 import PublicGolfPay from "./views/PublicGolfPay";
 import PublicGolfUnsubscribe from "./views/PublicGolfUnsubscribe";
+import PublicTournamentsUnsubscribe from "./views/PublicTournamentsUnsubscribe";
 import PublicEvents from "./views/PublicEvents";
 import PublicTournaments from "./views/PublicTournaments";
 import PublicTournament from "./views/PublicTournament";
@@ -477,6 +478,7 @@ export default function App() {
   if (window.location.pathname === "/reset-password") return <ResetPassword />;
   if (window.location.pathname === "/raffle-unsubscribe") return <PublicRaffleUnsubscribe />;
   if (window.location.pathname === "/golf-unsubscribe") return <PublicGolfUnsubscribe />;
+  if (window.location.pathname === "/tournaments-unsubscribe") return <PublicTournamentsUnsubscribe />;
 
   // Requires being logged in (unlike the routes above), so it renders inside
   // AuthProvider as an alternative to Shell rather than before it — it's
