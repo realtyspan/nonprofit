@@ -98,6 +98,25 @@ export const MODULES = [
     ],
   },
   {
+    key: "marketing",
+    label: "Marketing",
+    icon: icons.megaphone,
+    blurb: "Public links, embeds, flyers, and marketing emails — in one place",
+    // Has no grant of its own — visible if the user holds any grant in any
+    // of its source modules (see visibleIfAnyOf handling in
+    // filterModulesForUser below). Each sub-item below is further gated to
+    // its own module's grant via moduleKey + filterNavItemsForUser.
+    visibleIfAnyOf: ["golf", "tournaments", "raffle", "rentals", "calendar", "events"],
+    navItems: [
+      { key: "golf", moduleKey: "golf", requiresTier: "Viewer", label: "Golf Tournament", icon: icons.flag, title: "Golf Tournament Marketing", subtitle: "Public link, embed, flyer, and marketing emails" },
+      { key: "tournaments", moduleKey: "tournaments", requiresTier: "Viewer", label: "Tournaments", icon: icons.trophy, title: "Tournaments Marketing", subtitle: "Public link, embed, flyer, and marketing emails" },
+      { key: "raffle", moduleKey: "raffle", requiresTier: "Viewer", label: "Raffle", icon: icons.ticket, title: "Raffle Marketing", subtitle: "Season-kickoff email to past buyers" },
+      { key: "rentals", moduleKey: "rentals", requiresTier: "Viewer", label: "Rental Space", icon: icons.key, title: "Rental Space Marketing", subtitle: "Public link and website embed" },
+      { key: "calendar", moduleKey: "calendar", requiresTier: "Viewer", label: "Calendar", icon: icons.calendar, title: "Calendar Marketing", subtitle: "Public link and website embed" },
+      { key: "events", moduleKey: "events", requiresTier: "Viewer", label: "Events", icon: icons.star, title: "Events Marketing", subtitle: "Public link, embed, and flyers" },
+    ],
+  },
+  {
     key: "elks-tools",
     label: "Elks Tools",
     icon: icons.apps,
@@ -123,7 +142,11 @@ export function hasModuleTier(permissions, moduleKey, minTier) {
 // per filterModulesForUser below), same read-everything spirit as the server.
 export function filterNavItemsForUser(navItems, permissions, moduleKey) {
   if (permissions?.orgTier === "Owner" || permissions?.orgTier === "Viewer") return navItems;
-  return navItems.filter((item) => !item.requiresTier || hasModuleTier(permissions, moduleKey, item.requiresTier));
+  // An item can name its own moduleKey (Marketing's sub-items each check a
+  // different underlying module's grant instead of a single one shared by
+  // the whole list) — falls back to the list's own moduleKey otherwise,
+  // unchanged for every other module.
+  return navItems.filter((item) => !item.requiresTier || hasModuleTier(permissions, item.moduleKey || moduleKey, item.requiresTier));
 }
 
 // Some modules are relevant only to specific kinds of organizations (e.g.
@@ -154,5 +177,9 @@ export function filterModulesForUser(modules, permissions) {
   const { orgTier, moduleGrants, orgCategory } = permissions;
   const allowedByCategory = modules.filter((m) => categoryAllowsModule(m.key, orgCategory));
   if (orgTier === "Owner" || orgTier === "Viewer") return allowedByCategory;
-  return allowedByCategory.filter((m) => !!moduleGrants?.[m.key]);
+  // A module with no grant of its own (Marketing) is visible if the user
+  // holds a grant in any of the modules it aggregates.
+  return allowedByCategory.filter((m) =>
+    m.visibleIfAnyOf ? m.visibleIfAnyOf.some((k) => !!moduleGrants?.[k]) : !!moduleGrants?.[m.key]
+  );
 }

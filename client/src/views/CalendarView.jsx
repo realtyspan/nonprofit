@@ -5,7 +5,6 @@ import CalendarGrid from "../components/CalendarGrid";
 import CalendarWeekGrid from "../components/CalendarWeekGrid";
 import CalendarToolbar from "../components/CalendarToolbar";
 import { EVENT_COLORS } from "../lib/calendarColors";
-import PublicLinkBox from "../components/PublicLinkBox";
 import DateTimeField from "../components/DateTimeField";
 import Modal from "../components/Modal";
 import { monthLabel, weekLabel } from "../lib/calendarLabels";
@@ -76,8 +75,6 @@ export default function CalendarView({ rentalSpaces = [], permissions, currentUs
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <PublicLinkBox basePath="calendar" embedBasePath="calendar/embed" embedTitle="Calendar" description="Set a link so you can view or embed this calendar (public events only) on your website." />
-
       <CalendarToolbar
         periodLabel={viewMode === "week" ? weekLabel(month) : monthLabel(month)}
         onPrev={() => changePeriod(-1)}

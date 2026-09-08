@@ -66,6 +66,12 @@ import TournamentSponsorDirectory from "./views/TournamentSponsorDirectory";
 import TournamentSponsors from "./views/TournamentSponsors";
 import TournamentCheckIn from "./views/TournamentCheckIn";
 import TournamentLog from "./views/TournamentLog";
+import MarketingGolf from "./views/MarketingGolf";
+import MarketingTournaments from "./views/MarketingTournaments";
+import MarketingRaffle from "./views/MarketingRaffle";
+import MarketingRentals from "./views/MarketingRentals";
+import MarketingCalendar from "./views/MarketingCalendar";
+import MarketingEvents from "./views/MarketingEvents";
 import FrsReport from "./views/elks-tools/FrsReport";
 
 function PublicGate() {
@@ -301,7 +307,7 @@ function Shell() {
             <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>{subtitle}</div>
           </div>
 
-          {activeModuleKey === "raffle" && view !== "team" && view !== "profile" && (
+          {(activeModuleKey === "raffle" || (activeModuleKey === "marketing" && view === "raffle")) && view !== "team" && view !== "profile" && (
             <div style={{ padding: isMobile ? "10px 16px" : "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#f7f4ec", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Raffle</span>
               {selectedRaffleGame && (
@@ -323,7 +329,7 @@ function Shell() {
             </div>
           )}
 
-          {activeModuleKey === "golf" && view !== "team" && view !== "profile" && (
+          {(activeModuleKey === "golf" || (activeModuleKey === "marketing" && view === "golf")) && view !== "team" && view !== "profile" && (
             <div style={{ padding: isMobile ? "10px 16px" : "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#f7f4ec", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Golf</span>
               {selectedGolfTournament && (
@@ -345,7 +351,7 @@ function Shell() {
             </div>
           )}
 
-          {activeModuleKey === "tournaments" && view !== "team" && view !== "profile" && (
+          {(activeModuleKey === "tournaments" || (activeModuleKey === "marketing" && view === "tournaments")) && view !== "team" && view !== "profile" && (
             <div style={{ padding: isMobile ? "10px 16px" : "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#f7f4ec", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Tournaments</span>
               {selectedTournament && (
@@ -404,6 +410,12 @@ function Shell() {
             {activeModuleKey === "tournaments" && view === "checkin" && <TournamentCheckIn tournament={selectedTournament} />}
             {activeModuleKey === "tournaments" && view === "log" && <TournamentLog tournament={selectedTournament} />}
             {activeModuleKey === "events" && view === "manage" && <ManageEvents permissions={permissions} />}
+            {activeModuleKey === "marketing" && view === "golf" && <MarketingGolf tournament={selectedGolfTournament} permissions={permissions} />}
+            {activeModuleKey === "marketing" && view === "tournaments" && <MarketingTournaments tournament={selectedTournament} permissions={permissions} />}
+            {activeModuleKey === "marketing" && view === "raffle" && <MarketingRaffle game={selectedRaffleGame} permissions={permissions} />}
+            {activeModuleKey === "marketing" && view === "rentals" && <MarketingRentals permissions={permissions} />}
+            {activeModuleKey === "marketing" && view === "calendar" && <MarketingCalendar permissions={permissions} />}
+            {activeModuleKey === "marketing" && view === "events" && <MarketingEvents permissions={permissions} />}
             {activeModuleKey === "elks-tools" && view === "frs" && <FrsReport permissions={permissions} />}
             {view === "team" && canSeeTeam && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}
             {view === "profile" && <Profile />}

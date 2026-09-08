@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { colors, card, button, input as inputStyle, money } from "../lib/tokens";
 import { api } from "../lib/api";
 import { hasModuleTier } from "../lib/modules";
-import PublicLinkBox from "../components/PublicLinkBox";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
 import AdminAccessNotice from "../components/AdminAccessNotice";
@@ -13,8 +12,6 @@ export default function RentalSpaces({ spaces, onChanged, permissions }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <PublicLinkBox basePath="rentals" embedBasePath="rentals/embed" embedTitle="Rental Request" description="Set a link so renters can check availability and submit a request from your website." />
-
       <AdminAccessNotice permissions={permissions} moduleKey="rentals" moduleLabel="Rental Space" itemLabel="a space" />
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>

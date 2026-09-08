@@ -5,7 +5,6 @@ import { resizeImageFile } from "../lib/imageResize";
 import { hasModuleTier } from "../lib/modules";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
-import PublicLinkBox from "../components/PublicLinkBox";
 import AdminAccessNotice from "../components/AdminAccessNotice";
 
 function toLocalInputValue(iso) {
@@ -28,8 +27,6 @@ export default function ManageEvents({ permissions }) {
   const [deleting, setDeleting] = useState(null);
   const [lifecycleBusy, setLifecycleBusy] = useState(null); // event id currently transitioning
   const [lifecycleError, setLifecycleError] = useState("");
-  const [flyerBusyId, setFlyerBusyId] = useState(null);
-  const [flyerError, setFlyerError] = useState("");
 
   function refresh() {
     api.listEvents().then((rows) => { setEvents(rows); setLoaded(true); }).catch(() => setLoaded(true));
@@ -61,18 +58,6 @@ export default function ManageEvents({ permissions }) {
     }
   }
 
-  async function downloadFlyer(event) {
-    setFlyerBusyId(event.id);
-    setFlyerError("");
-    try {
-      await api.downloadEventFlyerPdf(event.id, event.title);
-    } catch (err) {
-      setFlyerError(err.message);
-    } finally {
-      setFlyerBusyId(null);
-    }
-  }
-
   async function deleteEvent() {
     setLifecycleBusy(deleting.id);
     setLifecycleError("");
@@ -89,13 +74,6 @@ export default function ManageEvents({ permissions }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <PublicLinkBox
-        basePath="events"
-        embedBasePath="events/embed"
-        embedTitle="Events"
-        description="Set a link so visitors can see your published events and how to reserve or pay."
-      />
-
       <AdminAccessNotice permissions={permissions} moduleKey="events" moduleLabel="Events" itemLabel="an event" />
 
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
@@ -115,7 +93,6 @@ export default function ManageEvents({ permissions }) {
         </div>
 
         {lifecycleError && <div style={{ padding: "10px 18px 0", color: colors.danger, fontSize: 12.5, fontWeight: 600 }}>{lifecycleError}</div>}
-        {flyerError && <div style={{ padding: "10px 18px 0", color: colors.danger, fontSize: 12.5, fontWeight: 600 }}>{flyerError}</div>}
 
         {loaded && (
           <DataList
@@ -140,12 +117,8 @@ export default function ManageEvents({ permissions }) {
                 key: "actions", label: "", grid: "1.8fr", footerRow: true,
                 render: (e) => {
                   const busy = lifecycleBusy === e.id;
-                  const flyerBusy = flyerBusyId === e.id;
                   return (
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={flyerBusy} onClick={() => downloadFlyer(e)}>
-                        {flyerBusy ? "Preparing…" : "Download flyer"}
-                      </button>
                       <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={!canManage} title={!canManage ? "Only an Events Admin can edit an event" : ""} onClick={() => setEditing(e)}>Edit</button>
                       {e.status !== "published" && e.status !== "cancelled" && (
                         <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={busy || !canManage} title={!canManage ? "Only an Events Admin can publish an event" : ""} onClick={() => transition(e, "publish")}>Publish</button>
