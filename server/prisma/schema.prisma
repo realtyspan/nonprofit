@@ -67,6 +67,7 @@ model Organization {
   calendarEvents           CalendarEvent[]
   calendarRecurrences      CalendarRecurrence[]
   events                   Event[]
+  eventInterestSignups     EventInterestSignup[]
   orgMemberships           OrgMembership[]
   moduleGrants             ModuleGrant[]
   tierLabel                TierLabel?
@@ -637,6 +638,25 @@ model Event {
   @@unique([orgId, slug])
   @@index([orgId])
   @@index([createdByUserId])
+}
+
+// Lead captured from the public Events page's "Notify me" form, shown when
+// nothing is currently published (see PublicEvents.jsx's empty state).
+// Direct port of TournamentInterestSignup, minus role/companyName/typeId —
+// Events has neither a player/sponsor distinction nor a type concept, so
+// none of that applies here.
+model EventInterestSignup {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name        String
+  email       String       @default("")
+  phone       String       @default("")
+  note        String?
+  contactedAt DateTime? // set by an admin once they've followed up
+  createdAt   DateTime     @default(now())
+
+  @@index([orgId])
 }
 
 model CalendarRecurrence {

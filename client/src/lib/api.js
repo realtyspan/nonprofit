@@ -425,6 +425,8 @@ export const api = {
   cancelEvent: (eventId) => request(`/events/${eventId}/cancel`, { method: "POST" }),
   deleteEvent: (eventId) => request(`/events/${eventId}`, { method: "DELETE" }),
   downloadEventFlyerPdf: (eventId, eventTitle) => download(`/events/${eventId}/flyer`, `${(eventTitle || "Event").replace(/\s+/g, "_")}_Flyer.pdf`),
+  listEventInterestSignups: () => request("/events/interest-signups"),
+  setEventInterestSignupContacted: (id, contacted) => request(`/events/interest-signups/${id}`, { method: "PATCH", body: { contacted } }),
 };
 
 export { downloadTextFile };
@@ -457,6 +459,16 @@ export const publicApi = {
     const res = await fetch(`/api/public/events/${slug}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Not found");
+    return data;
+  },
+  async submitEventInterest(slug, payload) {
+    const res = await fetch(`/api/public/events/${slug}/interest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
     return data;
   },
   async getGolfPage(slug) {

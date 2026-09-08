@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { publicApi } from "../lib/api";
 import { colors } from "../lib/tokens";
 import { parseThemeFromQuery, postEmbedResize } from "../lib/embedTheme";
+import { formatPhone, stripPhone } from "../lib/phone";
 import logo from "../assets/logo.png";
 
 // This page's visual system now mirrors the app's own tokens.js palette
@@ -165,6 +166,20 @@ const PEV_CSS = `
 
 .pev-empty { max-width: 480px; margin: 80px auto; text-align: center; display: flex; flex-direction: column; gap: 10px; padding: 0 24px; }
 .pev-empty-title { font-family: var(--pev-heading); font-weight: 700; font-size: 28px; }
+.pev-empty-form {
+  text-align: left; background: var(--pev-neutral-100); border-radius: var(--pev-radius-md);
+  box-shadow: var(--pev-shadow-sm); padding: 22px 24px; margin-top: 10px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.pev-input {
+  width: 100%; font: inherit; font-size: 14px; padding: 11px 14px; border-radius: 10px;
+  border: 1px solid var(--pev-divider); background: var(--pev-surface); color: var(--pev-text);
+}
+.pev-input:focus-visible { outline: 2px solid var(--pev-accent); outline-offset: 1px; }
+.pev-form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.pev-form-row .pev-input { flex: 1 1 160px; }
+.pev-form-error { font-size: 13px; color: #B4232B; }
+.pev-form-success-title { font-family: var(--pev-heading); font-weight: 700; font-size: 17px; }
 
 @media (max-width: 640px) {
   .pev-main { padding: 32px 20px 56px; gap: 36px; }
@@ -217,6 +232,7 @@ export default function PublicEvents({ slug, embed }) {
   const [events, setEvents] = useState([]);
   const [error, setError] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [notifyOpen, setNotifyOpen] = useState(false);
   const initialized = useRef(false);
   const contentRef = useRef(null);
   const containerRef = useRef(null);
@@ -249,7 +265,7 @@ export default function PublicEvents({ slug, embed }) {
     const observer = new ResizeObserver(post);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [embed, events, selectedIndex]);
+  }, [embed, events, selectedIndex, notifyOpen]);
 
   const clampedIndex = Math.min(selectedIndex, Math.max(events.length - 1, 0));
   const event = events[clampedIndex];
@@ -292,6 +308,13 @@ export default function PublicEvents({ slug, embed }) {
         <div className="pev-empty">
           <div className="pev-empty-title">No upcoming events right now</div>
           <p style={{ color: "var(--pev-neutral-700)", fontSize: 15 }}>Check back soon — new events are posted here as they're scheduled.</p>
+          {!notifyOpen ? (
+            <div>
+              <button type="button" className="pev-btn pev-btn-primary" onClick={() => setNotifyOpen(true)}>Notify me</button>
+            </div>
+          ) : (
+            <NotifyForm slug={slug} onCancel={() => setNotifyOpen(false)} />
+          )}
         </div>
       ) : (
         <main className="pev-main">
@@ -411,6 +434,69 @@ export default function PublicEvents({ slug, embed }) {
         </footer>
       )}
     </div>
+  );
+}
+
+// The "notify me" lead-capture form shown under the empty-state message —
+// a lightweight contact-only ask, no role/type choice since Events has
+// neither concept. Posts to publicEvents.js's POST /:slug/interest. Direct
+// port of PublicTournaments.jsx's own NotifyForm, minus the role radio,
+// company field, and type dropdown.
+function NotifyForm({ slug, onCancel }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [note, setNote] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot — real visitors never see this field
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!name.trim()) return setError("Name is required");
+    if (!email.trim() && !phone.trim()) return setError("Enter an email or phone number so we can reach you");
+    setBusy(true);
+    setError("");
+    try {
+      await publicApi.submitEventInterest(slug, { name, email, phone, note, website });
+      setDone(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="pev-empty-form">
+        <div className="pev-form-success-title">You're on the list!</div>
+        <div style={{ fontSize: 13.5, color: "var(--pev-neutral-700)" }}>
+          We'll reach out to {email.trim() || formatPhone(phone) || "you"} as soon as a new event is posted.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="pev-empty-form">
+      <input
+        type="text" value={website} onChange={(e) => setWebsite(e.target.value)} tabIndex={-1} autoComplete="off"
+        style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} aria-hidden="true"
+      />
+      <input className="pev-input" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
+      <div className="pev-form-row">
+        <input className="pev-input" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input className="pev-input" placeholder="Phone" value={formatPhone(phone)} onChange={(e) => setPhone(stripPhone(e.target.value))} />
+      </div>
+      <input className="pev-input" placeholder="Anything else we should know? (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+      {error && <div className="pev-form-error">{error}</div>}
+      <div className="pev-form-row">
+        <button type="submit" className="pev-btn pev-btn-primary" disabled={busy}>{busy ? "Submitting…" : "Notify me"}</button>
+        <button type="button" className="pev-btn pev-btn-secondary" onClick={onCancel} disabled={busy}>Cancel</button>
+      </div>
+    </form>
   );
 }
 

@@ -206,4 +206,28 @@ router.delete("/:id", requirePermission("events", "Admin"), async (req, res) => 
   res.json({ ok: true });
 });
 
+// --- Interest signups ---
+// Leads captured from the public Events page's "Notify me" form (see
+// publicEvents.js's POST /:slug/interest) — surfaced in Marketing → Events,
+// same pair of routes as tournaments.js's own interest-signups section.
+
+router.get("/interest-signups", requireReadAccess("events"), async (req, res) => {
+  const signups = await prisma.eventInterestSignup.findMany({
+    where: { orgId: req.user.orgId },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(signups);
+});
+
+router.patch("/interest-signups/:id", requirePermission("events", "Helper"), async (req, res) => {
+  const signup = await prisma.eventInterestSignup.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!signup) return res.status(404).json({ error: "Signup not found" });
+
+  const updated = await prisma.eventInterestSignup.update({
+    where: { id: signup.id },
+    data: { contactedAt: req.body.contacted ? new Date() : null },
+  });
+  res.json(updated);
+});
+
 module.exports = router;
