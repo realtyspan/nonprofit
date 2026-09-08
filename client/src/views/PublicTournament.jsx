@@ -88,15 +88,33 @@ function TournamentCard({ tournament, orgSlug, theme, font, expanded, onToggle }
   );
 }
 
-// Direct port of PublicGolf.jsx's RegisterForm, minus the "have you played
-// before" lookup step (slice 2 — see the plan doc).
+// Direct port of PublicGolf.jsx's RegisterForm.
 function RegisterForm({ tournament, orgSlug, onCancel }) {
+  // "Have you played with us before?" gate, ahead of the real form — see
+  // lookup-player's own comment in publicTournaments.js for why an
+  // exact-match-only lookup that returns just a name is the safe version
+  // of this. Skipping is always available (someone brand new shouldn't
+  // have to opt out of a question that doesn't apply to them).
+  const [step, setStep] = useState("lookup"); // "lookup" | "form"
+  const [lookupValue, setLookupValue] = useState("");
+  const [lookupBusy, setLookupBusy] = useState(false);
+
   const [teamName, setTeamName] = useState("");
   const [players, setPlayers] = useState([emptyPlayer(true)]);
   const [website, setWebsite] = useState(""); // honeypot — real visitors never see this field
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+
+  async function submitLookup(e) {
+    e.preventDefault();
+    const isEmail = lookupValue.includes("@");
+    setLookupBusy(true);
+    const { name } = await publicApi.lookupTournamentPlayer(orgSlug, isEmail ? { email: lookupValue } : { phone: lookupValue });
+    setPlayers([{ name, email: isEmail ? lookupValue : "", phone: isEmail ? "" : lookupValue, isCaptain: true }]);
+    setLookupBusy(false);
+    setStep("form");
+  }
 
   function setPlayer(i, k, v) {
     setPlayers((ps) => ps.map((p, idx) => (idx === i ? { ...p, [k]: v } : p)));
@@ -151,6 +169,25 @@ function RegisterForm({ tournament, orgSlug, onCancel }) {
           <div style={{ fontSize: 12.5, color: "var(--evt-ink-muted)" }}>The organizer will follow up with payment instructions.</div>
         )}
       </div>
+    );
+  }
+
+  if (step === "lookup") {
+    return (
+      <form onSubmit={submitLookup} className="evt-form-panel">
+        <div className="evt-form-note">
+          Played or sponsored with us before? Enter the email or phone number you used, and we'll fill in your name for you.
+        </div>
+        <input
+          className="evt-input" placeholder="Email or phone" value={lookupValue}
+          onChange={(e) => setLookupValue(e.target.value)} autoFocus
+        />
+        <div className="evt-form-row">
+          <button type="submit" className="evt-btn-sm" disabled={lookupBusy || !lookupValue.trim()}>{lookupBusy ? "Checking…" : "Continue"}</button>
+          <button type="button" className="evt-btn-ghost" onClick={() => setStep("form")} disabled={lookupBusy}>I'm new — skip this</button>
+          <button type="button" className="evt-btn-ghost" onClick={onCancel} disabled={lookupBusy}>Cancel</button>
+        </div>
+      </form>
     );
   }
 

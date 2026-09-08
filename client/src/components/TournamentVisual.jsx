@@ -155,6 +155,7 @@ export const EVT_CSS = `
 .evt-formwrap { padding: 0 44px 34px; }
 
 .evt-form-panel { background: var(--evt-surface); border-radius: var(--evt-radius-sm); padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.evt-form-note { font-size: 13px; color: var(--evt-ink-muted); line-height: 1.5; }
 .evt-input {
   width: 100%; padding: 10px 12px; border-radius: var(--evt-radius-sm);
   border: 1px solid var(--evt-line); font-size: 14px; font-family: inherit; color: var(--evt-ink);
