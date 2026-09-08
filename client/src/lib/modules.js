@@ -114,6 +114,10 @@ export const MODULES = [
       { key: "rentals", moduleKey: "rentals", requiresTier: "Viewer", label: "Rental Space", icon: icons.key, title: "Rental Space Marketing", subtitle: "Public link and website embed" },
       { key: "calendar", moduleKey: "calendar", requiresTier: "Viewer", label: "Calendar", icon: icons.calendar, title: "Calendar Marketing", subtitle: "Public link and website embed" },
       { key: "events", moduleKey: "events", requiresTier: "Viewer", label: "Events", icon: icons.star, title: "Events Marketing", subtitle: "Public link, embed, and flyers" },
+      // No moduleKey/requiresTier — unlike every other item here, Activities
+      // has no single owning module's grant to check (it aggregates all of
+      // them), so it's visible to anyone who can see Marketing at all.
+      { key: "activities", label: "Activities", icon: icons.list, title: "Activities Marketing", subtitle: "One public page listing everything currently open or published across every module" },
     ],
   },
   {

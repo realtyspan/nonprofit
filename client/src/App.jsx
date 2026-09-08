@@ -34,6 +34,7 @@ import PublicGolfPay from "./views/PublicGolfPay";
 import PublicGolfUnsubscribe from "./views/PublicGolfUnsubscribe";
 import PublicTournamentsUnsubscribe from "./views/PublicTournamentsUnsubscribe";
 import PublicEvents from "./views/PublicEvents";
+import PublicActivities from "./views/PublicActivities";
 import PublicTournaments from "./views/PublicTournaments";
 import PublicTournament from "./views/PublicTournament";
 import PublicTournamentPay from "./views/PublicTournamentPay";
@@ -72,6 +73,7 @@ import MarketingRaffle from "./views/MarketingRaffle";
 import MarketingRentals from "./views/MarketingRentals";
 import MarketingCalendar from "./views/MarketingCalendar";
 import MarketingEvents from "./views/MarketingEvents";
+import MarketingActivities from "./views/MarketingActivities";
 import FrsReport from "./views/elks-tools/FrsReport";
 
 function PublicGate() {
@@ -416,6 +418,7 @@ function Shell() {
             {activeModuleKey === "marketing" && view === "rentals" && <MarketingRentals permissions={permissions} />}
             {activeModuleKey === "marketing" && view === "calendar" && <MarketingCalendar permissions={permissions} />}
             {activeModuleKey === "marketing" && view === "events" && <MarketingEvents permissions={permissions} />}
+            {activeModuleKey === "marketing" && view === "activities" && <MarketingActivities permissions={permissions} />}
             {activeModuleKey === "elks-tools" && view === "frs" && <FrsReport permissions={permissions} />}
             {view === "team" && canSeeTeam && <Team permissions={permissions} onPermissionsChanged={refreshPermissions} />}
             {view === "profile" && <Profile />}
@@ -427,7 +430,7 @@ function Shell() {
 }
 
 function matchPublicPath(pathname) {
-  const embedMatch = pathname.match(/^\/(rentals|calendar|golf|events|tournaments)\/embed\/([a-z0-9-]+)\/?$/);
+  const embedMatch = pathname.match(/^\/(rentals|calendar|golf|events|tournaments|activities)\/embed\/([a-z0-9-]+)\/?$/);
   if (embedMatch) return { module: embedMatch[1], slug: embedMatch[2], embed: true };
   const payMatch = pathname.match(/^\/golf\/([a-z0-9-]+)\/tournaments\/([^/]+)\/teams\/([^/]+)\/pay\/?$/);
   if (payMatch) return { module: "golf-pay", slug: payMatch[1], tournamentId: payMatch[2], teamId: payMatch[3] };
@@ -442,7 +445,7 @@ function matchPublicPath(pathname) {
   // GET /ticket/:ticketId.
   const ticketMatch = pathname.match(/^\/raffle-ticket\/([a-z0-9]+)\/?$/i);
   if (ticketMatch) return { module: "raffle-ticket", ticketId: ticketMatch[1] };
-  const m = pathname.match(/^\/(rentals|calendar|golf|events|tournaments)\/([a-z0-9-]+)\/?$/);
+  const m = pathname.match(/^\/(rentals|calendar|golf|events|tournaments|activities)\/([a-z0-9-]+)\/?$/);
   return m ? { module: m[1], slug: m[2] } : null;
 }
 
@@ -479,6 +482,7 @@ export default function App() {
   if (publicMatch?.module === "calendar") return <PublicCalendar slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "golf") return <PublicGolf slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "events") return <PublicEvents slug={publicMatch.slug} embed={publicMatch.embed} />;
+  if (publicMatch?.module === "activities") return <PublicActivities slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "golf-pay") return <PublicGolfPay slug={publicMatch.slug} tournamentId={publicMatch.tournamentId} teamId={publicMatch.teamId} />;
   if (publicMatch?.module === "tournaments") return <PublicTournaments slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "tournament") return <PublicTournament orgSlug={publicMatch.orgSlug} tournamentSlug={publicMatch.tournamentSlug} />;

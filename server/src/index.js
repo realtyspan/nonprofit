@@ -23,6 +23,7 @@ const eventRoutes = require("./routes/events");
 const publicEventRoutes = require("./routes/publicEvents");
 const tournamentRoutes = require("./routes/tournaments");
 const publicTournamentRoutes = require("./routes/publicTournaments");
+const publicActivitiesRoutes = require("./routes/publicActivities");
 const platformAdminRoutes = require("./routes/platformAdmin");
 const elksToolsRoutes = require("./routes/elksTools");
 const { stripeWebhookHandler } = require("./routes/stripeWebhook");
@@ -70,6 +71,7 @@ app.use("/api/events", eventRoutes);
 app.use("/api/public/events", publicEventRoutes);
 app.use("/api/tournaments", tournamentRoutes);
 app.use("/api/public/tournaments", publicTournamentRoutes);
+app.use("/api/public/activities", publicActivitiesRoutes);
 app.use("/api/platform-admin", platformAdminRoutes);
 app.use("/api/elks-tools", elksToolsRoutes);
 

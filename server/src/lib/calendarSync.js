@@ -71,4 +71,75 @@ async function removeCalendarEventFor(source, sourceId) {
   await prisma.calendarEvent.deleteMany({ where: { source, sourceId } });
 }
 
-module.exports = { publishRentalBooking, publishRentalBlock, publishEvent, removeCalendarEventFor };
+// The three functions below feed the public Activities feed
+// (publicActivities.js) — same shared table, same visibility flag, just
+// three more sources. Golf has no per-tournament slug (its own public page
+// always shows whatever's currently open), so every golf-tournament row
+// points at the same org-wide URL; Tournaments links to the specific
+// tournament's own slug since more than one can be open at once.
+
+async function publishGolfTournament(orgId, tournament, org) {
+  const existing = await prisma.calendarEvent.findFirst({ where: { source: "golf-tournament", sourceId: tournament.id } });
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+  const data = {
+    title: tournament.name,
+    location: tournament.venueName || null,
+    startAt: tournament.date,
+    endAt: tournament.date,
+    allDay: true,
+    visibility: "public",
+    linkUrl: org?.slug ? `${appUrl}/golf/${org.slug}` : null,
+  };
+  if (existing) {
+    await prisma.calendarEvent.update({ where: { id: existing.id }, data });
+  } else {
+    await prisma.calendarEvent.create({ data: { orgId, source: "golf-tournament", sourceId: tournament.id, ...data } });
+  }
+}
+
+async function publishTournament(orgId, tournament, org) {
+  const existing = await prisma.calendarEvent.findFirst({ where: { source: "tournament", sourceId: tournament.id } });
+  const appUrl = process.env.APP_URL || "http://localhost:5173";
+  const data = {
+    title: tournament.name,
+    location: tournament.venueName || null,
+    startAt: tournament.date,
+    endAt: tournament.date,
+    allDay: true,
+    visibility: "public",
+    linkUrl: org?.slug ? `${appUrl}/tournaments/${org.slug}/${tournament.slug}` : null,
+  };
+  if (existing) {
+    await prisma.calendarEvent.update({ where: { id: existing.id }, data });
+  } else {
+    await prisma.calendarEvent.create({ data: { orgId, source: "tournament", sourceId: tournament.id, ...data } });
+  }
+}
+
+// Raffle has no public storefront page (ticket links are per-buyer, not a
+// page a visitor browses to) — so unlike every other source here, this one
+// never gets a linkUrl. Shows on Activities as an announcement only.
+// Historical-import raffle rows never reach this function through the
+// routes that call it, but the guard costs nothing and matches how other
+// modules guard their own historical shells.
+async function publishRaffleGame(orgId, game) {
+  if (game.isHistorical) return;
+  const existing = await prisma.calendarEvent.findFirst({ where: { source: "raffle-game", sourceId: game.id } });
+  const data = {
+    title: game.name,
+    startAt: game.raffleStartDate,
+    endAt: game.raffleEndDate,
+    visibility: "public",
+    linkUrl: null,
+  };
+  if (existing) {
+    await prisma.calendarEvent.update({ where: { id: existing.id }, data });
+  } else {
+    await prisma.calendarEvent.create({ data: { orgId, source: "raffle-game", sourceId: game.id, ...data } });
+  }
+}
+
+module.exports = {
+  publishRentalBooking, publishRentalBlock, publishEvent, removeCalendarEventFor,
+  publishGolfTournament, publishTournament, publishRaffleGame,
+};

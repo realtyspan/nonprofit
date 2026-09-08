@@ -9,6 +9,7 @@ const { buildSellerActivityReportPdf, buildTicketsTurnedInReportPdf } = require(
 const { parseHistoricalCsv } = require("../lib/raffleHistoricalImport");
 const { raffleKickoffEmailHtml } = require("../lib/raffleKickoffEmail");
 const { buildUnsubscribeToken, normalizeEmail } = require("../lib/raffleUnsubscribe");
+const { publishRaffleGame, removeCalendarEventFor } = require("../lib/calendarSync");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -188,6 +189,12 @@ router.post("/games", requirePermission("raffle", "Admin"), async (req, res) => 
     text: `"${game.name}" started: tickets #${start}–#${end} (${end - start + 1} total), ${fmtUsDate(parsedStart)} – ${fmtUsDate(parsedEnd)}`,
   });
 
+  // Unlike Golf/Tournaments, a raffle is "active" (its own public-facing
+  // state) the moment it's created — there's no separate "open" step — so
+  // it syncs to the Activities feed right here rather than on some later
+  // status-change route.
+  await publishRaffleGame(req.user.orgId, game);
+
   res.json(game);
 });
 
@@ -312,6 +319,11 @@ router.patch("/games/:gameId", requirePermission("raffle", "Admin"), requireActi
   await addRaffleLog(req.user.orgId, game.id, { type: "game_edited", text: `"${game.name}" edited: ${changes.join(", ") || "no changes"}` });
 
   const updated = await prisma.raffleGame.findUnique({ where: { id: game.id } });
+  // This route only runs on an active raffle (requireActiveGame), so it's
+  // always still meant to be on the Activities feed — just re-sync its
+  // (possibly changed) name/dates, same "keep it fresh" reasoning as
+  // Golf/Tournaments' own edit routes.
+  await publishRaffleGame(req.user.orgId, updated);
   res.json(updated);
 });
 
@@ -319,6 +331,7 @@ router.post("/games/:gameId/close", requirePermission("raffle", "Admin"), async 
   if (req.raffleGame.status === "closed") return res.status(400).json({ error: "This raffle is already closed" });
   const updated = await prisma.raffleGame.update({ where: { id: req.raffleGame.id }, data: { status: "closed", closedAt: new Date() } });
   await addRaffleLog(req.user.orgId, req.raffleGame.id, { type: "game_closed", text: `"${req.raffleGame.name}" closed` });
+  await removeCalendarEventFor("raffle-game", req.raffleGame.id);
   res.json(updated);
 });
 
@@ -326,6 +339,7 @@ router.post("/games/:gameId/reopen", requirePermission("raffle", "Admin"), async
   if (req.raffleGame.status === "active") return res.status(400).json({ error: "This raffle is already active" });
   const updated = await prisma.raffleGame.update({ where: { id: req.raffleGame.id }, data: { status: "active", closedAt: null } });
   await addRaffleLog(req.user.orgId, req.raffleGame.id, { type: "game_reopened", text: `"${req.raffleGame.name}" reopened` });
+  await publishRaffleGame(req.user.orgId, updated);
   res.json(updated);
 });
 
@@ -337,6 +351,7 @@ router.post("/games/:gameId/reopen", requirePermission("raffle", "Admin"), async
 // not something to erase.
 router.delete("/games/:gameId", requirePermission("raffle", "Admin"), requireActiveGame, async (req, res) => {
   await prisma.raffleGame.delete({ where: { id: req.raffleGame.id } });
+  await removeCalendarEventFor("raffle-game", req.raffleGame.id);
   res.json({ ok: true });
 });
 

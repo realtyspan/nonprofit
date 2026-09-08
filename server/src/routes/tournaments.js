@@ -13,6 +13,7 @@ const {
   readWorkbookRows, interpretPlayerRows, interpretSponsorRows,
   RECOMMENDED_PLAYER_FORMAT, RECOMMENDED_SPONSOR_FORMAT,
 } = require("../lib/tournamentHistoricalImport");
+const { publishTournament, removeCalendarEventFor } = require("../lib/calendarSync");
 const { extractPlayersFromRows, extractSponsorsFromRows } = require("../lib/tournamentHistoricalImportAi");
 
 const router = express.Router();
@@ -315,6 +316,15 @@ router.patch("/:tournamentId", requirePermission("tournaments", "Admin"), async 
 
   const updated = await prisma.tournament.update({ where: { id: req.tournament.id }, data: { previousTournamentId, ...fields } });
   await addLog(req.user.orgId, req.tournament.id, { type: "tournament_edited", text: `"${updated.name}" details updated`, actorName: req.callerUser?.name || "" });
+
+  // Keep the Activities feed's copy (title/venue/date) in sync with an edit
+  // to an already-open tournament — same "only if already public" guard
+  // events.js's own PATCH /:id uses for publishEvent.
+  if (updated.status === "open") {
+    const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+    await publishTournament(req.user.orgId, updated, org);
+  }
+
   res.json(updated);
 });
 
@@ -333,6 +343,8 @@ router.post("/:tournamentId/open", requirePermission("tournaments", "Admin"), as
 
   const updated = await prisma.tournament.update({ where: { id: t.id }, data: { status: "open" } });
   await addLog(req.user.orgId, t.id, { type: "tournament_opened", text: `"${t.name}" opened for registration`, actorName: req.callerUser?.name || "" });
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  await publishTournament(req.user.orgId, updated, org);
   res.json(updated);
 });
 
@@ -340,6 +352,7 @@ router.post("/:tournamentId/close", requirePermission("tournaments", "Admin"), a
   if (req.tournament.status === "closed") return res.status(400).json({ error: "This tournament is already closed" });
   const updated = await prisma.tournament.update({ where: { id: req.tournament.id }, data: { status: "closed", closedAt: new Date() } });
   await addLog(req.user.orgId, req.tournament.id, { type: "tournament_closed", text: `"${req.tournament.name}" closed`, actorName: req.callerUser?.name || "" });
+  await removeCalendarEventFor("tournament", req.tournament.id);
   res.json(updated);
 });
 
@@ -347,6 +360,8 @@ router.post("/:tournamentId/reopen", requirePermission("tournaments", "Admin"), 
   if (req.tournament.status !== "closed") return res.status(400).json({ error: "This tournament isn't closed" });
   const updated = await prisma.tournament.update({ where: { id: req.tournament.id }, data: { status: "open", closedAt: null } });
   await addLog(req.user.orgId, req.tournament.id, { type: "tournament_opened", text: `"${req.tournament.name}" reopened`, actorName: req.callerUser?.name || "" });
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  await publishTournament(req.user.orgId, updated, org);
   res.json(updated);
 });
 
@@ -356,6 +371,7 @@ router.delete("/:tournamentId", requirePermission("tournaments", "Admin"), async
     return res.status(400).json({ error: "This tournament has registered teams — close it instead of deleting it" });
   }
   await prisma.tournament.delete({ where: { id: req.tournament.id } });
+  await removeCalendarEventFor("tournament", req.tournament.id);
   res.json({ ok: true });
 });
 
