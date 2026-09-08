@@ -401,6 +401,14 @@ export const api = {
   sendTournamentSponsorEmail: (tournamentId) => request(`/tournaments/${tournamentId}/sponsor-email/send`, { method: "POST" }),
   sendTournamentSponsorTestEmail: (tournamentId, email) => request(`/tournaments/${tournamentId}/sponsor-email/send-test`, { method: "POST", body: { email } }),
 
+  listTournamentHistoricalImports: () => request("/tournaments/historical-imports"),
+  interpretTournamentHistoricalPlayers: (payload) => request("/tournaments/historical-imports/players/interpret", { method: "POST", body: payload }),
+  interpretTournamentHistoricalSponsors: (payload) => request("/tournaments/historical-imports/sponsors/interpret", { method: "POST", body: payload }),
+  importTournamentHistoricalPlayers: (payload) => request("/tournaments/historical-imports/players", { method: "POST", body: payload }),
+  importTournamentHistoricalSponsors: (payload) => request("/tournaments/historical-imports/sponsors", { method: "POST", body: payload }),
+  updateTournamentHistoricalImport: (id, payload) => request(`/tournaments/historical-imports/${id}`, { method: "PATCH", body: payload }),
+  deleteTournamentHistoricalImport: (id) => request(`/tournaments/historical-imports/${id}`, { method: "DELETE" }),
+
   getTournamentsUnsubscribeInfo: (token) => request(`/public/tournaments/unsubscribe-info?token=${encodeURIComponent(token)}`),
   confirmTournamentsUnsubscribe: (token) => request("/public/tournaments/unsubscribe", { method: "POST", body: { token } }),
 

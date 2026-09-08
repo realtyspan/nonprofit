@@ -119,8 +119,12 @@ router.get("/:orgSlug", async (req, res) => {
 
   let previewTournament = null;
   if (tournaments.length === 0) {
+    // isHistorical shells (see tournaments.js's historical-imports section)
+    // have no format/venue/included-items — a bad "here's our typical
+    // format" sample — so they're excluded here, same as Golf's own
+    // previewTournament fallback.
     const preview = await prisma.tournament.findFirst({
-      where: { orgId: org.id },
+      where: { orgId: org.id, isHistorical: false },
       select: PUBLIC_TOURNAMENT_FIELDS,
       orderBy: { date: "desc" },
     });

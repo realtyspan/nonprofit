@@ -8,6 +8,12 @@ const { tournamentKickoffEmailHtml } = require("../lib/tournamentKickoffEmail");
 const { tournamentSponsorEmailHtml } = require("../lib/tournamentSponsorEmail");
 const { buildUnsubscribeToken } = require("../lib/tournamentUnsubscribe");
 const { sendEmail } = require("../lib/notifications");
+const { decodeDataUrl } = require("../lib/dataUrl");
+const {
+  readWorkbookRows, interpretPlayerRows, interpretSponsorRows,
+  RECOMMENDED_PLAYER_FORMAT, RECOMMENDED_SPONSOR_FORMAT,
+} = require("../lib/tournamentHistoricalImport");
+const { extractPlayersFromRows, extractSponsorsFromRows } = require("../lib/tournamentHistoricalImportAi");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -168,7 +174,7 @@ router.delete("/types/:typeId", requirePermission("tournaments", "Admin"), async
 
 router.get("/", requireReadAccess("tournaments"), async (req, res) => {
   const tournaments = await prisma.tournament.findMany({
-    where: { orgId: req.user.orgId },
+    where: { orgId: req.user.orgId, isHistorical: false },
     include: { type: true },
     orderBy: { date: "desc" },
   });
@@ -1035,6 +1041,240 @@ router.patch("/sponsors/:sponsorId", requirePermission("tournaments", "Helper"),
       ...(email !== undefined ? { email: normalizeEmail(email) } : {}),
       ...(phone !== undefined ? { phone: (phone || "").trim() } : {}),
     },
+  });
+  res.json(updated);
+});
+
+// --- Historical imports ---
+// Past-years player/sponsor data, uploaded once so the "email last year's
+// players/sponsors" marketing lists have real data to work with. Direct
+// port of golf.js's own section — an import targets an isHistorical
+// Tournament "shell" that can receive players and/or sponsors, either
+// created fresh by the first import or added to by a second import later
+// (previousTournamentId is a single field shared by both marketing tracks
+// on a real tournament, so both lists for one archival year need to live
+// on the same row for a real tournament to ever link to both at once).
+
+router.get("/historical-imports", requireReadAccess("tournaments"), async (req, res) => {
+  const tournaments = await prisma.tournament.findMany({
+    where: { orgId: req.user.orgId, isHistorical: true },
+    orderBy: { date: "desc" },
+    include: { _count: { select: { teamPlayers: true, sponsorships: true } } },
+  });
+  res.json(tournaments.map((t) => ({
+    id: t.id, name: t.name, year: t.year, previousTournamentId: t.previousTournamentId,
+    playerCount: t._count.teamPlayers, sponsorshipCount: t._count.sponsorships,
+  })));
+});
+
+// Shared by both import routes below — either reuses an existing historical
+// shell (so a second CSV, of the other kind, can land on the same
+// archival-year row) or creates a fresh one. `typeId` is required only on
+// the fresh-creation path (an existing shell already has one) — unlike
+// Golf, Tournament.typeId is non-nullable, so a shell needs a real type
+// from the org's own list just like any other tournament.
+async function findOrCreateHistoricalTournament(orgId, { existingTournamentId, year, name, previousTournamentId, typeId }) {
+  if (existingTournamentId) {
+    const existing = await prisma.tournament.findFirst({ where: { id: existingTournamentId, orgId, isHistorical: true } });
+    if (!existing) throw Object.assign(new Error("That historical import wasn't found"), { status: 400 });
+    return existing;
+  }
+  const yearNum = Number(year);
+  if (!Number.isInteger(yearNum) || yearNum < 1900 || yearNum > 2200) {
+    throw Object.assign(new Error("A valid year is required"), { status: 400 });
+  }
+  const type = await prisma.tournamentType.findFirst({ where: { id: typeId, orgId } });
+  if (!type) throw Object.assign(new Error("Choose a tournament type for this archival year"), { status: 400 });
+  const resolvedPreviousId = await resolvePreviousTournamentId(orgId, previousTournamentId, null);
+  const slug = await uniqueSlug(orgId, name?.trim() || `${yearNum} ${type.name} (imported)`);
+  return prisma.tournament.create({
+    data: {
+      orgId,
+      typeId: type.id,
+      slug,
+      name: (name && name.trim()) || `${yearNum} ${type.name} (imported)`,
+      year: yearNum,
+      date: new Date(Date.UTC(yearNum, 5, 1)),
+      costPerPlayer: 0,
+      status: "closed",
+      closedAt: new Date(Date.UTC(yearNum, 11, 31)),
+      isHistorical: true,
+      previousTournamentId: resolvedPreviousId,
+    },
+  });
+}
+
+// Reads an uploaded file (xlsx or csv, as a data URL) into raw rows, then
+// tries the free deterministic reader first; falls back to the AI-assisted
+// one only when the rules-based pass can't find a usable name/company
+// column at all, or when the caller explicitly asks for it (a "this doesn't
+// look right" retry after reviewing a bad rules-based read). Either path
+// returns the exact same shape — nothing is saved here, this only powers
+// the review screen the org confirms or corrects before anything commits.
+router.post("/historical-imports/players/interpret", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const buffer = decodeDataUrl(req.body.file);
+  if (!buffer) return res.status(400).json({ error: "Choose a file first" });
+  let rawRows;
+  try {
+    rawRows = readWorkbookRows(buffer);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (req.body.force !== "ai") {
+    const { rows, skipped, confident } = interpretPlayerRows(rawRows);
+    if (confident && rows.length > 0) {
+      return res.json({ method: "rules", rows, skipped });
+    }
+  }
+
+  try {
+    const rows = await extractPlayersFromRows(rawRows, req.user.orgId);
+    if (rows.length === 0) return res.status(400).json({ error: `Couldn't find any players in that file. Try the recommended format: ${RECOMMENDED_PLAYER_FORMAT}` });
+    res.json({ method: "ai", rows, skipped: 0 });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message });
+  }
+});
+
+router.post("/historical-imports/sponsors/interpret", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const buffer = decodeDataUrl(req.body.file);
+  if (!buffer) return res.status(400).json({ error: "Choose a file first" });
+  let rawRows;
+  try {
+    rawRows = readWorkbookRows(buffer);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (req.body.force !== "ai") {
+    const { rows, skipped, confident } = interpretSponsorRows(rawRows);
+    if (confident && rows.length > 0) {
+      return res.json({ method: "rules", rows, skipped });
+    }
+  }
+
+  try {
+    const rows = await extractSponsorsFromRows(rawRows, req.user.orgId);
+    if (rows.length === 0) return res.status(400).json({ error: `Couldn't find any sponsors in that file. Try the recommended format: ${RECOMMENDED_SPONSOR_FORMAT}` });
+    res.json({ method: "ai", rows, skipped: 0 });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message });
+  }
+});
+
+// Commits an already-reviewed row list (from the interpret step above,
+// possibly hand-edited) — no parsing happens here, just the actual writes.
+router.post("/historical-imports/players", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const { rows, existingTournamentId, year, name, previousTournamentId, typeId } = req.body;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ error: "No players to import" });
+  }
+  for (const r of rows) {
+    if (!r || !r.name || !String(r.name).trim()) return res.status(400).json({ error: "Every player needs a name" });
+  }
+
+  let tournament;
+  try {
+    tournament = await findOrCreateHistoricalTournament(req.user.orgId, { existingTournamentId, year, name, previousTournamentId, typeId });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+
+  // Group rows into teams by (trimmed, case-insensitive) team key; no key
+  // means that row is its own one-person team, not grouped with any other
+  // keyless row.
+  const teamGroups = [];
+  const namedGroupIndex = new Map();
+  for (const r of rows) {
+    const teamKey = r.teamKey ? String(r.teamKey).trim() : "";
+    if (teamKey) {
+      const key = teamKey.toLowerCase();
+      if (!namedGroupIndex.has(key)) {
+        namedGroupIndex.set(key, teamGroups.length);
+        teamGroups.push({ teamName: teamKey, rows: [] });
+      }
+      teamGroups[namedGroupIndex.get(key)].rows.push(r);
+    } else {
+      teamGroups.push({ teamName: null, rows: [r] });
+    }
+  }
+
+  let imported = 0;
+  for (const group of teamGroups) {
+    const team = await prisma.tournamentTeam.create({ data: { orgId: req.user.orgId, tournamentId: tournament.id, name: group.teamName } });
+    for (let i = 0; i < group.rows.length; i++) {
+      const r = group.rows[i];
+      const player = await findOrCreatePlayer(prisma, req.user.orgId, { name: r.name, email: r.email, phone: r.phone });
+      await prisma.tournamentTeamPlayer.create({
+        data: {
+          orgId: req.user.orgId, tournamentId: tournament.id, teamId: team.id, playerId: player.id,
+          isCaptain: r.isCaptain != null ? !!r.isCaptain : i === 0,
+          amountDue: 0,
+        },
+      });
+      imported++;
+    }
+  }
+
+  res.json({ ok: true, tournamentId: tournament.id, imported, teams: teamGroups.length });
+});
+
+router.post("/historical-imports/sponsors", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const { rows, existingTournamentId, year, name, previousTournamentId, typeId } = req.body;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ error: "No sponsors to import" });
+  }
+  for (const r of rows) {
+    if (!r || !r.companyName || !String(r.companyName).trim()) return res.status(400).json({ error: "Every sponsor needs a company name" });
+  }
+
+  let tournament;
+  try {
+    tournament = await findOrCreateHistoricalTournament(req.user.orgId, { existingTournamentId, year, name, previousTournamentId, typeId });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+
+  let imported = 0;
+  for (const r of rows) {
+    const sponsor = await findOrCreateSponsorContact(req.user.orgId, { companyName: r.companyName, contactName: r.contactName, email: r.email, phone: r.phone });
+    await prisma.tournamentSponsorship.create({
+      data: {
+        orgId: req.user.orgId, tournamentId: tournament.id, sponsorId: sponsor.id,
+        tierName: r.tierName || null, amount: r.amount || null, status: "confirmed", source: "manual",
+      },
+    });
+    imported++;
+  }
+
+  res.json({ ok: true, tournamentId: tournament.id, imported });
+});
+
+router.delete("/historical-imports/:id", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const tournament = await prisma.tournament.findFirst({ where: { id: req.params.id, orgId: req.user.orgId, isHistorical: true } });
+  if (!tournament) return res.status(404).json({ error: "That historical import wasn't found" });
+  await prisma.tournament.delete({ where: { id: tournament.id } });
+  res.json({ ok: true });
+});
+
+// Lets an import's label/link be changed after the fact — a new import's
+// "pull past players/sponsors from" dropdown can only offer imports that
+// already existed at the time it was created, so an older year imported
+// later needs this to connect to it.
+router.patch("/historical-imports/:id", requirePermission("tournaments", "Admin"), async (req, res) => {
+  const tournament = await prisma.tournament.findFirst({ where: { id: req.params.id, orgId: req.user.orgId, isHistorical: true } });
+  if (!tournament) return res.status(404).json({ error: "That historical import wasn't found" });
+  const { name, previousTournamentId } = req.body;
+  let resolvedPreviousId;
+  try {
+    resolvedPreviousId = await resolvePreviousTournamentId(req.user.orgId, previousTournamentId, tournament.id);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+  const updated = await prisma.tournament.update({
+    where: { id: tournament.id },
+    data: { name: name?.trim() || tournament.name, previousTournamentId: resolvedPreviousId },
   });
   res.json(updated);
 });

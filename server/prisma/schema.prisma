@@ -1281,6 +1281,7 @@ model Tournament {
   contactPhone                String?
   contactEmail                String?
   status                      String         @default("draft") // draft | open | closed
+  isHistorical                Boolean        @default(false) // past-years data uploaded via CSV import — archival only, excluded from the operational tournament list and the empty-state preview, same pattern as GolfTournament.isHistorical
   closedAt                    DateTime?
   allowCheckPayment           Boolean        @default(false)
   checkPayableInstructions    String?
