@@ -244,7 +244,7 @@ function TournamentDetail({ activity, detail, theme, font }) {
   );
 }
 
-function EventDetail({ activity, detail }) {
+function EventDetail({ detail }) {
   return (
     <div className="pac-card">
       <span className="pac-card-badge">Event</span>
@@ -256,9 +256,20 @@ function EventDetail({ activity, detail }) {
         {!detail.allDay && ` · ${new Date(detail.startAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`}
         {detail.location ? ` · ${detail.location}` : ""}
       </div>
+      {detail.statusNote && <div className="pac-card-meta">{detail.statusNote}</div>}
       {detail.price && (
         <div className="pac-card-meta"><strong style={{ color: "var(--pac-text)" }}>{detail.price}</strong>{detail.priceUnit ? ` ${detail.priceUnit}` : ""}</div>
       )}
+      {/* Events have no registration form to protect — reserving is just a
+          link or a phone number, so it renders right here instead of
+          sending anyone to the separate Events page for it. */}
+      {(detail.payUrl || detail.reservePhone) && (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {detail.payUrl && <a className="pac-btn" href={detail.payUrl} target="_blank" rel="noreferrer">Order &amp; pay online</a>}
+          {detail.reservePhone && <a className="pac-btn" href={`tel:${detail.reservePhone}`}>Reserve by phone</a>}
+        </div>
+      )}
+      {detail.admissionNote && <div className="pac-card-meta">{detail.admissionNote}</div>}
       {detail.includes?.length > 0 && (
         <ul className="pac-card-includes">
           {detail.includesHeading && <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 2 }}>{detail.includesHeading}</div>}
@@ -266,7 +277,6 @@ function EventDetail({ activity, detail }) {
         </ul>
       )}
       {detail.description && <div className="pac-card-desc">{detail.description}</div>}
-      {activity.linkUrl && <a className="pac-btn" href={activity.linkUrl} target="_blank" rel="noreferrer">Learn more</a>}
     </div>
   );
 }
@@ -303,7 +313,7 @@ function ActivityDetail({ activity, detail, theme, font }) {
   if (activity.source === "golf-tournament" || activity.source === "tournament") {
     return <TournamentDetail activity={activity} detail={detail} theme={theme} font={font} />;
   }
-  if (activity.source === "event") return <EventDetail activity={activity} detail={detail} />;
+  if (activity.source === "event") return <EventDetail detail={detail} />;
   if (activity.source === "raffle-game") return <RaffleDetail detail={detail} />;
   return null;
 }
