@@ -3,6 +3,7 @@ import { publicApi } from "../lib/api";
 import { colors, money } from "../lib/tokens";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
 import { EVT_CSS, evtStyleVars, TournamentVisual, FooterContact } from "../components/TournamentVisual";
+import { EventVisual, EVENT_EXTRA_CSS } from "../components/EventVisual";
 import logo from "../assets/logo.png";
 
 // One page listing everything currently public across every module, with
@@ -189,6 +190,7 @@ export default function PublicActivities({ slug, embed }) {
     <div ref={containerRef} className="pac" style={pacStyleVars(theme, font)}>
       <style>{PAC_CSS}</style>
       <style>{EVT_CSS}</style>
+      <style>{EVENT_EXTRA_CSS}</style>
 
       {!embed && (
         <header className="pac-header">
@@ -260,39 +262,30 @@ function TournamentDetail({ activity, detail, theme, font }) {
   );
 }
 
-function EventDetail({ detail }) {
+// Reuses the exact same EventVisual PublicEvents.jsx renders on the real
+// Events page — same "generated from the record's own input, unmodified"
+// convention TournamentDetail above already follows for Golf/Tournaments.
+function EventDetail({ detail, theme, font }) {
   return (
-    <div className="pac-card">
-      <span className="pac-card-badge">Event</span>
-      {detail.heroImage && <img className="pac-card-image" src={detail.heroImage} alt="" />}
-      <div className="pac-card-title">{detail.title}</div>
-      {detail.tagline && <div className="pac-card-meta">{detail.tagline}</div>}
-      <div className="pac-card-meta">
-        {new Date(detail.startAt).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
-        {!detail.allDay && ` · ${new Date(detail.startAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`}
-        {detail.location ? ` · ${detail.location}` : ""}
+    <div className="evt" style={evtStyleVars(theme, font)}>
+      {detail.recurrenceLabel && <p className="evt-pill" style={{ marginBottom: 10 }}>{detail.recurrenceLabel}</p>}
+      <div className="evt-card">
+        <EventVisual event={detail} notice={detail.statusNote} />
+        {(detail.admissionNote || detail.payUrl || detail.reservePhone) && (
+          <div className="evt-footer">
+            {detail.admissionNote && (
+              <div className="evt-footer-contact">
+                <p className="evt-footer-contact-label">Note</p>
+                <p style={{ fontSize: 12.5, color: "var(--evt-ink-muted)" }}>{detail.admissionNote}</p>
+              </div>
+            )}
+            <div className="evt-footer-actions">
+              {detail.payUrl && <a className="evt-btn" href={detail.payUrl} target="_blank" rel="noreferrer">Order &amp; pay online</a>}
+              {detail.reservePhone && <a className="evt-btn-secondary" href={`tel:${detail.reservePhone}`}>Reserve by phone</a>}
+            </div>
+          </div>
+        )}
       </div>
-      {detail.statusNote && <div className="pac-card-meta">{detail.statusNote}</div>}
-      {detail.price && (
-        <div className="pac-card-meta"><strong style={{ color: "var(--pac-text)" }}>{detail.price}</strong>{detail.priceUnit ? ` ${detail.priceUnit}` : ""}</div>
-      )}
-      {/* Events have no registration form to protect — reserving is just a
-          link or a phone number, so it renders right here instead of
-          sending anyone to the separate Events page for it. */}
-      {(detail.payUrl || detail.reservePhone) && (
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {detail.payUrl && <a className="pac-btn" href={detail.payUrl} target="_blank" rel="noreferrer">Order &amp; pay online</a>}
-          {detail.reservePhone && <a className="pac-btn" href={`tel:${detail.reservePhone}`}>Reserve by phone</a>}
-        </div>
-      )}
-      {detail.admissionNote && <div className="pac-card-meta">{detail.admissionNote}</div>}
-      {detail.includes?.length > 0 && (
-        <ul className="pac-card-includes">
-          {detail.includesHeading && <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 2 }}>{detail.includesHeading}</div>}
-          {detail.includes.map((item, i) => <li key={i}>{item}</li>)}
-        </ul>
-      )}
-      {detail.description && <div className="pac-card-desc">{detail.description}</div>}
     </div>
   );
 }
@@ -329,7 +322,7 @@ function ActivityDetail({ activity, detail, theme, font }) {
   if (activity.source === "golf-tournament" || activity.source === "tournament") {
     return <TournamentDetail activity={activity} detail={detail} theme={theme} font={font} />;
   }
-  if (activity.source === "event") return <EventDetail detail={detail} />;
+  if (activity.source === "event") return <EventDetail detail={detail} theme={theme} font={font} />;
   if (activity.source === "raffle-game") return <RaffleDetail detail={detail} />;
   return null;
 }

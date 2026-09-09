@@ -54,7 +54,7 @@ const EVENT_DETAIL_FIELDS = {
   id: true, title: true, tagline: true, description: true, location: true,
   startAt: true, endAt: true, allDay: true, heroImage: true, secondaryImage: true,
   price: true, priceUnit: true, payUrl: true, reservePhone: true, statusNote: true,
-  admissionNote: true, includesHeading: true, includes: true,
+  admissionNote: true, includesHeading: true, includes: true, recurrenceLabel: true,
 };
 
 // Fetches and shapes the full public detail for one Activities row, given
