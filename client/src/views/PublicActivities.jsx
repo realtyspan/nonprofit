@@ -1,18 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
 import { publicApi } from "../lib/api";
-import { colors } from "../lib/tokens";
+import { colors, money } from "../lib/tokens";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
+import { EVT_CSS, evtStyleVars, TournamentVisual, FooterContact } from "../components/TournamentVisual";
 import logo from "../assets/logo.png";
 
-// One page/embed listing everything currently public across every
-// module — a golf tournament, a Tournaments-module tournament, a
-// published Event, an active Raffle, or a manual public Calendar entry.
-// Reads the shared feed calendarSync.js already keeps up to date
-// (publicActivities.js's GET /:slug); this page has no logic of its own
-// beyond presenting that list. Every row with a real page to go to
-// (everything except a raffle announcement) is a link straight to that
-// module's own existing page — registration, payment, and rosters all
-// stay exactly where they already work.
+// One page listing everything currently public across every module, with
+// a generated detail view for whichever one is selected shown right on
+// this same page — no navigation, and no page for the org to build
+// themselves. A golf tournament, a Tournaments-module tournament, and a
+// published Event already have their own real registration/payment page;
+// the detail shown here is a preview generated from that same record's
+// own input, with a button handing off to the real page only once
+// someone's ready to actually register or pay. Raffle and a plain manual
+// Calendar entry have no page to hand off to — the generated card here
+// *is* the page for those.
 const PAC_CSS = `
 .pac {
   --pac-bg: ${colors.bg};
@@ -32,26 +34,54 @@ const PAC_CSS = `
   padding: 18px 32px; border-bottom: 1px solid var(--pac-border); background: var(--pac-surface);
 }
 .pac-header-name { font-weight: 700; font-size: 15px; }
-.pac-main { max-width: 760px; margin: 0 auto; padding: 32px 24px 72px; display: flex; flex-direction: column; gap: 14px; }
+.pac-layout { max-width: 1040px; margin: 0 auto; padding: 32px 24px 72px; display: flex; flex-wrap: wrap-reverse; gap: 28px; align-items: flex-start; }
+.pac-detail { flex: 1 1 420px; min-width: 0; }
+.pac-list-col { flex: 0 1 300px; min-width: 260px; max-width: 340px; position: sticky; top: 24px; display: flex; flex-direction: column; gap: 8px; }
+.pac-list-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--pac-text-secondary); margin-bottom: 2px; }
 .pac-empty { text-align: center; color: var(--pac-text-secondary); font-size: 14px; padding: 60px 20px; }
 .pac-row {
-  display: flex; gap: 18px; align-items: flex-start; padding: 18px 20px;
-  background: var(--pac-surface); border: 1px solid var(--pac-border); border-radius: 12px;
-  text-decoration: none; color: inherit;
+  display: flex; gap: 14px; align-items: flex-start; padding: 12px 14px;
+  background: var(--pac-surface); border: 1px solid var(--pac-border); border-radius: 10px;
+  cursor: pointer; text-align: left; width: 100%; font: inherit; color: inherit;
 }
-a.pac-row:hover { border-color: var(--pac-accent); }
-.pac-row-date { flex: none; width: 58px; text-align: center; }
-.pac-row-month { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--pac-accent); }
-.pac-row-day { font-size: 22px; font-weight: 700; line-height: 1.15; }
-.pac-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.pac-row-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.pac-row-title { font-size: 16px; font-weight: 700; }
+.pac-row:hover { border-color: var(--pac-accent); }
+.pac-row.selected { border-color: var(--pac-accent); background: var(--pac-accent-bg); }
+.pac-row-date { flex: none; width: 46px; text-align: center; }
+.pac-row-month { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--pac-accent); }
+.pac-row-day { font-size: 19px; font-weight: 700; line-height: 1.15; }
+.pac-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pac-row-title { font-size: 14px; font-weight: 700; line-height: 1.25; }
 .pac-badge {
-  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
-  padding: 3px 9px; border-radius: 999px; background: var(--pac-accent-bg); color: var(--pac-accent); white-space: nowrap;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--pac-accent);
 }
-.pac-row-meta { font-size: 13px; color: var(--pac-text-secondary); }
-.pac-row-desc { font-size: 13.5px; color: var(--pac-text-secondary); line-height: 1.5; }
+.pac-row-meta { font-size: 12px; color: var(--pac-text-secondary); }
+
+.pac-card {
+  background: var(--pac-surface); border: 1px solid var(--pac-border); border-radius: 12px;
+  padding: 26px 28px; display: flex; flex-direction: column; gap: 12px;
+}
+.pac-card-badge {
+  display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  padding: 3px 10px; border-radius: 999px; background: var(--pac-accent-bg); color: var(--pac-accent); width: fit-content;
+}
+.pac-card-title { font-size: 24px; font-weight: 700; text-wrap: balance; }
+.pac-card-meta { font-size: 13.5px; color: var(--pac-text-secondary); }
+.pac-card-desc { font-size: 14px; line-height: 1.6; color: var(--pac-text); white-space: pre-wrap; }
+.pac-card-image { width: 100%; max-height: 260px; object-fit: cover; border-radius: 10px; }
+.pac-card-includes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+.pac-card-includes li::before { content: "• "; color: var(--pac-accent); font-weight: 700; }
+.pac-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px 22px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  background: var(--pac-accent); color: #fff; text-decoration: none; width: fit-content;
+}
+.pac-loading { color: var(--pac-text-secondary); font-size: 13.5px; padding: 40px 0; text-align: center; }
+
+@media (max-width: 720px) {
+  .pac-layout { padding: 20px 16px 48px; }
+  .pac-list-col { position: static; max-width: none; }
+}
 `;
 
 const SOURCE_LABELS = {
@@ -66,10 +96,19 @@ function monthDay(iso) {
   return { month: d.toLocaleDateString(undefined, { month: "short" }).toUpperCase(), day: d.getDate() };
 }
 
+function activityKey(a) {
+  return `${a.source}:${a.source === "manual" ? a.id : a.sourceId}`;
+}
+
 export default function PublicActivities({ slug, embed }) {
   const [orgName, setOrgName] = useState(null);
   const [activities, setActivities] = useState([]);
   const [error, setError] = useState("");
+  const [selectedKey, setSelectedKey] = useState(null);
+  const [detailCache, setDetailCache] = useState({});
+  const [detailBusyKey, setDetailBusyKey] = useState(null);
+  const [detailError, setDetailError] = useState("");
+  const initialized = useRef(false);
   const containerRef = useRef(null);
 
   const params = new URLSearchParams(window.location.search);
@@ -79,9 +118,35 @@ export default function PublicActivities({ slug, embed }) {
 
   useEffect(() => {
     publicApi.getActivitiesPage(slug)
-      .then((data) => { setOrgName(data.orgName); setActivities(data.activities); })
+      .then((data) => {
+        setOrgName(data.orgName);
+        setActivities(data.activities);
+        if (!initialized.current) {
+          initialized.current = true;
+          const wantedSource = params.get("source");
+          const wantedId = params.get("id");
+          const wanted = wantedSource && wantedId ? data.activities.find((a) => a.source === wantedSource && (a.source === "manual" ? a.id : a.sourceId) === wantedId) : null;
+          setSelectedKey(wanted ? activityKey(wanted) : (data.activities[0] ? activityKey(data.activities[0]) : null));
+        }
+      })
       .catch((err) => setError(err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
+
+  const selected = activities.find((a) => activityKey(a) === selectedKey) || null;
+
+  // Fetch (and cache) the generated detail for whichever item is
+  // selected — a manual entry needs no extra request, the list row
+  // already has everything it has.
+  useEffect(() => {
+    if (!selected || selected.source === "manual" || detailCache[selectedKey]) return;
+    setDetailBusyKey(selectedKey);
+    setDetailError("");
+    publicApi.getActivityDetail(slug, selected.source, selected.sourceId)
+      .then((data) => setDetailCache((c) => ({ ...c, [selectedKey]: data })))
+      .catch((err) => setDetailError(err.message))
+      .finally(() => setDetailBusyKey(null));
+  }, [selected, selectedKey, slug, detailCache]);
 
   useEffect(() => {
     if (!embed || !containerRef.current) return;
@@ -91,7 +156,15 @@ export default function PublicActivities({ slug, embed }) {
     const observer = new ResizeObserver(post);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [embed, activities]);
+  }, [embed, activities, selectedKey, detailCache]);
+
+  function selectActivity(a) {
+    setSelectedKey(activityKey(a));
+    const next = new URLSearchParams(window.location.search);
+    next.set("source", a.source);
+    next.set("id", a.source === "manual" ? a.id : a.sourceId);
+    window.history.replaceState({}, "", `${window.location.pathname}?${next.toString()}`);
+  }
 
   if (error) return <Centered embed={embed}>This page isn't available.</Centered>;
   if (orgName === null) return <Centered embed={embed}>Loading…</Centered>;
@@ -99,6 +172,7 @@ export default function PublicActivities({ slug, embed }) {
   return (
     <div ref={containerRef} className="pac" style={{ fontFamily: font ? `"${font}", sans-serif` : undefined }}>
       <style>{PAC_CSS}</style>
+      <style>{EVT_CSS}</style>
 
       {!embed && (
         <header className="pac-header">
@@ -107,44 +181,131 @@ export default function PublicActivities({ slug, embed }) {
         </header>
       )}
 
-      <main className="pac-main">
-        {activities.length === 0 ? (
-          <div className="pac-empty">Nothing coming up right now — check back soon.</div>
-        ) : (
-          activities.map((a) => <ActivityRow key={a.id} activity={a} />)
+      <div className="pac-layout">
+        <div className="pac-detail">
+          {activities.length === 0 ? (
+            <div className="pac-empty">Nothing coming up right now — check back soon.</div>
+          ) : !selected ? null : selected.source === "manual" ? (
+            <ManualDetail activity={selected} />
+          ) : detailBusyKey === selectedKey ? (
+            <div className="pac-loading">Loading…</div>
+          ) : detailError ? (
+            <div className="pac-loading">{detailError}</div>
+          ) : detailCache[selectedKey] ? (
+            <ActivityDetail activity={selected} detail={detailCache[selectedKey]} theme={theme} font={font} />
+          ) : null}
+        </div>
+
+        {activities.length > 0 && (
+          <div className="pac-list-col">
+            <div className="pac-list-title">Coming up</div>
+            {activities.map((a) => {
+              const { month, day } = monthDay(a.startAt);
+              const key = activityKey(a);
+              return (
+                <button key={key} type="button" className={`pac-row${key === selectedKey ? " selected" : ""}`} onClick={() => selectActivity(a)}>
+                  <div className="pac-row-date">
+                    <div className="pac-row-month">{month}</div>
+                    <div className="pac-row-day">{day}</div>
+                  </div>
+                  <div className="pac-row-body">
+                    <div className="pac-row-title">{a.title}</div>
+                    {SOURCE_LABELS[a.source] && <div className="pac-badge">{SOURCE_LABELS[a.source]}</div>}
+                    {a.location && <div className="pac-row-meta">{a.location}</div>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }
 
-function ActivityRow({ activity }) {
-  const { month, day } = monthDay(activity.startAt);
-  const badge = SOURCE_LABELS[activity.source];
-  const body = (
-    <>
-      <div className="pac-row-date">
-        <div className="pac-row-month">{month}</div>
-        <div className="pac-row-day">{day}</div>
-      </div>
-      <div className="pac-row-body">
-        <div className="pac-row-top">
-          <div className="pac-row-title">{activity.title}</div>
-          {badge && <span className="pac-badge">{badge}</span>}
+// A tournament/golf-tournament detail is generated from the exact same
+// input its own real page renders — TournamentVisual is reused as-is,
+// unmodified, rather than reimplemented here.
+function TournamentDetail({ activity, detail, theme, font }) {
+  return (
+    <div className="evt" style={evtStyleVars(theme, font)}>
+      <div className="evt-card">
+        <TournamentVisual tournament={detail} />
+        <div className="evt-footer">
+          <FooterContact tournament={detail} />
+          {activity.linkUrl && (
+            <div className="evt-footer-actions">
+              <a className="evt-btn" href={activity.linkUrl} target="_blank" rel="noreferrer">Register</a>
+            </div>
+          )}
         </div>
-        {activity.location && <div className="pac-row-meta">{activity.location}</div>}
-        {activity.description && <div className="pac-row-desc">{activity.description}</div>}
       </div>
-    </>
+    </div>
   );
+}
 
-  // A raffle announcement has no page to send anyone to (see
-  // calendarSync.js's publishRaffleGame) — every other source always
-  // carries a linkUrl straight to its own real page.
-  if (activity.linkUrl) {
-    return <a className="pac-row" href={activity.linkUrl} target="_blank" rel="noreferrer">{body}</a>;
+function EventDetail({ activity, detail }) {
+  return (
+    <div className="pac-card">
+      <span className="pac-card-badge">Event</span>
+      {detail.heroImage && <img className="pac-card-image" src={detail.heroImage} alt="" />}
+      <div className="pac-card-title">{detail.title}</div>
+      {detail.tagline && <div className="pac-card-meta">{detail.tagline}</div>}
+      <div className="pac-card-meta">
+        {new Date(detail.startAt).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+        {!detail.allDay && ` · ${new Date(detail.startAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`}
+        {detail.location ? ` · ${detail.location}` : ""}
+      </div>
+      {detail.price && (
+        <div className="pac-card-meta"><strong style={{ color: "var(--pac-text)" }}>{detail.price}</strong>{detail.priceUnit ? ` ${detail.priceUnit}` : ""}</div>
+      )}
+      {detail.includes?.length > 0 && (
+        <ul className="pac-card-includes">
+          {detail.includesHeading && <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 2 }}>{detail.includesHeading}</div>}
+          {detail.includes.map((item, i) => <li key={i}>{item}</li>)}
+        </ul>
+      )}
+      {detail.description && <div className="pac-card-desc">{detail.description}</div>}
+      {activity.linkUrl && <a className="pac-btn" href={activity.linkUrl} target="_blank" rel="noreferrer">Learn more</a>}
+    </div>
+  );
+}
+
+function RaffleDetail({ detail }) {
+  return (
+    <div className="pac-card">
+      <span className="pac-card-badge">Raffle</span>
+      <div className="pac-card-title">{detail.name}</div>
+      <div className="pac-card-meta">
+        {money(detail.ticketPrice)}/ticket · {new Date(detail.raffleStartDate).toLocaleDateString()} – {new Date(detail.raffleEndDate).toLocaleDateString()}
+      </div>
+      {detail.eventVenue && <div className="pac-card-meta">{detail.eventVenue}</div>}
+      {detail.eventDetails && <div className="pac-card-desc">{detail.eventDetails}</div>}
+    </div>
+  );
+}
+
+function ManualDetail({ activity }) {
+  return (
+    <div className="pac-card">
+      <div className="pac-card-title">{activity.title}</div>
+      <div className="pac-card-meta">
+        {new Date(activity.startAt).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+        {!activity.allDay && ` · ${new Date(activity.startAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`}
+        {activity.location ? ` · ${activity.location}` : ""}
+      </div>
+      {activity.description && <div className="pac-card-desc">{activity.description}</div>}
+    </div>
+  );
+}
+
+function ActivityDetail({ activity, detail, theme, font }) {
+  if (activity.source === "golf-tournament" || activity.source === "tournament") {
+    return <TournamentDetail activity={activity} detail={detail} theme={theme} font={font} />;
   }
-  return <div className="pac-row">{body}</div>;
+  if (activity.source === "event") return <EventDetail activity={activity} detail={detail} />;
+  if (activity.source === "raffle-game") return <RaffleDetail detail={detail} />;
+  return null;
 }
 
 function Centered({ children, embed }) {

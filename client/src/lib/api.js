@@ -467,6 +467,12 @@ export const publicApi = {
     if (!res.ok) throw new Error(data.error || "Not found");
     return data;
   },
+  async getActivityDetail(slug, source, sourceId) {
+    const res = await fetch(`/api/public/activities/${slug}/detail/${source}/${sourceId}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Not found");
+    return data;
+  },
   async submitEventInterest(slug, payload) {
     const res = await fetch(`/api/public/events/${slug}/interest`, {
       method: "POST",
