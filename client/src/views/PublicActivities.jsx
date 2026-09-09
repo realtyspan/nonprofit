@@ -84,6 +84,22 @@ const PAC_CSS = `
 }
 `;
 
+// Maps the shared embed-theme query params (see embedTheme.js) onto this
+// page's own CSS variables — same pattern as PublicEvents.jsx's
+// pevStyleVars. Applied as an inline style on the root element so it wins
+// over PAC_CSS's baked-in defaults.
+function pacStyleVars(theme, font) {
+  const vars = {};
+  if (theme.accent) vars["--pac-accent"] = theme.accent;
+  if (theme.bg) vars["--pac-bg"] = theme.bg;
+  if (theme.surface) vars["--pac-surface"] = theme.surface;
+  if (theme.textPrimary) vars["--pac-text"] = theme.textPrimary;
+  if (theme.textSecondary) vars["--pac-text-secondary"] = theme.textSecondary;
+  if (theme.border) vars["--pac-border"] = theme.border;
+  if (font) vars.fontFamily = `"${font}", sans-serif`;
+  return vars;
+}
+
 const SOURCE_LABELS = {
   "golf-tournament": "Golf Tournament",
   tournament: "Tournament",
@@ -170,7 +186,7 @@ export default function PublicActivities({ slug, embed }) {
   if (orgName === null) return <Centered embed={embed}>Loading…</Centered>;
 
   return (
-    <div ref={containerRef} className="pac" style={{ fontFamily: font ? `"${font}", sans-serif` : undefined }}>
+    <div ref={containerRef} className="pac" style={pacStyleVars(theme, font)}>
       <style>{PAC_CSS}</style>
       <style>{EVT_CSS}</style>
 
