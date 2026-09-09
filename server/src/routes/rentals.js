@@ -104,23 +104,54 @@ router.get("/bookings", requireReadAccess("rentals"), async (req, res) => {
 
 // Staff-entered booking (phone/walk-in inquiry) — always starts as an inquiry,
 // same as a public submission; staff still has to confirm it.
+//
+// Same required-field check publicRentals.js's own inquiry route already
+// has — this route was missing it. Without it, a missing renterName/
+// renterEmail (both non-nullable columns) or an unparseable startAt/endAt
+// doesn't just fail cleanly: Prisma's validation error rejects the create
+// call's promise, and since Express 4 never routes a rejected async
+// handler to error-handling middleware on its own, the request hangs
+// until the client's own timeout instead of ever getting a response.
 router.post("/bookings", requirePermission("rentals", "Helper"), async (req, res) => {
-  const space = await prisma.rentalSpace.findFirst({ where: { id: req.body.spaceId, orgId: req.user.orgId } });
+  const { spaceId, renterName, renterEmail, startAt, endAt } = req.body;
+  if (!spaceId || !renterName || !renterEmail || !startAt || !endAt) {
+    return res.status(400).json({ error: "Space, renter name, renter email, start, and end are required" });
+  }
+  // lodgeDateTimeStringToUtc throws (rather than returning an Invalid
+  // Date) on a genuinely malformed string — caught here explicitly since
+  // an uncaught throw inside this async handler would otherwise reject
+  // silently and hang the request, the same failure mode the required-
+  // field check above exists to prevent.
+  let parsedStart, parsedEnd;
+  try {
+    parsedStart = lodgeDateTimeStringToUtc(startAt);
+    parsedEnd = lodgeDateTimeStringToUtc(endAt);
+  } catch {
+    return res.status(400).json({ error: "startAt and endAt must be valid dates" });
+  }
+  if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) {
+    return res.status(400).json({ error: "startAt and endAt must be valid dates" });
+  }
+  if (parsedEnd < parsedStart) {
+    return res.status(400).json({ error: "End time must be on or after the start time" });
+  }
+
+  const space = await prisma.rentalSpace.findFirst({ where: { id: spaceId, orgId: req.user.orgId } });
   if (!space) return res.status(404).json({ error: "Space not found" });
 
   const booking = await prisma.rentalBooking.create({
     data: {
       orgId: req.user.orgId,
       spaceId: space.id,
-      renterName: req.body.renterName,
-      renterEmail: req.body.renterEmail,
+      renterName,
+      renterEmail,
       renterPhone: req.body.renterPhone,
       renterAddress: req.body.renterAddress,
       isMember: !!req.body.isMember,
       eventType: req.body.eventType,
       expectedGuests: req.body.expectedGuests ? Number(req.body.expectedGuests) : null,
-      startAt: lodgeDateTimeStringToUtc(req.body.startAt),
-      endAt: lodgeDateTimeStringToUtc(req.body.endAt),
+      startAt: parsedStart,
+      endAt: parsedEnd,
       wantsBartender: !!req.body.wantsBartender,
       wantsLinen: !!req.body.wantsLinen,
       roundTables: Number(req.body.roundTables) || 0,
