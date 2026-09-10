@@ -54,6 +54,25 @@ async function buildReport(orgId, year, quarter) {
   });
 }
 
+// Freezes a report to a fresh snapshot the moment all three signature slots
+// are filled. Atomic conditional update so two signatures landing at once
+// can't both race the write — exactly one performs the freeze, the other is
+// a no-op. Also serves as a self-healing backstop: if the sign path's own
+// freeze was ever missed (a narrow race between two near-simultaneous
+// signatures), the next read of the report freezes it, rather than letting
+// a fully-signed report keep drifting as the underlying ledger changes.
+// Returns the frozen values if it froze (or found it already filed), else null.
+async function freezeIfFullySigned(orgId, year, quarter, existing) {
+  if (!existing || existing.status === "filed") return existing ? JSON.parse(existing.values) : null;
+  if ((existing.signOffs?.length || 0) < 3) return null;
+  const finalValues = await buildReport(orgId, year, quarter);
+  await prisma.gC7QReport.updateMany({
+    where: { id: existing.id, status: { not: "filed" } },
+    data: { status: "filed", values: JSON.stringify(finalValues) },
+  });
+  return finalValues;
+}
+
 // Once a report is "filed", its values are frozen to whatever they were at the
 // moment of the final signature — later ledger/deal edits must never silently
 // change a report that's already been signed off and (presumably) mailed.
@@ -62,6 +81,8 @@ async function getReportValues(orgId, year, quarter, existing) {
   if (existing && existing.status === "filed") {
     return JSON.parse(existing.values);
   }
+  const frozen = await freezeIfFullySigned(orgId, year, quarter, existing);
+  if (frozen) return frozen;
   return buildReport(orgId, year, quarter);
 }
 
@@ -74,12 +95,17 @@ router.get("/:year/:quarter", requireReadAccess("bell-jar"), async (req, res) =>
     include: { signOffs: { include: { user: true } } },
   });
   const values = await getReportValues(req.user.orgId, year, quarter, existing);
+  // getReportValues may have just frozen a fully-signed report — reflect
+  // that in the status this response reports rather than a stale "draft".
+  const status = existing && existing.status !== "filed" && (existing.signOffs?.length || 0) >= 3
+    ? "filed"
+    : (existing?.status || "draft");
 
   res.json({
     year,
     quarter,
     values,
-    status: existing?.status || "draft",
+    status,
     signOffs: existing?.signOffs || [],
     interestEarned: existing?.interestEarned || 0,
     adjustments: existing?.adjustments || 0,
@@ -101,23 +127,27 @@ router.patch("/:year/:quarter/inputs", requirePermission("bell-jar", "Helper"), 
     return res.status(400).json({ error: "Report is filed — unlock it for correction before editing" });
   }
 
-  await prisma.gC7QReport.upsert({
-    where: { orgId_year_quarter: { orgId: req.user.orgId, year, quarter } },
-    update: {
-      interestEarned: Number(interestEarned) || 0,
-      adjustments: Number(adjustments) || 0,
-      adjustmentExplanation: adjustmentExplanation || null,
-    },
-    create: {
-      orgId: req.user.orgId,
-      year,
-      quarter,
-      values: "{}",
-      interestEarned: Number(interestEarned) || 0,
-      adjustments: Number(adjustments) || 0,
-      adjustmentExplanation: adjustmentExplanation || null,
-    },
-  });
+  const inputData = {
+    interestEarned: Number(interestEarned) || 0,
+    adjustments: Number(adjustments) || 0,
+    adjustmentExplanation: adjustmentExplanation || null,
+  };
+  // Prisma's upsert isn't atomic against a concurrent first insert of the
+  // same unique key — on that collision, retry, which now takes the update
+  // branch against the row the other request just created.
+  try {
+    await prisma.gC7QReport.upsert({
+      where: { orgId_year_quarter: { orgId: req.user.orgId, year, quarter } },
+      update: inputData,
+      create: { orgId: req.user.orgId, year, quarter, values: "{}", ...inputData },
+    });
+  } catch (err) {
+    if (err.code !== "P2002") throw err;
+    await prisma.gC7QReport.update({
+      where: { orgId_year_quarter: { orgId: req.user.orgId, year, quarter } },
+      data: inputData,
+    });
+  }
 
   const values = await buildReport(req.user.orgId, year, quarter);
   const report = await prisma.gC7QReport.update({
@@ -186,34 +216,57 @@ router.post("/:year/:quarter/sign", async (req, res) => {
 
   const year = Number(req.params.year);
   const quarter = Number(req.params.quarter);
-  let report = await prisma.gC7QReport.findUnique({
-    where: { orgId_year_quarter: { orgId: req.user.orgId, year, quarter } },
-  });
+
+  // Two designated signers signing at the same moment both see no report
+  // row yet. Neither findUnique-then-create nor Prisma's own upsert is
+  // atomic against that — the loser hits the orgId_year_quarter unique
+  // constraint. Attempt the create, and on that specific collision fall
+  // back to reading the row the other signer just made, so both requests
+  // finish cleanly instead of one hanging on an unhandled rejection.
+  const whereKey = { orgId_year_quarter: { orgId: req.user.orgId, year, quarter } };
+  let report = await prisma.gC7QReport.findUnique({ where: whereKey });
   if (!report) {
-    const values = await buildReport(req.user.orgId, year, quarter);
-    report = await prisma.gC7QReport.create({
-      data: { orgId: req.user.orgId, year, quarter, values: JSON.stringify(values), status: "draft" },
+    const initialValues = await buildReport(req.user.orgId, year, quarter);
+    try {
+      report = await prisma.gC7QReport.create({
+        data: { orgId: req.user.orgId, year, quarter, values: JSON.stringify(initialValues), status: "draft" },
+      });
+    } catch (err) {
+      if (err.code !== "P2002") throw err;
+      report = await prisma.gC7QReport.findUnique({ where: whereKey });
+    }
+  }
+
+  // Same non-atomic-upsert caveat — a double-submit of the same slot could
+  // race two inserts; on that collision the row already exists, so update it.
+  try {
+    await prisma.signOff.upsert({
+      where: { reportId_role: { reportId: report.id, role } },
+      update: { userId: req.user.userId, signedAt: new Date() },
+      create: { reportId: report.id, role, userId: req.user.userId },
+    });
+  } catch (err) {
+    if (err.code !== "P2002") throw err;
+    await prisma.signOff.update({
+      where: { reportId_role: { reportId: report.id, role } },
+      data: { userId: req.user.userId, signedAt: new Date() },
     });
   }
 
-  await prisma.signOff.upsert({
-    where: { reportId_role: { reportId: report.id, role } },
-    update: { userId: req.user.userId, signedAt: new Date() },
-    create: { reportId: report.id, role, userId: req.user.userId },
-  });
-
-  const signOffs = await prisma.signOff.findMany({ where: { reportId: report.id } });
-  if (signOffs.length === 3) {
-    // Freeze the snapshot at the exact moment the 3rd signature lands — this is
-    // the version everyone affirmed, and it must not drift after this point.
+  // Freeze the snapshot the moment the 3rd signature lands — the version
+  // everyone affirmed, which must not drift after this. Atomic conditional
+  // update so two signatures landing together can't both race the write.
+  const signOffCount = await prisma.signOff.count({ where: { reportId: report.id } });
+  if (signOffCount === 3 && report.status !== "filed") {
     const finalValues = await buildReport(req.user.orgId, year, quarter);
-    report = await prisma.gC7QReport.update({
-      where: { id: report.id },
+    await prisma.gC7QReport.updateMany({
+      where: { id: report.id, status: { not: "filed" } },
       data: { status: "filed", values: JSON.stringify(finalValues) },
     });
   }
 
-  res.json({ ok: true, status: report.status });
+  const finalReport = await prisma.gC7QReport.findUnique({ where: { id: report.id }, select: { status: true } });
+  res.json({ ok: true, status: finalReport.status });
 });
 
 // Reopens a filed report for correction: reverts to draft and clears all 3
