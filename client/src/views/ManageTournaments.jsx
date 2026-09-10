@@ -32,6 +32,7 @@ export default function ManageTournaments({ tournaments, tournamentId, onTournam
   }
   useEffect(refreshHistoricalImports, []);
 
+  const confirm = useConfirm();
   const selected = tournaments.find((t) => t.id === tournamentId) || null;
 
   async function toggleLifecycle() {
@@ -41,6 +42,27 @@ export default function ManageTournaments({ tournaments, tournamentId, onTournam
       if (selected.status === "open") await api.closeTournament(tournamentId);
       else if (selected.status === "closed") await api.reopenTournament(tournamentId);
       else await api.openTournament(tournamentId);
+      onTournamentsChanged();
+    } catch (err) {
+      setLifecycleError(err.message);
+    } finally {
+      setLifecycleBusy(false);
+    }
+  }
+
+  // Open -> draft. Distinct from Close: draft hides the tournament everywhere
+  // (so you can keep editing before it's public), while Close keeps its
+  // roster/history visible for reporting.
+  async function unpublish() {
+    const n = selected.registeredTeamCount || 0;
+    const warn = n > 0
+      ? `Move "${selected.name}" back to draft? It disappears from your public site and calendar, and ${n} registered team${n === 1 ? "" : "s"} lose access to their registration and payment pages until you open it again.`
+      : `Move "${selected.name}" back to draft? It disappears from your public site and calendar until you open it again.`;
+    if (!(await confirm(warn, { confirmLabel: "Move to draft" }))) return;
+    setLifecycleBusy(true);
+    setLifecycleError("");
+    try {
+      await api.unpublishTournament(tournamentId);
       onTournamentsChanged();
     } catch (err) {
       setLifecycleError(err.message);
@@ -68,7 +90,7 @@ export default function ManageTournaments({ tournaments, tournamentId, onTournam
           </div>
           <div style={{ fontSize: 12, color: colors.textSecondary }}>
             {selected.status === "open"
-              ? "Closing stops new registrations and payments. Its roster and history stay fully visible for reporting."
+              ? "Closing stops new registrations and payments but keeps the roster and history visible for reporting. Unpublish instead to pull it back to draft while you keep editing."
               : selected.status === "closed"
               ? "Reopening allows new registrations and payments for this tournament again."
               : "Not visible to the public yet — open it once the details below are ready."}
@@ -94,6 +116,16 @@ export default function ManageTournaments({ tournaments, tournamentId, onTournam
             >
               {lifecycleBusy ? "Working…" : lifecycleLabel}
             </button>
+            {selected.status === "open" && (
+              <button
+                style={!isAdmin ? button.disabled : button.ghost}
+                disabled={lifecycleBusy || !isAdmin}
+                title={!isAdmin ? "Only a Tournaments Admin can change a tournament's status" : ""}
+                onClick={unpublish}
+              >
+                Unpublish (back to draft)
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -359,6 +359,7 @@ export const api = {
   openTournament: (tournamentId) => request(`/tournaments/${tournamentId}/open`, { method: "POST" }),
   closeTournament: (tournamentId) => request(`/tournaments/${tournamentId}/close`, { method: "POST" }),
   reopenTournament: (tournamentId) => request(`/tournaments/${tournamentId}/reopen`, { method: "POST" }),
+  unpublishTournament: (tournamentId) => request(`/tournaments/${tournamentId}/unpublish`, { method: "POST" }),
   listTournamentLog: (tournamentId) => request(`/tournaments/${tournamentId}/log`),
   downloadTournamentFlyerPdf: (tournamentId, tournamentName) => download(`/tournaments/${tournamentId}/flyer`, `${(tournamentName || "Tournament").replace(/\s+/g, "_")}_Flyer.pdf`),
 

@@ -374,6 +374,34 @@ router.post("/:tournamentId/reopen", requirePermission("tournaments", "Admin"), 
   res.json(updated);
 });
 
+// Move an open tournament back to draft — the inverse of /open, mirroring
+// events.js's /:id/unpublish. Lets an admin pull a tournament off the public
+// site while they finish editing it, without "closing" it (which reads as
+// "the tournament is over"). Distinct from /close: draft is invisible
+// everywhere and can be re-opened cleanly; closed keeps its roster/history
+// visible for reporting. Allowed even with registered teams — the client
+// confirms the consequence (their registration/pay pages go dark until it's
+// re-opened) before calling this.
+router.post("/:tournamentId/unpublish", requirePermission("tournaments", "Admin"), async (req, res) => {
+  if (req.tournament.status !== "open") {
+    return res.status(400).json({ error: "Only an open tournament can be moved back to draft" });
+  }
+  const updated = await prisma.tournament.update({
+    where: { id: req.tournament.id },
+    data: { status: "draft", closedAt: null },
+  });
+  const teamNote = req.tournament.registeredTeamCount > 0
+    ? ` — ${req.tournament.registeredTeamCount} registered team${req.tournament.registeredTeamCount === 1 ? "" : "s"} lose page access until it's re-opened`
+    : "";
+  await addLog(req.user.orgId, req.tournament.id, {
+    type: "tournament_unpublished",
+    text: `"${req.tournament.name}" moved back to draft (hidden from the public)${teamNote}`,
+    actorName: req.callerUser?.name || "",
+  });
+  await removeCalendarEventFor("tournament", req.tournament.id);
+  res.json(updated);
+});
+
 router.delete("/:tournamentId", requirePermission("tournaments", "Admin"), async (req, res) => {
   const teamCount = await prisma.tournamentTeam.count({ where: { tournamentId: req.tournament.id } });
   if (teamCount > 0) {
