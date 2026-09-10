@@ -127,6 +127,7 @@ export default function PublicActivities({ slug, embed }) {
   const [detailError, setDetailError] = useState("");
   const initialized = useRef(false);
   const containerRef = useRef(null);
+  const detailRef = useRef(null);
 
   const params = new URLSearchParams(window.location.search);
   const theme = parseThemeFromQuery(params);
@@ -181,6 +182,13 @@ export default function PublicActivities({ slug, embed }) {
     next.set("source", a.source);
     next.set("id", a.source === "manual" ? a.id : a.sourceId);
     window.history.replaceState({}, "", `${window.location.pathname}?${next.toString()}`);
+    // On a narrow layout (common for an embed, which often sits in a
+    // column narrower than a full page) the list wraps above the detail
+    // instead of beside it — without this, picking a different item left
+    // the newly-generated detail sitting below wherever you'd scrolled to
+    // read the list, looking like it "jumped to the bottom" instead of
+    // showing up. Same fix PublicEvents.jsx's own selectEvent already has.
+    detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   if (error) return <Centered embed={embed}>This page isn't available.</Centered>;
@@ -200,7 +208,7 @@ export default function PublicActivities({ slug, embed }) {
       )}
 
       <div className="pac-layout">
-        <div className="pac-detail">
+        <div className="pac-detail" ref={detailRef} style={{ scrollMarginTop: 24 }}>
           {activities.length === 0 ? (
             <div className="pac-empty">Nothing coming up right now — check back soon.</div>
           ) : !selected ? null : selected.source === "manual" ? (
