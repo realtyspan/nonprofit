@@ -18,9 +18,9 @@ const EXPENSE_CATEGORIES = [
 const CATEGORY_LABEL = Object.fromEntries(EXPENSE_CATEGORIES.map((c) => [c.value, c.label]));
 
 const CATEGORY_META = {
-  category_2: { label: "Category 2", bg: colors.successBg, color: colors.success, blurb: "Net proceeds under $5,000 — minimal, self-certifying filing." },
-  category_1b: { label: "Category 1B", bg: colors.warningBg, color: colors.warning, blurb: "Net proceeds $5,000–$29,999 — file a verified statement (GCVS-1)." },
-  category_1a: { label: "Category 1A", bg: "#fee2e2", color: colors.danger, blurb: "Net proceeds $30,000+ — GC-7R Financial Statement due within 30 days of each raffle occasion, plus a 2% fee on the amount over $30,000." },
+  category_2: { label: "Category 2", bg: colors.successBg, color: colors.success, blurb: "Every raffle under $5,000 net, and under $30,000 for the year — minimal, self-certifying." },
+  category_1b: { label: "Category 1B", bg: colors.warningBg, color: colors.warning, blurb: "A single raffle nets $5,000–$29,999 (under $30,000 for the year) — file a verified statement (GCVS-1) with the municipal clerk." },
+  category_1a: { label: "Category 1A", bg: "#fee2e2", color: colors.danger, blurb: "Net proceeds $30,000+ — full license (GC-2), a GC-7R Financial Statement filed with the municipal clerk and the Gaming Commission by January 30 of the following year, and a 2% fee on the amount over $30,000." },
 };
 
 function currentYear() {

@@ -1108,7 +1108,8 @@ router.post("/games/:gameId/drawings/:id/clear", requirePermission("raffle", "Ad
 
 // --- Expenses (raffle financial statement / GC-7R) ---
 // Not locked to active games: real bills legitimately arrive after the
-// drawing and before the 30-day GC-7R filing deadline.
+// drawing and before the GC-7R filing deadline (January 30 of the
+// following year, per the Raffle Guidelines Rev. 8/24).
 
 const EXPENSE_CATEGORIES = ["tickets", "license_fee", "equipment_supplies", "services", "rent", "other"];
 

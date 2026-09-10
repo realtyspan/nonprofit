@@ -58,13 +58,22 @@ function fmtUsDate(value) {
 }
 
 // NYS Games of Chance raffle license thresholds (General Municipal Law /
-// GC-2 & GC-7R) — fixed by statute, not an org policy choice, unlike e.g.
-// Deal.closeThreshold. Evaluated on YEAR-TO-DATE net proceeds across every
-// raffle an org runs in a calendar year, not any single raffle in isolation
-// (per the GC-2 application's own wording: "Raffles (net profits $30,000
-// and over in calendar year)").
-const CATEGORY_2_MAX = 5000; // under this: Category 2, minimal/self-certifying
-const CATEGORY_1A_MIN = 30000; // at/over this: Category 1A — GC-7R + 2% fee
+// GC-2 & GC-7R) — fixed by statute, not an org policy choice. Per the
+// Raffle Guidelines (Rev. 8/24):
+//   Category 1A: cumulative net raffle proceeds >= $30,000 for the calendar
+//     year — full license (GC-2) + GC-7R financial statement + 2% fee on
+//     the amount over $30,000.
+//   Category 1B: not 1A, but *any single raffle* nets $5,000–$29,999 —
+//     GCVS-1 verified statement.
+//   Category 2: every single raffle nets < $5,000 AND the cumulative
+//     year-to-date is < $30,000 — minimal, self-certifying.
+// The 1B/2 split turns on the largest *single* raffle, not the cumulative
+// figure (Guidelines: "less than $5,000 in net raffle proceeds from any
+// single raffle and less than $30,000 ... from all raffles"); the 1A line
+// is the cumulative figure. Verified against the Guidelines' worked
+// examples A/B/C ($100 / $40 / $0).
+const CATEGORY_2_MAX = 5000; // a single raffle at/over this is at least Category 1B
+const CATEGORY_1A_MIN = 30000; // cumulative at/over this: Category 1A — GC-7R + 2% fee
 const ADDITIONAL_FEE_RATE = 0.02;
 
 // `games` is one entry per RaffleGame in the target year, each already
@@ -81,6 +90,9 @@ function computeRaffleFinancials(games) {
   let netProceedsActual = 0;
   let netProceedsProjected = 0;
 
+  const perGameNetActual = [];
+  const perGameNetProjected = [];
+
   for (const g of games) {
     const revenue = g.revenue || 0;
     const prizeValue = g.totalPrizeValue || 0;
@@ -93,23 +105,28 @@ function computeRaffleFinancials(games) {
     totalActualExpenses += actualExpenses;
     totalEstimatedExpenses += estimatedExpenses;
 
-    netProceedsActual += revenue - prizeValue - actualExpenses;
-    netProceedsProjected += revenue - prizeValue - (hasActuals ? actualExpenses : estimatedExpenses);
+    const netActual = revenue - prizeValue - actualExpenses;
+    const netProjected = revenue - prizeValue - (hasActuals ? actualExpenses : estimatedExpenses);
+    perGameNetActual.push(netActual);
+    perGameNetProjected.push(netProjected);
+    netProceedsActual += netActual;
+    netProceedsProjected += netProjected;
   }
 
-  function classify(netProceeds) {
-    if (netProceeds < CATEGORY_2_MAX) return "category_2";
-    if (netProceeds < CATEGORY_1A_MIN) return "category_1b";
-    return "category_1a";
+  // 1A is the cumulative line; the 1B/2 split is the largest single raffle.
+  function classify(cumulativeNet, perGameNet) {
+    if (cumulativeNet >= CATEGORY_1A_MIN) return "category_1a";
+    if (perGameNet.some((n) => n >= CATEGORY_2_MAX)) return "category_1b";
+    return "category_2";
   }
 
-  const category = classify(netProceedsActual);
+  const category = classify(netProceedsActual, perGameNetActual);
   const additionalFee = category === "category_1a" ? (netProceedsActual - CATEGORY_1A_MIN) * ADDITIONAL_FEE_RATE : 0;
 
   return {
     totalReceipts, totalPrizeValue, totalActualExpenses, totalEstimatedExpenses,
     netProceedsActual, netProceedsProjected,
-    category, categoryProjected: classify(netProceedsProjected),
+    category, categoryProjected: classify(netProceedsProjected, perGameNetProjected),
     additionalFee,
     gameCount: games.length,
   };
