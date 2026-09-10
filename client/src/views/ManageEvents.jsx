@@ -3,6 +3,7 @@ import { colors, card, pill, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import { resizeImageFile } from "../lib/imageResize";
 import { hasModuleTier } from "../lib/modules";
+import { formatPhone, stripPhone } from "../lib/phone";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
 import AdminAccessNotice from "../components/AdminAccessNotice";
@@ -286,7 +287,7 @@ function EventModal({ event, onCancel, onSaved }) {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginTop: 10 }}>
             <Field label="Pay online link (optional)"><input style={inputStyle} type="url" value={form.payUrl} onChange={(e) => set("payUrl", e.target.value)} placeholder="https://venmo.com/..." /></Field>
-            <Field label="Reserve by phone (optional)"><input style={inputStyle} type="tel" value={form.reservePhone} onChange={(e) => set("reservePhone", e.target.value)} /></Field>
+            <Field label="Reserve by phone (optional)"><input style={inputStyle} type="tel" value={formatPhone(form.reservePhone)} onChange={(e) => set("reservePhone", stripPhone(e.target.value))} /></Field>
           </div>
           <Field label="Admission note (short line under the actions)">
             <input style={inputStyle} value={form.admissionNote} onChange={(e) => set("admissionNote", e.target.value)} placeholder="Members and guests welcome." />
