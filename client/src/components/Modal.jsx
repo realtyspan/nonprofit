@@ -1,5 +1,5 @@
 import React from "react";
-import { colors, button } from "../lib/tokens";
+import { button } from "../lib/tokens";
 import { icons } from "../lib/icons";
 import { useIsMobile } from "../lib/viewport";
 
@@ -10,6 +10,12 @@ import { useIsMobile } from "../lib/viewport";
 // below it, it becomes a full-screen sheet, since the multi-field forms in
 // this app (booking review, event create/edit, space setup) are unusable in
 // a cramped centered box on a phone.
+//
+// Closing is DELIBERATE ONLY — the "X" in the corner (always shown) or a
+// Cancel/Close button the caller puts in the form. A click on the dimmed
+// backdrop does nothing: these modals hold half-filled forms, and losing a
+// booking or an event you were typing to a stray click off the edge of the
+// card is a real bug people hit repeatedly.
 export default function Modal({ children, onCancel, width = 460, title }) {
   const isMobile = useIsMobile();
 
@@ -20,7 +26,6 @@ export default function Modal({ children, onCancel, width = 460, title }) {
         display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center",
         overflowY: isMobile ? "hidden" : "auto", padding: isMobile ? 0 : 24,
       }}
-      onClick={onCancel}
     >
       <div
         style={{
@@ -35,23 +40,29 @@ export default function Modal({ children, onCancel, width = 460, title }) {
           display: "flex", flexDirection: "column",
           overflowY: "auto",
         }}
-        onClick={(e) => e.stopPropagation()}
       >
-        {(title || isMobile) && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{title}</div>
-            <button
-              type="button"
-              onClick={onCancel}
-              aria-label="Close"
-              style={{ ...button.ghost, padding: 8, display: "flex", alignItems: "center", justifyContent: "center", marginLeft: "auto" }}
-            >
-              <span dangerouslySetInnerHTML={{ __html: icons.close }} style={{ width: 18, height: 18, display: "flex" }} />
-            </button>
-          </div>
-        )}
+        {/* Header row is always present so there is always a visible "X" to
+            close by — the backdrop no longer closes on click. When the
+            caller passes no title, it's just the X, right-aligned. */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flex: "none", marginBottom: title ? 14 : 6 }}>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{title}</div>
+          <CloseButton onCancel={onCancel} />
+        </div>
         {children}
       </div>
     </div>
+  );
+}
+
+function CloseButton({ onCancel }) {
+  return (
+    <button
+      type="button"
+      onClick={onCancel}
+      aria-label="Close"
+      style={{ ...button.ghost, padding: 8, display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}
+    >
+      <span dangerouslySetInnerHTML={{ __html: icons.close }} style={{ width: 18, height: 18, display: "flex" }} />
+    </button>
   );
 }
