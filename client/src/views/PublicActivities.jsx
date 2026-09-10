@@ -35,7 +35,7 @@ const PAC_CSS = `
   padding: 18px 32px; border-bottom: 1px solid var(--pac-border); background: var(--pac-surface);
 }
 .pac-header-name { font-weight: 700; font-size: 15px; }
-.pac-layout { max-width: 1040px; margin: 0 auto; padding: 32px 24px 72px; display: flex; flex-wrap: wrap-reverse; gap: 28px; align-items: flex-start; }
+.pac-layout { max-width: 1040px; margin: 0 auto; padding: 32px 24px 72px; display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
 .pac-detail { flex: 1 1 420px; min-width: 0; }
 .pac-list-col { flex: 0 1 300px; min-width: 260px; max-width: 340px; position: sticky; top: 24px; display: flex; flex-direction: column; gap: 8px; }
 .pac-list-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--pac-text-secondary); margin-bottom: 2px; }
@@ -80,7 +80,11 @@ const PAC_CSS = `
 .pac-loading { color: var(--pac-text-secondary); font-size: 13.5px; padding: 40px 0; text-align: center; }
 
 @media (max-width: 720px) {
-  .pac-layout { padding: 20px 16px 48px; }
+  /* column-reverse keeps the "Coming up" picker above the detail on a
+     narrow screen (its natural place there) without flex-wrap:wrap-reverse,
+     which on a wide screen was bottom-aligning the sticky sidebar — pushing
+     the list to the bottom of the page whenever the detail was taller. */
+  .pac-layout { padding: 20px 16px 48px; flex-direction: column-reverse; }
   .pac-list-col { position: static; max-width: none; }
 }
 `;

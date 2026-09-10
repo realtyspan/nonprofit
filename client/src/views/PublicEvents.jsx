@@ -25,7 +25,7 @@ const PAGE_CSS = `
 .evt-page-nav a { font-size: 13.5px; font-weight: 600; color: ${colors.textSecondary}; text-decoration: none; }
 .evt-page-nav a:hover { color: ${colors.textPrimary}; }
 
-.evt-page-main { max-width: 1100px; margin: 0 auto; padding: 28px 20px 60px; display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap-reverse; }
+.evt-page-main { max-width: 1100px; margin: 0 auto; padding: 28px 20px 60px; display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
 .evt-page-content { flex: 1 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 24px; }
 .evt-page-content-top { display: flex; align-items: center; gap: 12px; }
 
@@ -50,7 +50,11 @@ const PAGE_CSS = `
 .evt-side-footnote { font-size: 12px; color: var(--evt-ink-muted); margin-top: 12px; line-height: 1.5; }
 
 @media (max-width: 780px) {
-  .evt-page-main { padding: 20px 16px 48px; }
+  /* column-reverse keeps the "Coming up" picker above the detail on a
+     narrow screen without flex-wrap:wrap-reverse, which on a wide screen
+     was bottom-aligning the sticky sidebar (pushing the list to the bottom
+     of the page whenever the selected event's detail was taller). */
+  .evt-page-main { padding: 20px 16px 48px; flex-direction: column-reverse; }
   .evt-side { position: static; max-width: none; }
 }
 `;
