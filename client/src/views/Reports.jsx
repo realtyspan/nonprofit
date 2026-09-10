@@ -25,6 +25,47 @@ function shiftQuarter(year, quarter, delta) {
   return { year: y, quarter: q };
 }
 
+// The GC-7Q and the 5% additional license fee payment are due within 15
+// days of the end of each quarter (NYS Gaming Commission, Bell Jar):
+// Q1 → Apr 15, Q2 → Jul 15, Q3 → Oct 15, Q4 → Jan 15 of the next year.
+function gc7qFilingInfo(year, quarter, status) {
+  const quarterEnd = new Date(year, quarter * 3, 0);        // last day of the quarter
+  const deadline = new Date(year, quarter * 3, 15);          // 15 days after it closes
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueLabel = deadline.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+  const daysLeft = Math.round((new Date(deadline.getFullYear(), deadline.getMonth(), deadline.getDate()) - today) / 86400000);
+
+  if (status === "filed") {
+    return { bg: colors.successBg, color: colors.success, label: "Filed", sub: `This quarter's GC-7Q was due ${dueLabel}.` };
+  }
+  if (today <= quarterEnd) {
+    return { bg: colors.indigoBg, color: colors.indigo, label: "Quarter in progress", sub: `GC-7Q and the 5% fee are due ${dueLabel} — 15 days after this quarter closes.` };
+  }
+  if (daysLeft < 0) {
+    const over = -daysLeft;
+    return {
+      bg: colors.dangerBg, color: colors.danger,
+      label: `Past due — GC-7Q was due ${dueLabel}`,
+      sub: over <= 60
+        ? `${over} day${over === 1 ? "" : "s"} overdue. File the GC-7Q and pay the 5% fee to the NYS Gaming Commission as soon as possible.`
+        : `Not yet marked filed. File the GC-7Q and pay the 5% fee to the NYS Gaming Commission — or unlock and correct it if it was already mailed.`,
+    };
+  }
+  if (daysLeft <= 7) {
+    return {
+      bg: colors.warningBg, color: colors.warning,
+      label: daysLeft === 0 ? `Due today — ${dueLabel}` : `Due in ${daysLeft} day${daysLeft === 1 ? "" : "s"} — ${dueLabel}`,
+      sub: "Sign off, download the GC-7Q, and mail it with the 5% fee check to the NYS Gaming Commission.",
+    };
+  }
+  return {
+    bg: colors.indigoBg, color: colors.indigo,
+    label: `Filing due ${dueLabel}`,
+    sub: `${daysLeft} days away — GC-7Q and the 5% fee payment, mailed to the NYS Gaming Commission.`,
+  };
+}
+
 const SIGNOFF_ROLES = ["Head", "Preparer", "Member"];
 function roleLabel(r) {
   if (r === "Head") return "Head of Organization";
@@ -170,6 +211,16 @@ export default function Reports({ permissions }) {
           <button style={button.ghost} onClick={() => setConfirmingUnlock(true)}>Unlock for correction</button>
         )}
       </div>
+
+      {(() => {
+        const fi = gc7qFilingInfo(year, quarter, report.status);
+        return (
+          <div style={{ ...card, background: fi.bg, border: `1px solid ${fi.color}`, padding: "12px 16px" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: fi.color }}>{fi.label}</div>
+            <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 3 }}>{fi.sub}</div>
+          </div>
+        );
+      })()}
 
       {confirmingUnlock && (
         <div style={{ ...card, background: colors.warningBg, border: `1px solid ${colors.warning}` }}>
