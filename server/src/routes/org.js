@@ -34,10 +34,22 @@ router.patch("/", requireOwnerOrBellJarAdmin, async (req, res) => {
 // to any one module) and is the org's core identity, not a per-module
 // operational detail — see Team.jsx's "Organization" section, the one place
 // this is editable regardless of which modules an org even has.
+// The org's local timezone (IANA name). Kept to a short list of the US
+// zones rather than accepting any string — this drives how times print on
+// generated PDFs, and a typo'd zone would silently fall back to UTC.
+const ALLOWED_TIME_ZONES = [
+  "America/New_York", "America/Chicago", "America/Denver", "America/Phoenix",
+  "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu",
+];
+
 router.patch("/identity", requireOwner, async (req, res) => {
-  const { name, contactEmail, phone, address, mailingAddress, slug } = req.body;
+  const { name, contactEmail, phone, address, mailingAddress, slug, timeZone } = req.body;
   if (name !== undefined && !name.trim()) {
     return res.status(400).json({ error: "Organization name can't be blank" });
+  }
+
+  if (timeZone !== undefined && !ALLOWED_TIME_ZONES.includes(timeZone)) {
+    return res.status(400).json({ error: "Unrecognized time zone" });
   }
 
   if (slug !== undefined && slug !== null && slug !== "") {
@@ -52,7 +64,7 @@ router.patch("/identity", requireOwner, async (req, res) => {
 
   const org = await prisma.organization.update({
     where: { id: req.user.orgId },
-    data: { name: name !== undefined ? name.trim() : undefined, contactEmail, phone, address, mailingAddress, slug: slug || undefined },
+    data: { name: name !== undefined ? name.trim() : undefined, contactEmail, phone, address, mailingAddress, slug: slug || undefined, timeZone: timeZone || undefined },
   });
   res.json(org);
 });

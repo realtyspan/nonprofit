@@ -20,15 +20,20 @@ function resolveEventFlyerUrl(org, event) {
   return `${appUrl}/events/${org.slug}?event=${event.slug}`;
 }
 
-function formatTimeRange(event) {
+// startAt/endAt are real UTC instants; the flyer is rendered on the server
+// (no browser timezone to fall back on), so times are formatted in the
+// org's own zone — otherwise a 4 PM Eastern dinner prints as 8 PM (UTC) on
+// a US-East deploy. Defaults to US Eastern to match Organization.timeZone.
+function formatTimeRange(event, timeZone) {
   if (event.allDay) return "All day";
-  const opts = { hour: "numeric", minute: "2-digit" };
+  const opts = { hour: "numeric", minute: "2-digit", timeZone: timeZone || "America/New_York" };
   const start = new Date(event.startAt).toLocaleTimeString("en-US", opts);
   const end = new Date(event.endAt).toLocaleTimeString("en-US", opts);
   return start === end ? start : `${start} – ${end}`;
 }
 
 async function buildEventRecordFlyerPdf({ org, event, flyerUrl }) {
+  const timeZone = org.timeZone || "America/New_York";
   // De-dup priceUnit when it just repeats the price — several events store
   // e.g. price "$100" / priceUnit "$100", which otherwise prints "$100 $100".
   const priceParts = [event.price];
@@ -37,7 +42,7 @@ async function buildEventRecordFlyerPdf({ org, event, flyerUrl }) {
   }
   const stats = [
     event.price && { label: "Price", value: priceParts.filter(Boolean).join(" ") },
-    { label: "Time", value: formatTimeRange(event) },
+    { label: "Time", value: formatTimeRange(event, timeZone) },
     event.location && { label: "Location", value: event.location },
   ].filter(Boolean);
 
@@ -70,6 +75,7 @@ async function buildEventRecordFlyerPdf({ org, event, flyerUrl }) {
     description: event.description || null,
     statusNote: event.statusNote || null,
     date: event.startAt,
+    dateTimeZone: timeZone, // event dates are real instants — read the calendar day in the org's zone, not UTC
     stats,
     includedItems: event.includes || [],
     includedItemsHeading: event.includesHeading,

@@ -138,19 +138,20 @@ function money(n) {
   return `$${Math.round(Number(n) || 0).toLocaleString("en-US")}`;
 }
 
-// Formats a stored DateTime as calendar-day parts using UTC getters — this
-// app stores tournament dates as a bare calendar day, and reading them back
-// with local-timezone getters has bitten this codebase before (a server
-// running behind UTC can read the day before/after what was actually
-// entered). Matches the UTC-formatting convention already established for
-// the FRS report and elsewhere.
-function dateParts(d) {
+// Formats a stored DateTime as calendar-day parts in `timeZone` (default
+// UTC). Golf/Tournament dates are stored as a bare calendar day (midnight
+// UTC) and MUST be read as UTC — reading them with local-timezone getters
+// has bitten this codebase before (a server behind UTC reads the day
+// before/after what was entered). An Event date, though, is a real instant
+// (its start time), so the event flyer passes the org's zone to get the
+// calendar day the org actually means.
+function dateParts(d, timeZone = "UTC") {
   const date = new Date(d);
-  return {
-    month: date.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" }),
-    day: date.getUTCDate(),
-    year: date.getUTCFullYear(),
-  };
+  const parts = new Intl.DateTimeFormat("en-US", {
+    month: "long", day: "numeric", year: "numeric", timeZone,
+  }).formatToParts(date);
+  const get = (t) => parts.find((p) => p.type === t)?.value;
+  return { month: get("month"), day: Number(get("day")), year: Number(get("year")) };
 }
 
 // Greedy word-wrap at a given font/size — pdf-lib draws single lines only,
@@ -219,6 +220,7 @@ async function embedFlyerImage(doc, dataUrl) {
 //   subLine,                         // tagline / one-liner under the headline
 //   heroImage, secondaryImage,       // optional base64 data URLs — hero fills the top band; secondary is an inset beside the description
 //   date,                            // Date | ISO string — drives the corner date tab
+//   dateTimeZone,                    // optional IANA zone the date tab's day is read in (default UTC — for a bare calendar day; events pass their org zone since their date is a real instant)
 //   statusNote,                      // optional — highlighted bar under the stat row
 //   stats: [{ label, value }],       // up to 3, e.g. Time/Location/Price
 //   description,                     // optional prose block
@@ -348,7 +350,7 @@ async function buildEventFlyerPdf(content) {
   }
 
   // ---- Date tab (overlaps the hero/body seam) ----
-  const { month, day, year } = dateParts(content.date);
+  const { month, day, year } = dateParts(content.date, content.dateTimeZone);
   const tabW = 74, tabH = 74;
   const tabX = PAGE.width - MARGIN - tabW;
   const tabY = heroBottom - tabH / 2;

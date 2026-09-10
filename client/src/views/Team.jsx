@@ -252,17 +252,30 @@ function InviteForm({ isOwner, adminModules, onInvited, onError, error }) {
 // running only Golf or Rentals had no way to reach it at all). Owner-only to
 // edit, same as changing who else is Owner; a non-Owner still sees the
 // current values read-only since it's useful org context for any admin.
+// Must match ALLOWED_TIME_ZONES in server/src/routes/org.js.
+const TIME_ZONES = [
+  { value: "America/New_York", label: "Eastern (New York)" },
+  { value: "America/Chicago", label: "Central (Chicago)" },
+  { value: "America/Denver", label: "Mountain (Denver)" },
+  { value: "America/Phoenix", label: "Mountain – no DST (Arizona)" },
+  { value: "America/Los_Angeles", label: "Pacific (Los Angeles)" },
+  { value: "America/Anchorage", label: "Alaska" },
+  { value: "Pacific/Honolulu", label: "Hawaii" },
+];
+const DEFAULT_TIME_ZONE = "America/New_York";
+const tzLabel = (v) => TIME_ZONES.find((z) => z.value === v)?.label || v;
+
 function OrganizationInfoCard({ isOwner }) {
   const [org, setOrg] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: "", contactEmail: "", phone: "", address: "", mailingAddress: "", slug: "" });
+  const [form, setForm] = useState({ name: "", contactEmail: "", phone: "", address: "", mailingAddress: "", slug: "", timeZone: DEFAULT_TIME_ZONE });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   function refresh() {
     api.getOrg().then((o) => {
       setOrg(o);
-      setForm({ name: o.name || "", contactEmail: o.contactEmail || "", phone: o.phone || "", address: o.address || "", mailingAddress: o.mailingAddress || "", slug: o.slug || "" });
+      setForm({ name: o.name || "", contactEmail: o.contactEmail || "", phone: o.phone || "", address: o.address || "", mailingAddress: o.mailingAddress || "", slug: o.slug || "", timeZone: o.timeZone || DEFAULT_TIME_ZONE });
     }).catch(() => {});
   }
   useEffect(refresh, []);
@@ -305,6 +318,7 @@ function OrganizationInfoCard({ isOwner }) {
           <OrgInfoRow label="Phone" value={org.phone ? formatPhone(org.phone) : null} />
           <OrgInfoRow label="Physical address" value={org.address} />
           <OrgInfoRow label="Mailing address" value={org.mailingAddress} />
+          <OrgInfoRow label="Time zone" value={tzLabel(org.timeZone || DEFAULT_TIME_ZONE)} />
           <OrgInfoRow label="Public link" value={org.slug ? `/${org.slug}` : null} />
           {!isOwner && <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>Only an Owner can change this.</div>}
         </div>
@@ -326,6 +340,12 @@ function OrganizationInfoCard({ isOwner }) {
             <input style={inputStyle} value={form.mailingAddress} onChange={(e) => set("mailingAddress", e.target.value)} placeholder="Same as physical address if left blank" />
           </Field>
           <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: -6 }}>This is the address that appears on your GC-7Q filing — falls back to the physical address above if left blank.</div>
+          <Field label="Time zone">
+            <select style={inputStyle} value={form.timeZone} onChange={(e) => set("timeZone", e.target.value)}>
+              {TIME_ZONES.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
+            </select>
+          </Field>
+          <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: -6 }}>Used to print the correct times on generated flyers and other PDFs — set this to where your events actually happen.</div>
           <Field label="Public link">
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontSize: 12.5, color: colors.textSecondary }}>{window.location.origin}/…/</span>
