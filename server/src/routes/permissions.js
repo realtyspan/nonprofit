@@ -7,6 +7,20 @@ const { MODULE_KEYS } = require("../lib/moduleKeys");
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
 
+// Prisma's upsert isn't atomic against a concurrent first insert of the
+// same unique key — the loser gets a P2002 that, in a plain async handler,
+// hangs the request (Express 4 never routes an unhandled rejection to the
+// error middleware). Falls back to a plain update against the row the other
+// request just created. `where`/`update` must address the row the same way.
+async function safeUpsert(model, { where, update, create }) {
+  try {
+    return await model.upsert({ where, update, create });
+  } catch (err) {
+    if (err.code !== "P2002") throw err;
+    return model.update({ where, data: update });
+  }
+}
+
 // What the caller themself can see/do — the client uses this to filter nav
 // and to know which GC-7Q signature slots (if any) it's designated to sign.
 router.get("/me", async (req, res) => {
@@ -48,7 +62,7 @@ router.patch("/org-tier/:userId", requireOwner, async (req, res) => {
   if (tier === null) {
     await prisma.orgMembership.deleteMany({ where: { userId: target.id } });
   } else {
-    await prisma.orgMembership.upsert({
+    await safeUpsert(prisma.orgMembership, {
       where: { userId: target.id },
       update: { tier },
       create: { orgId: req.user.orgId, userId: target.id, tier },
@@ -84,7 +98,7 @@ router.put("/module-grant/:userId/:module", async (req, res) => {
     }
   }
 
-  const grant = await prisma.moduleGrant.upsert({
+  const grant = await safeUpsert(prisma.moduleGrant, {
     where: { userId_module: { userId: target.id, module } },
     update: { tier, grantedBy: req.user.userId },
     create: { orgId: req.user.orgId, userId: target.id, module, tier, grantedBy: req.user.userId },
@@ -123,7 +137,7 @@ router.get("/labels", async (req, res) => {
 
 router.patch("/labels", requireOwner, async (req, res) => {
   const { ownerLabel, viewerLabel, adminLabel, helperLabel } = req.body;
-  const labels = await prisma.tierLabel.upsert({
+  const labels = await safeUpsert(prisma.tierLabel, {
     where: { orgId: req.user.orgId },
     update: { ownerLabel, viewerLabel, adminLabel, helperLabel },
     create: { orgId: req.user.orgId, ownerLabel, viewerLabel, adminLabel, helperLabel },
@@ -155,7 +169,7 @@ router.put("/gc7q-signers/:slot", requirePermission("bell-jar", "Admin"), async 
   const target = await prisma.user.findFirst({ where: { id: userId, orgId: req.user.orgId } });
   if (!target) return res.status(404).json({ error: "User not found" });
 
-  const designation = await prisma.gC7QSignerDesignation.upsert({
+  const designation = await safeUpsert(prisma.gC7QSignerDesignation, {
     where: { orgId_slot: { orgId: req.user.orgId, slot } },
     update: { userId: target.id },
     create: { orgId: req.user.orgId, userId: target.id, slot },
@@ -184,7 +198,7 @@ router.put("/raffle-signers/:slot", requirePermission("raffle", "Admin"), async 
   const target = await prisma.user.findFirst({ where: { id: userId, orgId: req.user.orgId } });
   if (!target) return res.status(404).json({ error: "User not found" });
 
-  const designation = await prisma.raffleSignerDesignation.upsert({
+  const designation = await safeUpsert(prisma.raffleSignerDesignation, {
     where: { orgId_slot: { orgId: req.user.orgId, slot } },
     update: { userId: target.id },
     create: { orgId: req.user.orgId, userId: target.id, slot },
