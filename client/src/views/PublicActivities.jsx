@@ -187,14 +187,17 @@ export default function PublicActivities({ slug, embed }) {
     // instead of beside it — without this, picking a different item left
     // the newly-generated detail sitting below wherever you'd scrolled to
     // read the list, looking like it "jumped to the bottom" instead of
-    // showing up. Computes the exact target and calls window.scrollTo
-    // directly rather than el.scrollIntoView(), which computes the target
-    // itself and can behave differently across browsers — a manually
-    // computed absolute position is deterministic.
+    // showing up. On a wide layout the two sit side by side at the same
+    // height, so nothing needs to move there at all — only scroll when the
+    // detail's top is actually out of view (above it, or below the fold),
+    // never unconditionally, or every click nudges the page by a small,
+    // pointless amount even when everything was already visible.
     const el = detailRef.current;
     if (el) {
-      const targetY = window.scrollY + el.getBoundingClientRect().top - 24;
-      window.scrollTo({ top: Math.max(targetY, 0), behavior: "auto" });
+      const top = el.getBoundingClientRect().top;
+      if (top < 0 || top > window.innerHeight - 80) {
+        window.scrollTo({ top: Math.max(window.scrollY + top - 24, 0), behavior: "auto" });
+      }
     }
   }
 

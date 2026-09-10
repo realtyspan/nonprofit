@@ -119,14 +119,16 @@ export default function PublicEvents({ slug, embed }) {
     else next.set("event", events[i].slug);
     const qs = next.toString();
     window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
-    // Computes the exact target and calls window.scrollTo directly rather
-    // than el.scrollIntoView(), which computes the target itself and can
-    // behave differently across browsers — a manually computed absolute
-    // position is deterministic.
+    // Only scroll when the content's top is actually out of view (above
+    // it, or below the fold) — never unconditionally, or every click nudges
+    // the page by a small, pointless amount even on a wide layout where
+    // the sidebar sits beside the content and nothing needs to move.
     const el = contentRef.current;
     if (el) {
-      const targetY = window.scrollY + el.getBoundingClientRect().top - 24;
-      window.scrollTo({ top: Math.max(targetY, 0), behavior: "auto" });
+      const top = el.getBoundingClientRect().top;
+      if (top < 0 || top > window.innerHeight - 80) {
+        window.scrollTo({ top: Math.max(window.scrollY + top - 24, 0), behavior: "auto" });
+      }
     }
   }
 
