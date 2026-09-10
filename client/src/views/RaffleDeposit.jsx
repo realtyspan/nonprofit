@@ -39,11 +39,17 @@ export default function RaffleDeposit({ gameId }) {
     setError("");
     setNotice("");
     try {
-      await api.bulkMarkRaffleFundsReceived(gameId, {
+      const result = await api.bulkMarkRaffleFundsReceived(gameId, {
         ticketNumbers: [...selected], tenderType, tenderAmount: Number(tenderAmount),
         checkNumber: tenderType === "check" ? checkNumber : undefined,
       });
-      setNotice(`Marked ${selected.size} ticket(s) as funds received.`);
+      const marked = result.tickets.length;
+      const skipped = result.skippedNumbers || [];
+      setNotice(
+        skipped.length > 0
+          ? `Marked ${marked} ticket(s) as funds received. Skipped #${skipped.join(", #")} — someone else changed ${skipped.length === 1 ? "it" : "them"} first; check ${skipped.length === 1 ? "its" : "their"} current status.`
+          : `Marked ${marked} ticket(s) as funds received.`
+      );
       setSelected(new Set());
       refresh();
     } catch (err) {

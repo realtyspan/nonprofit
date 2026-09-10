@@ -49,6 +49,21 @@ async function addRaffleLog(orgId, gameId, { type, text, sellerName = "", ticket
   await prisma.raffleLog.create({ data: { orgId, gameId, type, text, sellerName, ticketNumber, assignedSellerId } });
 }
 
+// Every ticket-state-change route below reads a ticket, checks its current
+// status in JS, then writes — two separate steps with a real gap between
+// them. Two staff recording the same ticket number at nearly the same
+// moment could both pass the status check before either write lands, and
+// the second write would silently overwrite the first buyer's info with no
+// error to either person. Guarding the write itself on the exact status
+// just read closes that window: if the row changed in between, this
+// matches zero rows (a no-op) instead of clobbering whatever the other
+// request just wrote, and the caller can tell the difference.
+async function applyTicketTransition(ticketId, expectedStatus, data) {
+  const result = await prisma.raffleTicket.updateMany({ where: { id: ticketId, status: expectedStatus }, data });
+  return result.count > 0;
+}
+const TICKET_CONFLICT_ERROR = "This ticket was just updated by someone else — refresh and try again.";
+
 // Buyer emails come from one shared platform sender address, but should
 // still look like they're from the lodge running the raffle and route
 // replies to that lodge, not to the platform. Falls back to the org's Owner
@@ -762,18 +777,17 @@ router.post("/games/:gameId/tickets/:number/record", requirePermission("raffle",
   }
 
   const needsTender = status === "sold" || status === "funds_received";
-  const updated = await prisma.raffleTicket.update({
-    where: { id: ticket.id },
-    data: {
-      status, buyer, phone: phone || "", email: email || "", address: address || "",
-      assignedSellerId: credit.assignedSellerId, assignedSellerName: credit.assignedSellerName,
-      soldByUserId: req.user.userId, soldByName: req.callerUser?.name || "",
-      soldAt: needsTender ? new Date() : null,
-      tenderType: needsTender ? tenderType || null : null,
-      tenderAmount: needsTender && tenderAmount != null ? Number(tenderAmount) : null,
-      checkNumber: needsTender && tenderType === "check" ? checkNumber : null,
-    },
+  const ok = await applyTicketTransition(ticket.id, "available", {
+    status, buyer, phone: phone || "", email: email || "", address: address || "",
+    assignedSellerId: credit.assignedSellerId, assignedSellerName: credit.assignedSellerName,
+    soldByUserId: req.user.userId, soldByName: req.callerUser?.name || "",
+    soldAt: needsTender ? new Date() : null,
+    tenderType: needsTender ? tenderType || null : null,
+    tenderAmount: needsTender && tenderAmount != null ? Number(tenderAmount) : null,
+    checkNumber: needsTender && tenderType === "check" ? checkNumber : null,
   });
+  if (!ok) return res.status(409).json({ error: TICKET_CONFLICT_ERROR });
+  const updated = await prisma.raffleTicket.findUnique({ where: { id: ticket.id } });
 
   await addRaffleLog(req.user.orgId, req.raffleGame.id, {
     type: status,
@@ -796,14 +810,13 @@ router.post("/games/:gameId/tickets/:number/release", requirePermission("raffle"
     return res.status(403).json({ error: "Only an Admin can release a ticket that has already received funds" });
   }
 
-  const updated = await prisma.raffleTicket.update({
-    where: { id: ticket.id },
-    data: {
-      status: "available", buyer: "", phone: "", email: "", address: "",
-      soldByUserId: null, soldByName: "", soldAt: null,
-      tenderType: null, tenderAmount: null, checkNumber: null,
-    },
+  const ok = await applyTicketTransition(ticket.id, ticket.status, {
+    status: "available", buyer: "", phone: "", email: "", address: "",
+    soldByUserId: null, soldByName: "", soldAt: null,
+    tenderType: null, tenderAmount: null, checkNumber: null,
   });
+  if (!ok) return res.status(409).json({ error: TICKET_CONFLICT_ERROR });
+  const updated = await prisma.raffleTicket.findUnique({ where: { id: ticket.id } });
   await addRaffleLog(req.user.orgId, req.raffleGame.id, {
     type: "released", text: `Ticket #${number} released back to available`,
     sellerName: ticket.assignedSellerName, ticketNumber: number, assignedSellerId: ticket.assignedSellerId,
@@ -824,15 +837,14 @@ router.post("/games/:gameId/tickets/:number/mark-sold", requirePermission("raffl
     return res.status(400).json({ error: "Only a reserved ticket can be marked sold" });
   }
 
-  const updated = await prisma.raffleTicket.update({
-    where: { id: ticket.id },
-    data: {
-      status: "sold", soldByUserId: req.user.userId, soldByName: req.callerUser?.name || "",
-      soldAt: new Date(), tenderType: tenderType || null,
-      tenderAmount: tenderAmount != null ? Number(tenderAmount) : null,
-      checkNumber: tenderType === "check" ? checkNumber : null,
-    },
+  const ok = await applyTicketTransition(ticket.id, "reserved", {
+    status: "sold", soldByUserId: req.user.userId, soldByName: req.callerUser?.name || "",
+    soldAt: new Date(), tenderType: tenderType || null,
+    tenderAmount: tenderAmount != null ? Number(tenderAmount) : null,
+    checkNumber: tenderType === "check" ? checkNumber : null,
   });
+  if (!ok) return res.status(409).json({ error: TICKET_CONFLICT_ERROR });
+  const updated = await prisma.raffleTicket.findUnique({ where: { id: ticket.id } });
   await addRaffleLog(req.user.orgId, req.raffleGame.id, {
     type: "sold", text: `Ticket #${number} marked sold for ${ticket.buyer}`,
     sellerName: ticket.assignedSellerName, ticketNumber: number, assignedSellerId: ticket.assignedSellerId,
@@ -853,18 +865,17 @@ router.post("/games/:gameId/tickets/:number/mark-funds-received", requirePermiss
     return res.status(400).json({ error: "Only a sold or reserved ticket can be marked funds received" });
   }
 
-  const updated = await prisma.raffleTicket.update({
-    where: { id: ticket.id },
-    data: {
-      status: "funds_received",
-      soldByUserId: ticket.soldByUserId || req.user.userId,
-      soldByName: ticket.soldByName || req.callerUser?.name || "",
-      soldAt: ticket.soldAt || new Date(),
-      tenderType: tenderType || ticket.tenderType,
-      tenderAmount: tenderAmount != null ? Number(tenderAmount) : ticket.tenderAmount,
-      checkNumber: tenderType === "check" ? checkNumber : tenderType ? null : ticket.checkNumber,
-    },
+  const ok = await applyTicketTransition(ticket.id, ticket.status, {
+    status: "funds_received",
+    soldByUserId: ticket.soldByUserId || req.user.userId,
+    soldByName: ticket.soldByName || req.callerUser?.name || "",
+    soldAt: ticket.soldAt || new Date(),
+    tenderType: tenderType || ticket.tenderType,
+    tenderAmount: tenderAmount != null ? Number(tenderAmount) : ticket.tenderAmount,
+    checkNumber: tenderType === "check" ? checkNumber : tenderType ? null : ticket.checkNumber,
   });
+  if (!ok) return res.status(409).json({ error: TICKET_CONFLICT_ERROR });
+  const updated = await prisma.raffleTicket.findUnique({ where: { id: ticket.id } });
   await addRaffleLog(req.user.orgId, req.raffleGame.id, {
     type: "funds_received", text: `Funds received for ticket #${number}`,
     sellerName: ticket.assignedSellerName, ticketNumber: number, assignedSellerId: ticket.assignedSellerId,
@@ -885,27 +896,37 @@ router.post("/games/:gameId/tickets/bulk-mark-funds-received", requirePermission
     where: { gameId: req.raffleGame.id, orgId: req.user.orgId, number: { in: ticketNumbers.map(Number) }, status: { in: ["sold", "reserved"] } },
   });
 
+  // A ticket someone else changed between the fetch above and this loop is
+  // skipped rather than clobbered or failing the whole batch — the rest of
+  // a bulk action shouldn't be blocked by one ticket someone else is
+  // mid-editing elsewhere.
   const results = [];
+  const skippedNumbers = [];
   for (const ticket of tickets) {
-    const updated = await prisma.raffleTicket.update({
-      where: { id: ticket.id },
-      data: {
-        status: "funds_received",
-        soldByUserId: ticket.soldByUserId || req.user.userId,
-        soldByName: ticket.soldByName || req.callerUser?.name || "",
-        soldAt: ticket.soldAt || new Date(),
-        tenderType: tenderType || ticket.tenderType,
-        tenderAmount: tenderAmount != null ? Number(tenderAmount) : ticket.tenderAmount,
-        checkNumber: tenderType === "check" ? checkNumber : tenderType ? null : ticket.checkNumber,
-      },
+    const ok = await applyTicketTransition(ticket.id, ticket.status, {
+      status: "funds_received",
+      soldByUserId: ticket.soldByUserId || req.user.userId,
+      soldByName: ticket.soldByName || req.callerUser?.name || "",
+      soldAt: ticket.soldAt || new Date(),
+      tenderType: tenderType || ticket.tenderType,
+      tenderAmount: tenderAmount != null ? Number(tenderAmount) : ticket.tenderAmount,
+      checkNumber: tenderType === "check" ? checkNumber : tenderType ? null : ticket.checkNumber,
     });
+    if (!ok) {
+      skippedNumbers.push(ticket.number);
+      continue;
+    }
+    const updated = await prisma.raffleTicket.findUnique({ where: { id: ticket.id } });
     await addRaffleLog(req.user.orgId, req.raffleGame.id, {
       type: "funds_received", text: `Funds received for ticket #${ticket.number} (bulk)`,
       sellerName: ticket.assignedSellerName, ticketNumber: ticket.number, assignedSellerId: ticket.assignedSellerId,
     });
     results.push(updated);
   }
-  res.json(results.map((t) => maskRaffleTicket(t, req.user.userId, req.moduleGrants.raffle)));
+  res.json({
+    tickets: results.map((t) => maskRaffleTicket(t, req.user.userId, req.moduleGrants.raffle)),
+    skippedNumbers,
+  });
 });
 
 // --- Assignment ---
