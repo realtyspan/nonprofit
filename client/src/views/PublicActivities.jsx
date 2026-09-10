@@ -3,7 +3,7 @@ import { publicApi } from "../lib/api";
 import { colors, money } from "../lib/tokens";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
 import { EVT_CSS, evtStyleVars, TournamentVisual, FooterContact } from "../components/TournamentVisual";
-import { EventVisual, EVENT_EXTRA_CSS } from "../components/EventVisual";
+import { EventVisual, EventFooterContact, EVENT_EXTRA_CSS } from "../components/EventVisual";
 import logo from "../assets/logo.png";
 
 // One page listing everything currently public across every module, with
@@ -289,18 +289,14 @@ function EventDetail({ detail, theme, font }) {
       {detail.recurrenceLabel && <p className="evt-pill" style={{ marginBottom: 10 }}>{detail.recurrenceLabel}</p>}
       <div className="evt-card">
         <EventVisual event={detail} notice={detail.statusNote} />
-        {(detail.admissionNote || detail.payUrl || detail.reservePhone) && (
+        {(detail.admissionNote || detail.payUrl || detail.reservePhone || detail.contactName || detail.contactEmail) && (
           <div className="evt-footer">
-            {detail.admissionNote && (
-              <div className="evt-footer-contact">
-                <p className="evt-footer-contact-label">Note</p>
-                <p style={{ fontSize: 12.5, color: "var(--evt-ink-muted)" }}>{detail.admissionNote}</p>
+            <EventFooterContact event={detail} />
+            {detail.payUrl && (
+              <div className="evt-footer-actions">
+                <a className="evt-btn" href={detail.payUrl} target="_blank" rel="noreferrer">Order &amp; pay online</a>
               </div>
             )}
-            <div className="evt-footer-actions">
-              {detail.payUrl && <a className="evt-btn" href={detail.payUrl} target="_blank" rel="noreferrer">Order &amp; pay online</a>}
-              {detail.reservePhone && <a className="evt-btn-secondary" href={`tel:${detail.reservePhone}`}>Reserve by phone</a>}
-            </div>
           </div>
         )}
       </div>

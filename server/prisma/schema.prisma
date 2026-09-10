@@ -625,11 +625,14 @@ model Event {
   price           String? // plain text, not a number — e.g. "$25" or "Ticket holders"; rendered verbatim
   priceUnit       String? // e.g. "per meal · cash or card"
   payUrl          String? // admin-entered external payment link (Venmo/PayPal/Square/etc.) — "Order & pay online" only renders when this is set
-  reservePhone    String?
+  reservePhone    String? // "reserve / contact by phone" — stored as bare digits, masked at the edge (lib/phone)
+  contactName     String? // person to reach for reservations or questions — mirrors GolfTournament/Tournament contactName
+  contactEmail    String? // optional contact email — mirrors GolfTournament/Tournament contactEmail
   statusNote      String? // short line under the date
   admissionNote   String? // short line under the actions
   includesHeading String? // "On the plate" / "What's included" — per-event, since it varies by event type
   includes        Json? // string[] — bulleted list
+  scheduleItems   Json? // { time: string, label: string }[] — mirrors GolfTournament.scheduleItems; renders as a timeline on the public page and the flyer
   createdByUserId String?
   createdBy       User?        @relation(fields: [createdByUserId], references: [id])
   createdByName   String       @default("")

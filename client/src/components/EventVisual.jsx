@@ -1,5 +1,6 @@
 import React from "react";
 import { EVT_CSS, RailCell, CalendarIcon, CheckIcon, FlagIcon } from "./TournamentVisual";
+import { formatPhone } from "../lib/phone";
 import defaultHeroImage from "../assets/event-default-hero.jpg";
 
 // Adapts the same .evt design system TournamentVisual already renders for
@@ -22,15 +23,6 @@ export const EVENT_EXTRA_CSS = `
 .evt-description { font-size: 14.5px; line-height: 1.65; color: var(--evt-ink-2); white-space: pre-wrap; }
 .evt-about-photo { flex: none; width: 220px; border-radius: var(--evt-radius-sm); overflow: hidden; }
 .evt-about-photo img { width: 100%; height: 100%; object-fit: cover; }
-.evt-btn-secondary {
-  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
-  padding: 13px 29px; border-radius: var(--evt-radius-sm);
-  font-size: 15px; font-weight: 500; line-height: 1; letter-spacing: -.005em;
-  font-family: inherit; cursor: pointer; text-decoration: none;
-  background: transparent; color: var(--evt-accent-deep); border: 1px solid var(--evt-accent-deep);
-  transition: background .16s;
-}
-.evt-btn-secondary:hover { background: color-mix(in srgb, var(--evt-accent) 14%, white); }
 
 @media (max-width: 780px) {
   .evt-about-row { flex-direction: column; }
@@ -85,6 +77,17 @@ export function EventVisual({ event, notice }) {
           <div className="evt-schedule-col evt-section">
             <p className="evt-section-title"><CalendarIcon /><strong className="evt-strong">When</strong></p>
             <div className="evt-date-pill">{dateLabel}{!event.allDay && ` · ${timeLabel}`}</div>
+            {event.scheduleItems?.length > 0 && (
+              <div className="evt-timeline">
+                {event.scheduleItems.map((item, i) => (
+                  <div key={i} className="evt-timeline-row">
+                    <span className="evt-timeline-time">{item.time}</span>
+                    <span className="evt-timeline-rule" />
+                    <span className="evt-timeline-label">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -98,6 +101,28 @@ export function EventVisual({ event, notice }) {
         )}
       </div>
     </>
+  );
+}
+
+// The event's footer contact block — mirrors TournamentVisual's FooterContact
+// (name / phone shown as text + tap-to-call / email), plus the admission note
+// underneath. Rendered inside the page's own `.evt-footer` alongside the
+// "Order & pay online" action. Returns null when there's nothing to show.
+export function EventFooterContact({ event }) {
+  const hasContact = !!(event.contactName || event.reservePhone || event.contactEmail);
+  if (!hasContact && !event.admissionNote) return null;
+  return (
+    <div className="evt-footer-contact">
+      {hasContact && <p className="evt-footer-contact-label">Questions or reservations?</p>}
+      {event.contactName && <p className="evt-footer-contact-name">{event.contactName}</p>}
+      {event.reservePhone && (
+        <a href={`tel:${String(event.reservePhone).replace(/[^\d+]/g, "")}`}>{formatPhone(event.reservePhone)}</a>
+      )}
+      {event.contactEmail && <a href={`mailto:${event.contactEmail}`}>{event.contactEmail}</a>}
+      {event.admissionNote && (
+        <p style={{ fontSize: 12.5, color: "var(--evt-ink-muted)", marginTop: hasContact ? 6 : 0 }}>{event.admissionNote}</p>
+      )}
+    </div>
   );
 }
 

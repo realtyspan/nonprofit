@@ -4,7 +4,7 @@ import { colors } from "../lib/tokens";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
 import { formatPhone, stripPhone } from "../lib/phone";
 import { EVT_CSS, evtStyleVars } from "../components/TournamentVisual";
-import { EventVisual, EVENT_EXTRA_CSS } from "../components/EventVisual";
+import { EventVisual, EventFooterContact, EVENT_EXTRA_CSS } from "../components/EventVisual";
 import logo from "../assets/logo.png";
 
 // PREVIEW BUILD — adapts Golf's/Tournaments' .evt design system (hero photo
@@ -185,18 +185,14 @@ export default function PublicEvents({ slug, embed }) {
 
               <div className="evt-card">
                 <EventVisual event={event} notice={event.statusNote} />
-                {(event.admissionNote || event.payUrl || event.reservePhone) && (
+                {(event.admissionNote || event.payUrl || event.reservePhone || event.contactName || event.contactEmail) && (
                   <div className="evt-footer">
-                    {event.admissionNote && (
-                      <div className="evt-footer-contact">
-                        <p className="evt-footer-contact-label">Note</p>
-                        <p style={{ fontSize: 12.5, color: "var(--evt-ink-muted)" }}>{event.admissionNote}</p>
+                    <EventFooterContact event={event} />
+                    {event.payUrl && (
+                      <div className="evt-footer-actions">
+                        <a className="evt-btn" href={event.payUrl} target="_blank" rel="noreferrer">Order &amp; pay online</a>
                       </div>
                     )}
-                    <div className="evt-footer-actions">
-                      {event.payUrl && <a className="evt-btn" href={event.payUrl} target="_blank" rel="noreferrer">Order &amp; pay online</a>}
-                      {event.reservePhone && <a className="evt-btn-secondary" href={`tel:${event.reservePhone}`}>Reserve by phone</a>}
-                    </div>
                   </div>
                 )}
               </div>

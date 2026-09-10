@@ -199,10 +199,13 @@ function EventModal({ event, onCancel, onSaved }) {
     priceUnit: event.priceUnit || "",
     payUrl: event.payUrl || "",
     reservePhone: event.reservePhone || "",
+    contactName: event.contactName || "",
+    contactEmail: event.contactEmail || "",
     statusNote: event.statusNote || "",
     admissionNote: event.admissionNote || "",
     includesHeading: event.includesHeading || "",
     includes: (event.includes && event.includes.length > 0 ? event.includes : [""]),
+    scheduleItems: (event.scheduleItems && event.scheduleItems.length > 0 ? event.scheduleItems : [{ time: "", label: "" }]),
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -225,6 +228,16 @@ function EventModal({ event, onCancel, onSaved }) {
     setForm((f) => ({ ...f, includes: f.includes.filter((_, idx) => idx !== i) }));
   }
 
+  function setScheduleItem(i, k, v) {
+    setForm((f) => ({ ...f, scheduleItems: f.scheduleItems.map((item, idx) => (idx === i ? { ...item, [k]: v } : item)) }));
+  }
+  function addScheduleItem() {
+    setForm((f) => ({ ...f, scheduleItems: [...f.scheduleItems, { time: "", label: "" }] }));
+  }
+  function removeScheduleItem(i) {
+    setForm((f) => ({ ...f, scheduleItems: f.scheduleItems.filter((_, idx) => idx !== i) }));
+  }
+
   async function submit(e) {
     e.preventDefault();
     setError("");
@@ -234,6 +247,9 @@ function EventModal({ event, onCancel, onSaved }) {
         ...form,
         startAt: form.startAt ? new Date(form.startAt).toISOString() : "",
         endAt: form.endAt ? new Date(form.endAt).toISOString() : "",
+        scheduleItems: form.scheduleItems
+          .map((r) => ({ time: r.time.trim(), label: r.label.trim() }))
+          .filter((r) => r.label),
       };
       if (isNew) await api.createEvent(payload);
       else await api.updateEvent(event.id, payload);
@@ -285,13 +301,23 @@ function EventModal({ event, onCancel, onSaved }) {
             <Field label="Price (plain text)"><input style={inputStyle} value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="$25 or Free" /></Field>
             <Field label="Price unit"><input style={inputStyle} value={form.priceUnit} onChange={(e) => set("priceUnit", e.target.value)} placeholder="per meal · cash or card" /></Field>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginTop: 10 }}>
+          <div style={{ marginTop: 10 }}>
             <Field label="Pay online link (optional)"><input style={inputStyle} type="url" value={form.payUrl} onChange={(e) => set("payUrl", e.target.value)} placeholder="https://venmo.com/..." /></Field>
-            <Field label="Reserve by phone (optional)"><input style={inputStyle} type="tel" value={formatPhone(form.reservePhone)} onChange={(e) => set("reservePhone", stripPhone(e.target.value))} /></Field>
           </div>
           <Field label="Admission note (short line under the actions)">
             <input style={inputStyle} value={form.admissionNote} onChange={(e) => set("admissionNote", e.target.value)} placeholder="Members and guests welcome." />
           </Field>
+        </Section>
+
+        <Section title="Who to contact">
+          <div style={{ fontSize: 11.5, color: colors.textSecondary, marginBottom: 4 }}>
+            Shown on the public event page and the flyer as a "Questions or reservations?" block — the phone number and email display as text, not just a button.
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+            <Field label="Contact name (optional)"><input style={inputStyle} value={form.contactName} onChange={(e) => set("contactName", e.target.value)} placeholder="Jane Smith" /></Field>
+            <Field label="Reserve / contact phone (optional)"><input style={inputStyle} type="tel" value={formatPhone(form.reservePhone)} onChange={(e) => set("reservePhone", stripPhone(e.target.value))} placeholder="(845) 555-1234" /></Field>
+            <Field label="Contact email (optional)"><input style={inputStyle} type="email" value={form.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} placeholder="events@lodge.org" /></Field>
+          </div>
         </Section>
 
         <Section title="Details">
@@ -310,6 +336,20 @@ function EventModal({ event, onCancel, onSaved }) {
               </div>
             ))}
             <button type="button" style={{ ...button.ghost, padding: "6px 10px", fontSize: 12, alignSelf: "flex-start" }} onClick={addIncludeRow}>+ Add item</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#5c564c" }}>Schedule (optional)</span>
+            {form.scheduleItems.map((item, i) => (
+              <div key={i} style={{ display: "flex", gap: 6 }}>
+                <input style={{ ...inputStyle, flex: "0 0 110px" }} value={item.time} onChange={(e) => setScheduleItem(i, "time", e.target.value)} placeholder="6:00 PM" />
+                <input style={{ ...inputStyle, flex: 1 }} value={item.label} onChange={(e) => setScheduleItem(i, "label", e.target.value)} placeholder="Doors open" />
+                {form.scheduleItems.length > 1 && (
+                  <button type="button" style={{ ...button.ghost, padding: "6px 10px", fontSize: 12 }} onClick={() => removeScheduleItem(i)}>Remove</button>
+                )}
+              </div>
+            ))}
+            <button type="button" style={{ ...button.ghost, padding: "6px 10px", fontSize: 12, alignSelf: "flex-start" }} onClick={addScheduleItem}>+ Add schedule item</button>
+            <span style={{ fontSize: 11, color: colors.textSecondary }}>Time is optional — leave it blank for an item with no fixed time. Shows as a timeline under "When" on the public page and the flyer.</span>
           </div>
           <Field label="Description">
             <textarea style={{ ...inputStyle, minHeight: 90, fontFamily: "inherit" }} value={form.description} onChange={(e) => set("description", e.target.value)} />

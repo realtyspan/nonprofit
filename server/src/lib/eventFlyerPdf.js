@@ -29,13 +29,22 @@ function formatTimeRange(event) {
 }
 
 async function buildEventRecordFlyerPdf({ org, event, flyerUrl }) {
+  // De-dup priceUnit when it just repeats the price — several events store
+  // e.g. price "$100" / priceUnit "$100", which otherwise prints "$100 $100".
+  const priceParts = [event.price];
+  if (event.priceUnit && event.priceUnit.trim() && event.priceUnit.trim() !== (event.price || "").trim()) {
+    priceParts.push(event.priceUnit.trim());
+  }
   const stats = [
-    event.price && { label: "Price", value: [event.price, event.priceUnit].filter(Boolean).join(" ") },
+    event.price && { label: "Price", value: priceParts.filter(Boolean).join(" ") },
     { label: "Time", value: formatTimeRange(event) },
     event.location && { label: "Location", value: event.location },
   ].filter(Boolean);
 
-  const subParts = [event.location, event.recurrenceLabel].filter(Boolean);
+  // The tagline is the event's own one-liner; fall back to the recurrence
+  // label ("Second Friday monthly") only when there's no tagline. Location
+  // already has its own stat box, so it's dropped from this line.
+  const subLine = event.tagline || event.recurrenceLabel || null;
 
   let registerUrlLabel;
   try {
@@ -55,14 +64,21 @@ async function buildEventRecordFlyerPdf({ org, event, flyerUrl }) {
     primaryColor: org.flyerPrimaryColor,
     accentColor: org.flyerAccentColor,
     eventName: event.title,
-    subLine: subParts.join(" · "),
+    subLine,
+    heroImage: event.heroImage || null,
+    secondaryImage: event.secondaryImage || null,
+    description: event.description || null,
+    statusNote: event.statusNote || null,
     date: event.startAt,
     stats,
     includedItems: event.includes || [],
     includedItemsHeading: event.includesHeading,
-    scheduleItems: [], // Events has no per-item schedule field (yet) — see the module's plan doc
-    contactName: null,
+    scheduleItems: event.scheduleItems || [],
+    contactName: event.contactName || null,
     contactPhone: event.reservePhone,
+    contactEmail: event.contactEmail || null,
+    contactHeading: "QUESTIONS OR RESERVATIONS?",
+    payUrl: event.payUrl || null,
     registerUrl: flyerUrl,
     registerUrlLabel,
     fineText: fineParts.join("  ·  "),

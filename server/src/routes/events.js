@@ -26,6 +26,16 @@ function cleanIncludes(items) {
   return cleaned.length > 0 ? cleaned : null;
 }
 
+// { time, label }[] — same shape and cleaning as GolfTournament's schedule
+// (a row is dropped when it has no label; a blank time is allowed).
+function cleanScheduleItems(items) {
+  if (!Array.isArray(items)) return null;
+  const cleaned = items
+    .map((r) => ({ time: String(r?.time || "").trim(), label: String(r?.label || "").trim() }))
+    .filter((r) => r.label);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 // Lowercase-hyphenated, same shape org.js requires of the shared org slug.
 // De-duped within the org (not globally — each org's events are their own
 // namespace) by appending "-2", "-3", etc. on collision.
@@ -52,8 +62,8 @@ function resolveEventFields(body) {
   const {
     title, tagline, description, location, startAt, endAt, allDay,
     shortTitle, recurrenceLabel, heroImage, secondaryImage,
-    price, priceUnit, payUrl, reservePhone, statusNote, admissionNote,
-    includesHeading, includes,
+    price, priceUnit, payUrl, reservePhone, contactName, contactEmail, statusNote, admissionNote,
+    includesHeading, includes, scheduleItems,
   } = body;
 
   if (!title || !title.trim()) throw Object.assign(new Error("title is required"), { status: 400 });
@@ -86,10 +96,13 @@ function resolveEventFields(body) {
     priceUnit: priceUnit?.trim() || null,
     payUrl: payUrl?.trim() || null,
     reservePhone: reservePhone?.trim() || null,
+    contactName: contactName?.trim() || null,
+    contactEmail: contactEmail?.trim() || null,
     statusNote: statusNote?.trim() || null,
     admissionNote: admissionNote?.trim() || null,
     includesHeading: includesHeading?.trim() || null,
     includes: cleanIncludes(includes),
+    scheduleItems: cleanScheduleItems(scheduleItems),
   };
 }
 

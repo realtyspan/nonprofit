@@ -27,6 +27,7 @@ const { PDFDocument, rgb, LineCapStyle } = require("pdf-lib");
 const fontkit = require("@pdf-lib/fontkit");
 const QRCode = require("qrcode");
 const { formatPhone } = require("./phone");
+const { decodeDataUrl } = require("./dataUrl");
 
 const FONT_DIR = path.join(__dirname, "../../templates/fonts");
 const FONT_FILES = {
@@ -196,22 +197,47 @@ function loadFonts() {
   return bytes;
 }
 
+// A data-URL image -> an embedded pdf-lib image, or null. jpeg vs png is
+// read off the data-URL mime; a decode failure returns null so the flyer
+// falls back to its no-photo layout rather than erroring.
+async function embedFlyerImage(doc, dataUrl) {
+  if (!dataUrl) return null;
+  const bytes = decodeDataUrl(dataUrl);
+  if (!bytes) return null;
+  const isPng = /^data:image\/png/i.test(dataUrl);
+  try {
+    return isPng ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
+  } catch {
+    try { return isPng ? await doc.embedJpg(bytes) : await doc.embedPng(bytes); } catch { return null; }
+  }
+}
+
 // content: {
 //   orgName, orgPhone,               // footer
 //   primaryColor, accentColor,       // org's two brand hex colors, or null for the app defaults — see deriveFlyerTheme
 //   eventName,                       // hero headline
-//   subLine,                         // e.g. "Four-Person Team Scramble · Red Hook Golf Club"
+//   subLine,                         // tagline / one-liner under the headline
+//   heroImage, secondaryImage,       // optional base64 data URLs — hero fills the top band; secondary is an inset beside the description
 //   date,                            // Date | ISO string — drives the corner date tab
-//   stats: [{ label, value }],       // up to 3, e.g. Format/Cost/Venue
+//   statusNote,                      // optional — highlighted bar under the stat row
+//   stats: [{ label, value }],       // up to 3, e.g. Time/Location/Price
+//   description,                     // optional prose block
 //   includedItems: string[],
-//   includedItemsHeading,             // optional — defaults to "What's Included" (golf never sets this; Events uses its own per-event heading)
-//   ctaEyebrow, ctaHeadline,          // optional — default to "REGISTER YOUR TEAM" / "SCAN TO SIGN UP" (golf's wording; Events sets its own)
+//   includedItemsHeading,             // optional — defaults to "What's Included"
+//   ctaEyebrow, ctaHeadline,          // optional — default to golf's "REGISTER YOUR TEAM" / "SCAN TO SIGN UP"
 //   scheduleItems: [{ time, label }],
-//   contactName, contactPhone,
-//   registerUrl,                     // absolute URL — encoded into the QR and printed as text
-//   registerUrlLabel,                // shortened display text for the URL line
-//   fineText,                        // small print under the CTA, e.g. cost/due-date reminder
+//   contactName, contactPhone, contactEmail,
+//   contactHeading,                  // optional — defaults to "HAVE QUESTIONS?"
+//   registerUrl, registerUrlLabel,   // QR destination + its shortened printed label
+//   payUrl,                          // optional — adds a "Pay online" line to the fine print
+//   fineText,                        // small print under the CTA
 // }
+//
+// Body layout is adaptive: About / (Included + Schedule) / Contact each
+// render only when they have content and take only the height they need,
+// stacked top-down between the stat row and the CTA band. When the stack
+// would overflow, it sheds in order: secondary photo, then schedule/
+// included rows capped, then the description truncated.
 async function buildEventFlyerPdf(content) {
   const theme = deriveFlyerTheme(content.primaryColor, content.accentColor);
   const fontBytes = loadFonts();
@@ -243,41 +269,82 @@ async function buildEventFlyerPdf(content) {
   const page = doc.addPage([PAGE.width, PAGE.height]);
   const contentW = PAGE.width - MARGIN * 2;
 
+  const heroImg = await embedFlyerImage(doc, content.heroImage);
+
   // ---- Hero band ----
   page.drawRectangle({ x: 0, y: 0, width: PAGE.width, height: PAGE.height, color: NEUTRAL.cream });
 
   const orgLabel = (content.orgName || "").toUpperCase();
   const headline = fitWrapped(displayBlack, content.eventName || "", contentW - 110, [40, 34, 30, 26, 22], 2);
-  // How far apart wrapped headline lines sit, as a multiple of the font
-  // size — 0.86 (tight enough to touch on a 2-line tournament name) read as
-  // cramped once actually printed; this gives real daylight between lines
-  // while still reading as a tight display headline, not loose body text.
+  // How far apart wrapped headline lines sit, as a multiple of the font size.
   const HEADLINE_LINE_HEIGHT = 1.0;
 
-  // First pass: walk the same y-cursor math the real draw will use, purely to
-  // find where the band ends — pdf-lib has no z-order/layers, so the teal
-  // fill has to exist before any text is drawn on top of it, which means the
-  // band's height (dependent on how many lines the headline wraps to) must
-  // be known before the fill is drawn.
-  let hy = PAGE.height - MARGIN - 9 - 22;
-  for (const _line of headline.lines) hy -= headline.size * HEADLINE_LINE_HEIGHT;
-  hy -= 18;
-  if (content.subLine) hy -= 14;
-  const heroBottom = hy - 30; // breathing room before the date tab overlaps the seam
+  let heroBottom;
+  if (heroImg) {
+    // Photo hero: fixed-height band, image scaled to cover and centre-cropped.
+    // pdf-lib has no clip path, so vertical overflow is masked by re-painting
+    // the cream page below the band; horizontal overflow just clips at the
+    // page edge.
+    const HERO_H = 238;
+    heroBottom = PAGE.height - HERO_H;
+    const s = Math.max(PAGE.width / heroImg.width, HERO_H / heroImg.height);
+    const dw = heroImg.width * s;
+    const dh = heroImg.height * s;
+    page.drawImage(heroImg, { x: (PAGE.width - dw) / 2, y: heroBottom - (dh - HERO_H) / 2, width: dw, height: dh });
+    page.drawRectangle({ x: 0, y: 0, width: PAGE.width, height: heroBottom, color: NEUTRAL.cream });
+    // Darkening scrim toward the bottom, where the overlaid text sits —
+    // pdf-lib has no gradient. Each band runs from its own top edge all the
+    // way down to the hero's bottom, so the bands NEST rather than tile:
+    // opacity accumulates into a smooth ramp (~0.72 at the bottom edge,
+    // fading to clear ~200pt up) with no internal seams — only each band's
+    // single faint top edge shows. Band tops are spaced on a curve so the
+    // darkening eases in.
+    const SCRIM_H = 200;
+    const BANDS = 48;
+    for (let i = 0; i < BANDS; i++) {
+      const h = Math.round(SCRIM_H * (((i + 1) / BANDS) ** 1.7));
+      page.drawRectangle({
+        x: 0, y: heroBottom,
+        width: PAGE.width, height: h,
+        color: rgb(0.04, 0.05, 0.05), opacity: 0.026,
+      });
+    }
+    let ty = heroBottom + 20;
+    if (content.subLine) {
+      const sub = fitWrapped(interMedium, content.subLine, contentW, [12.5], 1).lines[0];
+      page.drawText(sub, { x: MARGIN, y: ty, size: 12.5, font: interMedium, color: NEUTRAL.white, opacity: 0.92 });
+      ty += 22;
+    }
+    for (let i = headline.lines.length - 1; i >= 0; i--) {
+      page.drawText(headline.lines[i], { x: MARGIN, y: ty, size: headline.size, font: displayBlack, color: NEUTRAL.white });
+      ty += headline.size * HEADLINE_LINE_HEIGHT;
+    }
+    ty += 4;
+    page.drawCircle({ x: MARGIN + 3, y: ty + 3, size: 3, color: theme.accent });
+    page.drawText(orgLabel, { x: MARGIN + 12, y: ty, size: 10.5, font: interBold, color: NEUTRAL.white, opacity: 0.82 });
+  } else {
+    // Solid-colour hero band — height follows the headline's line count, so
+    // the fill has to be sized before any text is drawn on top of it.
+    let hy = PAGE.height - MARGIN - 9 - 22;
+    for (const _line of headline.lines) hy -= headline.size * HEADLINE_LINE_HEIGHT;
+    hy -= 18;
+    if (content.subLine) hy -= 14;
+    heroBottom = hy - 30; // breathing room before the date tab overlaps the seam
 
-  page.drawRectangle({ x: 0, y: heroBottom, width: PAGE.width, height: PAGE.height - heroBottom, color: theme.primaryDeep });
+    page.drawRectangle({ x: 0, y: heroBottom, width: PAGE.width, height: PAGE.height - heroBottom, color: theme.primaryDeep });
 
-  hy = PAGE.height - MARGIN - 9;
-  page.drawCircle({ x: MARGIN + 3, y: hy + 3, size: 3, color: theme.accent });
-  page.drawText(orgLabel, { x: MARGIN + 12, y: hy, size: 10.5, font: interBold, color: theme.primaryTintText });
-  hy -= 22;
-  for (const line of headline.lines) {
-    hy -= headline.size * HEADLINE_LINE_HEIGHT;
-    page.drawText(line, { x: MARGIN, y: hy, size: headline.size, font: displayBlack, color: NEUTRAL.white });
-  }
-  hy -= 18;
-  if (content.subLine) {
-    page.drawText(content.subLine, { x: MARGIN, y: hy, size: 12.5, font: interMedium, color: theme.primaryTintText });
+    hy = PAGE.height - MARGIN - 9;
+    page.drawCircle({ x: MARGIN + 3, y: hy + 3, size: 3, color: theme.accent });
+    page.drawText(orgLabel, { x: MARGIN + 12, y: hy, size: 10.5, font: interBold, color: theme.primaryTintText });
+    hy -= 22;
+    for (const line of headline.lines) {
+      hy -= headline.size * HEADLINE_LINE_HEIGHT;
+      page.drawText(line, { x: MARGIN, y: hy, size: headline.size, font: displayBlack, color: NEUTRAL.white });
+    }
+    hy -= 18;
+    if (content.subLine) {
+      page.drawText(content.subLine, { x: MARGIN, y: hy, size: 12.5, font: interMedium, color: theme.primaryTintText });
+    }
   }
 
   // ---- Date tab (overlaps the hero/body seam) ----
@@ -311,72 +378,188 @@ async function buildEventFlyerPdf(content) {
       const fitVal = fitWrapped(interBold, s.value, colW - 24, [valSize], 1).lines[0];
       page.drawText(fitVal, { x: cx + 12, y: y2 - 32, size: valSize, font: interBold, color: NEUTRAL.ink });
     });
-    y2 -= rowH + 24;
+    y2 -= rowH + 16;
   } else {
     y2 -= 6;
   }
 
-  // ---- Two-column body: included items (left) / schedule + contact (right) ----
+  // ---- Status-note bar (mirrors the web page's .evt-notice) ----
+  if (content.statusNote) {
+    const noteLines = wrapText(interSemiBold, 10, content.statusNote, contentW - 32);
+    const barH = 16 + noteLines.length * 13;
+    page.drawRectangle({ x: MARGIN, y: y2 - barH, width: contentW, height: barH, color: theme.primaryTint });
+    noteLines.forEach((ln, i) => {
+      page.drawText(ln, { x: MARGIN + 16, y: y2 - 17 - i * 13, size: 10, font: interSemiBold, color: theme.primaryDeep });
+    });
+    y2 -= barH + 14;
+  }
+
+  // ---- Adaptive body ----
+  // A top-down flow of blocks (About / Included + Schedule / Contact), each
+  // drawn only when it has content and taking only the height it needs,
+  // stacked between the stat row and the CTA band. pdf-lib can't paginate,
+  // so a pre-flight measures the whole stack and, while it overflows, sheds
+  // progressively: drop the secondary photo, truncate the description, cap
+  // the list rows, step the base font size down, and finally drop the
+  // description block entirely. The last attempt is small enough to always
+  // fit. The contact card is pinned toward the bottom of the body area
+  // (the web page's margin-top:auto) so a short flyer doesn't leave a gap
+  // above it.
   const ctaBandH = 108;
   const footerH = 34;
-  const bodyBottom = footerH + ctaBandH + 20;
-  const gap = 22;
-  const colW = (contentW - gap) / 2;
-  const leftX = MARGIN;
-  const rightX = MARGIN + colW + gap;
+  const bodyBottomY = footerH + ctaBandH + 20;
 
-  // Gap between a section heading's baseline and the first row below it —
-  // 10-12pt looked reasonable on screen but was too tight in an actual PDF
-  // viewer at these font sizes: the heading's descender and the first row's
-  // ascender (plus, for included items, the checkmark badge's own height)
-  // landed close enough to visibly touch. 20pt gives real daylight.
-  const SECTION_HEADING_GAP = 20;
+  const secondaryImg = await embedFlyerImage(doc, content.secondaryImage);
+  const hasAbout = !!(content.description && content.description.trim());
+  const includedItems = (content.includedItems || []).filter(Boolean);
+  const scheduleItems = (content.scheduleItems || []).filter((s) => s && (s.label || s.time));
+  const hasContact = !!(content.contactName || content.contactPhone || content.contactEmail);
+  const avail = y2 - bodyBottomY;
 
-  if (content.includedItems && content.includedItems.length) {
-    let ly = y2;
-    ly = drawSectionHeading(page, content.includedItemsHeading || "What's Included", leftX, ly, interBold, theme.primaryDeep);
-    ly -= SECTION_HEADING_GAP;
-    // Single column (not a 2-up grid) — matches the approved flyer rendering.
-    content.includedItems.forEach((item, i) => {
-      const iy = ly - i * 20;
-      const cx = leftX + 8, cy = iy + 3;
-      // A hand-drawn vector check, not the ✓ glyph — several of this flyer's
-      // fonts don't carry that character in their subset, and a check that
-      // silently disappears is worse than one drawn with two line segments.
-      page.drawCircle({ x: cx, y: cy, size: 8, color: theme.primaryTint });
-      page.drawLine({ start: { x: cx - 4, y: cy - 0.5 }, end: { x: cx - 1, y: cy - 3.5 }, thickness: 1.4, color: theme.primaryDeep, lineCap: LineCapStyle.Round });
-      page.drawLine({ start: { x: cx - 1, y: cy - 3.5 }, end: { x: cx + 4.5, y: cy + 3.5 }, thickness: 1.4, color: theme.primaryDeep, lineCap: LineCapStyle.Round });
-      const fit = fitWrapped(interSemiBold, item, colW - 30, [10.5], 1).lines[0];
-      page.drawText(fit, { x: leftX + 20, y: iy, size: 10.5, font: interSemiBold, color: NEUTRAL.ink });
+  function ellipsize(font, text, size, maxWidth) {
+    let s = text;
+    while (s.length > 1 && font.widthOfTextAtSize(s + "…", size) > maxWidth) s = s.slice(0, -1);
+    return s + "…";
+  }
+
+  function planBody({ keepSecondary, descMaxLines, listCap, small }) {
+    const bs = small ? 9.5 : 10.5;
+    const lh = bs * 1.34;
+    const headingH = small ? 24 : 28;
+    const incRowH = small ? 17 : 20;
+    const schRowH = small ? 18 : 21;
+    const gap = small ? 14 : 18;
+    const contactH = small ? 54 : 60;
+    const blocks = [];
+
+    if (hasAbout && descMaxLines > 0) {
+      const withImg = keepSecondary && !!secondaryImg;
+      const textW = withImg ? Math.round(contentW * 0.56) : contentW;
+      let lines = wrapText(interRegular, bs, content.description.trim(), textW);
+      if (lines.length > descMaxLines) {
+        lines = lines.slice(0, descMaxLines);
+        lines[lines.length - 1] = ellipsize(interRegular, lines[lines.length - 1], bs, textW);
+      }
+      const textH = lines.length * lh;
+      let imgW = 0, imgH = 0;
+      if (withImg) {
+        imgW = Math.round(contentW * 0.4);
+        imgH = Math.min(Math.round(imgW * (secondaryImg.height / secondaryImg.width)), Math.max(textH, 96), 150);
+      }
+      blocks.push({ type: "about", h: headingH + Math.max(textH, imgH), lines, bs, lh, headingH, withImg, imgW, imgH });
+    }
+
+    const inc = includedItems.slice(0, listCap);
+    const sch = scheduleItems.slice(0, listCap);
+    const incMore = includedItems.length - inc.length;
+    const schMore = scheduleItems.length - sch.length;
+    if (inc.length || sch.length) {
+      const bothCols = inc.length > 0 && sch.length > 0;
+      const cw = bothCols ? Math.round((contentW - 22) / 2) : contentW;
+      const incH = inc.length ? headingH + inc.length * incRowH + (incMore > 0 ? 15 : 0) : 0;
+      const schH = sch.length ? headingH + sch.length * schRowH + (schMore > 0 ? 15 : 0) : 0;
+      blocks.push({ type: "lists", h: Math.max(incH, schH), inc, sch, incMore, schMore, bothCols, cw, bs, headingH, incRowH, schRowH });
+    }
+
+    if (hasContact) blocks.push({ type: "contact", h: contactH });
+
+    const total = blocks.reduce((s, b) => s + b.h, 0) + Math.max(0, blocks.length - 1) * gap;
+    return { blocks, total, gap };
+  }
+
+  const attempts = [
+    { keepSecondary: true, descMaxLines: 10, listCap: 99, small: false },
+    { keepSecondary: false, descMaxLines: 10, listCap: 99, small: false },
+    { keepSecondary: false, descMaxLines: 7, listCap: 10, small: false },
+    { keepSecondary: false, descMaxLines: 5, listCap: 8, small: true },
+    { keepSecondary: false, descMaxLines: 4, listCap: 6, small: true },
+    { keepSecondary: false, descMaxLines: 3, listCap: 5, small: true },
+    { keepSecondary: false, descMaxLines: 2, listCap: 4, small: true },
+    { keepSecondary: false, descMaxLines: 2, listCap: 3, small: true },
+    { keepSecondary: false, descMaxLines: 0, listCap: 4, small: true },
+    { keepSecondary: false, descMaxLines: 0, listCap: 3, small: true },
+  ];
+  // A small tolerance: every block height is measured with generous leading
+  // (line height 1.34, a 24-28pt heading slug over ~11pt glyphs), so a stack
+  // a few points "over" still prints inside its bounds — and the contact
+  // card is pinned to the bottom, giving real slack besides.
+  let plan = planBody(attempts[0]);
+  for (const a of attempts) {
+    plan = planBody(a);
+    if (plan.total <= avail + 12) break;
+  }
+
+  function drawAbout(b, top) {
+    drawSectionHeading(page, "About This Event", MARGIN, top - 8, interBold, theme.primaryDeep);
+    const startY = top - b.headingH;
+    b.lines.forEach((ln, i) => {
+      page.drawText(ln, { x: MARGIN, y: startY - b.bs - i * b.lh, size: b.bs, font: interRegular, color: NEUTRAL.inkSoft });
     });
-  }
-
-  let ry = y2;
-  if (content.scheduleItems && content.scheduleItems.length) {
-    ry = drawSectionHeading(page, "Schedule", rightX, ry, interBold, theme.primaryDeep);
-    ry -= SECTION_HEADING_GAP;
-    for (const item of content.scheduleItems) {
-      page.drawText(item.time || "", { x: rightX, y: ry, size: 11.5, font: displayBold, color: theme.accentDeep });
-      const label = fitWrapped(interMedium, item.label || "", colW - 78, [10.5], 1).lines[0];
-      page.drawText(label, { x: rightX + 68, y: ry + 1, size: 10.5, font: interMedium, color: NEUTRAL.ink });
-      ry -= 17;
-      page.drawLine({ start: { x: rightX, y: ry + 6 }, end: { x: rightX + colW, y: ry + 6 }, thickness: 0.5, color: NEUTRAL.line });
-      ry -= 4;
+    if (b.withImg) {
+      page.drawImage(secondaryImg, { x: MARGIN + contentW - b.imgW, y: startY - b.imgH, width: b.imgW, height: b.imgH });
     }
   }
 
-  if (content.contactName || content.contactPhone) {
-    const cardH = 68;
-    const cardY = bodyBottom; // pinned to the bottom of the body area, same as the web card's margin-top:auto
-    page.drawRectangle({ x: rightX, y: cardY, width: colW, height: cardH, color: theme.primaryDeep });
-    page.drawText("HAVE QUESTIONS?", { x: rightX + 14, y: cardY + cardH - 20, size: 9, font: interBold, color: theme.primaryTintText });
-    let cy = cardY + cardH - 38;
-    if (content.contactName) {
-      page.drawText(content.contactName, { x: rightX + 14, y: cy, size: 11.5, font: interSemiBold, color: NEUTRAL.white });
-      cy -= 16;
+  function drawLists(b, top) {
+    const incX = MARGIN;
+    const schX = b.bothCols ? MARGIN + b.cw + 22 : MARGIN;
+    if (b.inc.length) {
+      drawSectionHeading(page, content.includedItemsHeading || "What's Included", incX, top - 8, interBold, theme.primaryDeep);
+      const ly = top - b.headingH;
+      b.inc.forEach((item, i) => {
+        const iy = ly - i * b.incRowH;
+        const cx = incX + 8, cy = iy + 3;
+        // Hand-drawn vector check — the subset fonts don't carry the ✓ glyph.
+        page.drawCircle({ x: cx, y: cy, size: 8, color: theme.primaryTint });
+        page.drawLine({ start: { x: cx - 4, y: cy - 0.5 }, end: { x: cx - 1, y: cy - 3.5 }, thickness: 1.4, color: theme.primaryDeep, lineCap: LineCapStyle.Round });
+        page.drawLine({ start: { x: cx - 1, y: cy - 3.5 }, end: { x: cx + 4.5, y: cy + 3.5 }, thickness: 1.4, color: theme.primaryDeep, lineCap: LineCapStyle.Round });
+        const fit = fitWrapped(interSemiBold, item, b.cw - 30, [b.bs], 1).lines[0];
+        page.drawText(fit, { x: incX + 20, y: iy, size: b.bs, font: interSemiBold, color: NEUTRAL.ink });
+      });
+      if (b.incMore > 0) {
+        page.drawText(`+${b.incMore} more`, { x: incX + 20, y: ly - b.inc.length * b.incRowH, size: 9, font: interMedium, color: NEUTRAL.inkFaint });
+      }
     }
-    if (content.contactPhone) {
-      page.drawText(formatPhone(content.contactPhone), { x: rightX + 14, y: cy, size: 11.5, font: interSemiBold, color: NEUTRAL.white });
+    if (b.sch.length) {
+      drawSectionHeading(page, "Schedule", schX, top - 8, interBold, theme.primaryDeep);
+      let ry = top - b.headingH;
+      for (const item of b.sch) {
+        page.drawText(item.time || "", { x: schX, y: ry, size: 11.5, font: displayBold, color: theme.accentDeep });
+        const label = fitWrapped(interMedium, item.label || "", b.cw - 78, [b.bs], 1).lines[0];
+        page.drawText(label, { x: schX + 68, y: ry + 1, size: b.bs, font: interMedium, color: NEUTRAL.ink });
+        ry -= b.schRowH - 4;
+        page.drawLine({ start: { x: schX, y: ry + 6 }, end: { x: schX + b.cw, y: ry + 6 }, thickness: 0.5, color: NEUTRAL.line });
+        ry -= 4;
+      }
+      if (b.schMore > 0) {
+        page.drawText(`+${b.schMore} more`, { x: schX, y: ry, size: 9, font: interMedium, color: NEUTRAL.inkFaint });
+      }
+    }
+  }
+
+  function drawContact(b, top) {
+    const cardH = b.h;
+    const cardY = top - cardH;
+    page.drawRectangle({ x: MARGIN, y: cardY, width: contentW, height: cardH, color: theme.primaryDeep });
+    page.drawText(content.contactHeading || "HAVE QUESTIONS?", { x: MARGIN + 16, y: cardY + cardH - 20, size: 9, font: interBold, color: theme.primaryTintText });
+    const parts = [];
+    if (content.contactName) parts.push(content.contactName);
+    if (content.contactPhone) parts.push(formatPhone(content.contactPhone));
+    if (content.contactEmail) parts.push(content.contactEmail);
+    const line = fitWrapped(interSemiBold, parts.join("   ·   "), contentW - 32, [12, 11, 10], 1).lines[0];
+    page.drawText(line, { x: MARGIN + 16, y: cardY + 15, size: 12, font: interSemiBold, color: NEUTRAL.white });
+  }
+
+  let by = y2;
+  for (const b of plan.blocks) {
+    if (b.type === "about") { drawAbout(b, by); by -= b.h + plan.gap; }
+    else if (b.type === "lists") { drawLists(b, by); by -= b.h + plan.gap; }
+    else if (b.type === "contact") {
+      // Contact is always the last block: sit it just above the CTA band
+      // (bottom edge at bodyBottomY, a 20pt gap) so a short flyer doesn't
+      // leave a gap above the card — the web page's margin-top:auto. Only if
+      // the flow ran long does it move up to follow the content.
+      drawContact(b, Math.min(by, bodyBottomY + b.h));
     }
   }
 
@@ -398,8 +581,16 @@ async function buildEventFlyerPdf(content) {
     page.drawText(content.registerUrlLabel, { x: copyX, y: cty, size: 11, font: interSemiBold, color: NEUTRAL.white });
     cty -= 14;
   }
-  if (content.fineText) {
-    page.drawText(content.fineText, { x: copyX, y: cty, size: 8.5, font: interMedium, color: theme.accentTintText });
+  let fineText = content.fineText || "";
+  if (content.payUrl) {
+    try {
+      const payHost = new URL(content.payUrl).host.replace(/^www\./, "");
+      fineText = fineText ? `${fineText}   ·   Pay online at ${payHost}` : `Pay online at ${payHost}`;
+    } catch { /* malformed payUrl — skip the line */ }
+  }
+  if (fineText) {
+    const fitFine = fitWrapped(interMedium, fineText, PAGE.width - copyX - MARGIN, [8.5], 1).lines[0];
+    page.drawText(fitFine, { x: copyX, y: cty, size: 8.5, font: interMedium, color: theme.accentTintText });
   }
 
   // ---- Footer ----
@@ -448,12 +639,14 @@ async function buildGolfFlyerPdf({ org, tournament, registerUrl }) {
     accentColor: org.flyerAccentColor,
     eventName: tournament.name,
     subLine: subParts.join(" · "),
+    heroImage: tournament.flyerImage || null,
     date: tournament.date,
     stats,
     includedItems: tournament.includedItems || [],
     scheduleItems: tournament.scheduleItems || [],
     contactName: tournament.contactName,
     contactPhone: tournament.contactPhone,
+    contactEmail: tournament.contactEmail,
     registerUrl,
     registerUrlLabel,
     fineText: fineParts.join("  ·  "),
