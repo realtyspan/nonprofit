@@ -1046,14 +1046,20 @@ router.post("/games/:gameId/drawings/:id/draw", requirePermission("raffle", "Adm
   if (pool.length === 0) return res.status(400).json({ error: "No eligible tickets for this drawing" });
 
   const winner = pool[crypto.randomInt(0, pool.length)];
-  const updated = await prisma.raffleDrawing.update({
-    where: { id: drawing.id },
+  // Guarded on winningTicket: null so two admins hitting "draw" at the same
+  // moment can't each record a different winner — the second finds zero
+  // rows and is told the drawing was already done, rather than silently
+  // overwriting an already-announced result.
+  const wrote = await prisma.raffleDrawing.updateMany({
+    where: { id: drawing.id, winningTicket: null },
     data: {
       winningTicket: winner.number, winningBuyer: winner.buyer, winningPhone: winner.phone,
       eligibleCount: pool.length, drawnAt: new Date(), drawnByName: req.callerUser?.name || "",
       drawMode: "random",
     },
   });
+  if (wrote.count === 0) return res.status(409).json({ error: "This drawing was just completed by someone else — refresh to see the winner." });
+  const updated = await prisma.raffleDrawing.findUnique({ where: { id: drawing.id } });
   await addRaffleLog(req.user.orgId, req.raffleGame.id, {
     type: "drawing", text: `${drawing.name}: ticket #${winner.number} (${winner.buyer}) drawn at random`,
     ticketNumber: winner.number,
@@ -1072,14 +1078,16 @@ router.post("/games/:gameId/drawings/:id/draw-manual", requirePermission("raffle
   const winner = pool.find((t) => t.number === Number(ticketNumber));
   if (!winner) return res.status(400).json({ error: "That ticket is not in the eligible pool for this drawing" });
 
-  const updated = await prisma.raffleDrawing.update({
-    where: { id: drawing.id },
+  const wrote = await prisma.raffleDrawing.updateMany({
+    where: { id: drawing.id, winningTicket: null },
     data: {
       winningTicket: winner.number, winningBuyer: winner.buyer, winningPhone: winner.phone,
       eligibleCount: pool.length, drawnAt: new Date(), drawnByName: req.callerUser?.name || "",
       drawMode: "manual",
     },
   });
+  if (wrote.count === 0) return res.status(409).json({ error: "This drawing was just completed by someone else — refresh to see the winner." });
+  const updated = await prisma.raffleDrawing.findUnique({ where: { id: drawing.id } });
   await addRaffleLog(req.user.orgId, req.raffleGame.id, {
     type: "drawing", text: `${drawing.name}: ticket #${winner.number} (${winner.buyer}) drawn manually`,
     ticketNumber: winner.number,

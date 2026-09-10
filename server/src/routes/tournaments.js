@@ -854,17 +854,22 @@ router.post("/:tournamentId/teams/:teamId/mark-paid", requirePermission("tournam
   if (!["check", "in_person"].includes(paymentMethod)) {
     return res.status(400).json({ error: "paymentMethod must be check or in_person" });
   }
+  // paymentStatus: { not: "paid" } so this can't silently overwrite a row
+  // that already paid online (Stripe) — turning a real card payment into a
+  // fake "check" record and muddying reconciliation. An already-paid row in
+  // the selection is left alone and reported back as skipped.
   const result = await prisma.tournamentTeamPlayer.updateMany({
-    where: { id: { in: teamPlayerIds }, teamId: req.team.id, orgId: req.user.orgId },
+    where: { id: { in: teamPlayerIds }, teamId: req.team.id, orgId: req.user.orgId, paymentStatus: { not: "paid" } },
     data: { paymentMethod, paymentStatus: "paid", amountPaid: req.tournament.costPerPlayer },
   });
+  const skipped = teamPlayerIds.length - result.count;
   await addLog(req.user.orgId, req.tournament.id, {
     type: "payment_recorded",
     text: `${result.count} player(s) marked paid via ${paymentMethod === "check" ? "check" : "in person"}`,
     actorName: req.callerUser?.name || "",
     teamId: req.team.id,
   });
-  res.json({ ok: true, count: result.count });
+  res.json({ ok: true, count: result.count, skipped });
 });
 
 // --- Check-in ---
