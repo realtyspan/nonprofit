@@ -119,7 +119,15 @@ export default function PublicEvents({ slug, embed }) {
     else next.set("event", events[i].slug);
     const qs = next.toString();
     window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
-    contentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Computes the exact target and calls window.scrollTo directly rather
+    // than el.scrollIntoView(), which computes the target itself and can
+    // behave differently across browsers — a manually computed absolute
+    // position is deterministic.
+    const el = contentRef.current;
+    if (el) {
+      const targetY = window.scrollY + el.getBoundingClientRect().top - 24;
+      window.scrollTo({ top: Math.max(targetY, 0), behavior: "auto" });
+    }
   }
 
   if (error) return <Centered embed={embed}>This page isn't available.</Centered>;

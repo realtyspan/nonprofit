@@ -187,8 +187,15 @@ export default function PublicActivities({ slug, embed }) {
     // instead of beside it — without this, picking a different item left
     // the newly-generated detail sitting below wherever you'd scrolled to
     // read the list, looking like it "jumped to the bottom" instead of
-    // showing up. Same fix PublicEvents.jsx's own selectEvent already has.
-    detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // showing up. Computes the exact target and calls window.scrollTo
+    // directly rather than el.scrollIntoView(), which computes the target
+    // itself and can behave differently across browsers — a manually
+    // computed absolute position is deterministic.
+    const el = detailRef.current;
+    if (el) {
+      const targetY = window.scrollY + el.getBoundingClientRect().top - 24;
+      window.scrollTo({ top: Math.max(targetY, 0), behavior: "auto" });
+    }
   }
 
   if (error) return <Centered embed={embed}>This page isn't available.</Centered>;
