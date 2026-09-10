@@ -88,11 +88,21 @@ router.post("/stripe-connect/onboard", requireOwnerOrGolfAdmin, async (req, res)
 
   if (!connect?.stripeAccountId) {
     const account = await createExpressAccount({ email: org.contactEmail, orgName: org.name });
-    connect = await prisma.orgStripeConnect.upsert({
-      where: { orgId: req.user.orgId },
-      update: { stripeAccountId: account.id, disconnectedAt: null, onboardingStatus: "onboarding" },
-      create: { orgId: req.user.orgId, stripeAccountId: account.id, onboardingStatus: "onboarding" },
-    });
+    try {
+      connect = await prisma.orgStripeConnect.upsert({
+        where: { orgId: req.user.orgId },
+        update: { stripeAccountId: account.id, disconnectedAt: null, onboardingStatus: "onboarding" },
+        create: { orgId: req.user.orgId, stripeAccountId: account.id, onboardingStatus: "onboarding" },
+      });
+    } catch (err) {
+      if (err.code !== "P2002") throw err;
+      // A concurrent onboard call (double-click) already created the connect
+      // row with its own Stripe account. The account we just made is an
+      // orphan — delete it from Stripe so the org isn't left with two, and
+      // fall through on the one that won.
+      await stripe.accounts.del(account.id).catch(() => {});
+      connect = await prisma.orgStripeConnect.findUnique({ where: { orgId: req.user.orgId } });
+    }
   }
 
   const appUrl = process.env.APP_URL || "http://localhost:5173";

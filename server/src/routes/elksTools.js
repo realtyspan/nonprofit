@@ -31,34 +31,31 @@ router.post("/frs-report", requirePermission("elks-tools", "Helper"), async (req
   // One saved run per lodge per month — regenerating a month (correcting a
   // mistake, re-uploading) replaces the prior save, since only one file per
   // month is ever the real submission.
-  const saved = await prisma.frsReportRun.upsert({
-    where: { orgId_year_month: { orgId: req.user.orgId, year: result.year, month: result.month } },
-    create: {
-      orgId: req.user.orgId,
-      year: result.year,
-      month: result.month,
-      monthLabel: result.monthLabel,
-      sourceFile: file,
-      sourceFileName: fileName || "source.xlsx",
-      csvFile: result.csv,
-      csvFileName: result.filename,
-      transactionCount: result.transactionCount,
-      totalDebits: result.totalDebits,
-      totalCredits: result.totalCredits,
-      generatedByName: caller?.name || "",
-    },
-    update: {
-      sourceFile: file,
-      sourceFileName: fileName || "source.xlsx",
-      csvFile: result.csv,
-      csvFileName: result.filename,
-      transactionCount: result.transactionCount,
-      totalDebits: result.totalDebits,
-      totalCredits: result.totalCredits,
-      generatedByName: caller?.name || "",
-      generatedAt: new Date(),
-    },
-  });
+  const runKey = { orgId_year_month: { orgId: req.user.orgId, year: result.year, month: result.month } };
+  const runUpdate = {
+    sourceFile: file,
+    sourceFileName: fileName || "source.xlsx",
+    csvFile: result.csv,
+    csvFileName: result.filename,
+    transactionCount: result.transactionCount,
+    totalDebits: result.totalDebits,
+    totalCredits: result.totalCredits,
+    generatedByName: caller?.name || "",
+    generatedAt: new Date(),
+  };
+  let saved;
+  try {
+    saved = await prisma.frsReportRun.upsert({
+      where: runKey,
+      create: { orgId: req.user.orgId, year: result.year, month: result.month, monthLabel: result.monthLabel, ...runUpdate },
+      update: runUpdate,
+    });
+  } catch (err) {
+    // upsert isn't atomic against a concurrent first insert of the same
+    // month — retry as a plain update against the row that just won.
+    if (err.code !== "P2002") throw err;
+    saved = await prisma.frsReportRun.update({ where: runKey, data: runUpdate });
+  }
 
   res.json({ ...result, savedId: saved.id });
 });

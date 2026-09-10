@@ -105,11 +105,18 @@ router.post("/unsubscribe", rateLimit({ windowMs: 10 * 60 * 1000, max: 10 }), as
   const org = await prisma.organization.findUnique({ where: { id: payload.orgId }, select: { name: true } });
   if (!org) return res.status(404).json({ error: "This link is invalid or has expired." });
 
-  await prisma.raffleEmailSuppression.upsert({
-    where: { orgId_email: { orgId: payload.orgId, email: normalizeEmail(payload.email) } },
-    update: {},
-    create: { orgId: payload.orgId, email: normalizeEmail(payload.email) },
-  });
+  try {
+    await prisma.raffleEmailSuppression.upsert({
+      where: { orgId_email: { orgId: payload.orgId, email: normalizeEmail(payload.email) } },
+      update: {},
+      create: { orgId: payload.orgId, email: normalizeEmail(payload.email) },
+    });
+  } catch (err) {
+    // Prisma's upsert isn't atomic against a concurrent first insert of the
+    // same key (a double-clicked unsubscribe, or an inbox scanner). The row
+    // existing is the entire goal, so a P2002 collision means we're done.
+    if (err.code !== "P2002") throw err;
+  }
   res.json({ ok: true, orgName: org.name, email: payload.email });
 });
 

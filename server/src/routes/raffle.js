@@ -1175,14 +1175,21 @@ router.get("/games/:gameId/renewal-calls", requireReadAccess("raffle"), async (r
 router.post("/games/:gameId/renewal-calls", requirePermission("raffle", "Helper"), requireActiveGame, async (req, res) => {
   const { ticketNumber, note } = req.body;
   if (!ticketNumber) return res.status(400).json({ error: "ticketNumber is required" });
-  const call = await prisma.raffleRenewalCall.upsert({
-    where: { gameId_ticketNumber: { gameId: req.raffleGame.id, ticketNumber: Number(ticketNumber) } },
-    update: { calledByUserId: req.user.userId, calledByName: req.callerUser?.name || "", note: note || "", calledAt: new Date() },
-    create: {
-      orgId: req.user.orgId, gameId: req.raffleGame.id, ticketNumber: Number(ticketNumber),
-      calledByUserId: req.user.userId, calledByName: req.callerUser?.name || "", note: note || "",
-    },
-  });
+  const callKey = { gameId_ticketNumber: { gameId: req.raffleGame.id, ticketNumber: Number(ticketNumber) } };
+  const callUpdate = { calledByUserId: req.user.userId, calledByName: req.callerUser?.name || "", note: note || "", calledAt: new Date() };
+  let call;
+  try {
+    call = await prisma.raffleRenewalCall.upsert({
+      where: callKey,
+      update: callUpdate,
+      create: { orgId: req.user.orgId, gameId: req.raffleGame.id, ticketNumber: Number(ticketNumber), ...callUpdate },
+    });
+  } catch (err) {
+    // Two volunteers logging a call for the same ticket at once — upsert
+    // isn't atomic against that first insert; retry as a plain update.
+    if (err.code !== "P2002") throw err;
+    call = await prisma.raffleRenewalCall.update({ where: callKey, data: callUpdate });
+  }
   await addRaffleLog(req.user.orgId, req.raffleGame.id, {
     type: "renewal_call_logged", text: `Renewal call logged for ticket #${ticketNumber}${note ? ` — ${note}` : ""}`, ticketNumber: Number(ticketNumber),
   });
