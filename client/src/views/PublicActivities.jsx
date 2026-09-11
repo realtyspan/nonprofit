@@ -3,7 +3,7 @@ import { publicApi } from "../lib/api";
 import { colors, money } from "../lib/tokens";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
 import { EVT_CSS, evtStyleVars, TournamentVisual, FooterContact } from "../components/TournamentVisual";
-import { EventVisual, EventFooterContact, EVENT_EXTRA_CSS } from "../components/EventVisual";
+import { EventVisual, EventFooterContact, ReserveForm, reservationsOpen, EVENT_EXTRA_CSS } from "../components/EventVisual";
 import logo from "../assets/logo.png";
 
 // One page listing everything currently public across every module, with
@@ -232,7 +232,7 @@ export default function PublicActivities({ slug, embed }) {
           ) : detailError ? (
             <div className="pac-loading">{detailError}</div>
           ) : detailCache[selectedKey] ? (
-            <ActivityDetail activity={selected} detail={detailCache[selectedKey]} theme={theme} font={font} />
+            <ActivityDetail activity={selected} detail={detailCache[selectedKey]} theme={theme} font={font} slug={slug} />
           ) : null}
         </div>
 
@@ -287,22 +287,36 @@ function TournamentDetail({ activity, detail, theme, font }) {
 // Reuses the exact same EventVisual PublicEvents.jsx renders on the real
 // Events page — same "generated from the record's own input, unmodified"
 // convention TournamentDetail above already follows for Golf/Tournaments.
-function EventDetail({ detail, theme, font }) {
+function EventDetail({ detail, theme, font, slug }) {
+  const [reserving, setReserving] = useState(false);
   return (
     <div className="evt" style={evtStyleVars(theme, font)}>
       {detail.recurrenceLabel && <p className="evt-pill" style={{ marginBottom: 10 }}>{detail.recurrenceLabel}</p>}
       <div className="evt-card">
         <EventVisual event={detail} notice={detail.statusNote} />
-        {(detail.admissionNote || detail.payUrl || detail.reservePhone || detail.contactName || detail.contactEmail) && (
-          <div className="evt-footer">
-            <EventFooterContact event={detail} />
-            {detail.payUrl && (
-              <div className="evt-footer-actions">
-                <a className="evt-btn" href={detail.payUrl} target="_blank" rel="noreferrer">Order &amp; pay online</a>
-              </div>
-            )}
-          </div>
-        )}
+        {(() => {
+          // See PublicEvents.jsx — no online-pay affordance for raffle events.
+          const payUrl = detail.sellsRaffleTickets ? null : detail.payUrl;
+          const canReserve = reservationsOpen(detail);
+          const reservationsClosed = detail.reservationsEnabled && !canReserve;
+          const show = detail.admissionNote || payUrl || detail.reservePhone || detail.contactName || detail.contactEmail || detail.reservationsEnabled;
+          return show ? (
+            <div className="evt-footer">
+              <EventFooterContact event={detail} />
+              {reserving ? (
+                <ReserveForm event={detail} slug={slug} onCancel={() => setReserving(false)} />
+              ) : (
+                (payUrl || canReserve || reservationsClosed) && (
+                  <div className="evt-footer-actions">
+                    {payUrl && <a className="evt-btn" href={payUrl} target="_blank" rel="noreferrer">Order &amp; pay online</a>}
+                    {canReserve && <button type="button" className="evt-btn-secondary" onClick={() => setReserving(true)}>Reserve a meal</button>}
+                    {reservationsClosed && <span className="evt-reservations-closed">Reservations are closed</span>}
+                  </div>
+                )
+              )}
+            </div>
+          ) : null;
+        })()}
       </div>
     </div>
   );
@@ -336,11 +350,14 @@ function ManualDetail({ activity }) {
   );
 }
 
-function ActivityDetail({ activity, detail, theme, font }) {
+function ActivityDetail({ activity, detail, theme, font, slug }) {
   if (activity.source === "golf-tournament" || activity.source === "tournament") {
     return <TournamentDetail activity={activity} detail={detail} theme={theme} font={font} />;
   }
-  if (activity.source === "event") return <EventDetail detail={detail} theme={theme} font={font} />;
+  // key={detail.id} forces a fresh EventDetail instance per event — it holds
+  // its own "reserving" form-open state, which must reset when you pick a
+  // different event rather than carry over.
+  if (activity.source === "event") return <EventDetail key={detail.id} detail={detail} theme={theme} font={font} slug={slug} />;
   if (activity.source === "raffle-game") return <RaffleDetail detail={detail} />;
   return null;
 }

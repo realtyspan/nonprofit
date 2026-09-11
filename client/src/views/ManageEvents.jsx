@@ -26,6 +26,7 @@ export default function ManageEvents({ permissions }) {
   const [loaded, setLoaded] = useState(false);
   const [editing, setEditing] = useState(null); // event being edited, or {} for new
   const [deleting, setDeleting] = useState(null);
+  const [viewingReservations, setViewingReservations] = useState(null); // event whose Reservations list is open
   const [lifecycleBusy, setLifecycleBusy] = useState(null); // event id currently transitioning
   const [lifecycleError, setLifecycleError] = useState("");
 
@@ -121,6 +122,9 @@ export default function ManageEvents({ permissions }) {
                   return (
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={!canManage} title={!canManage ? "Only an Events Admin can edit an event" : ""} onClick={() => setEditing(e)}>Edit</button>
+                      {e.reservationsEnabled && (
+                        <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} onClick={() => setViewingReservations(e)}>Reservations</button>
+                      )}
                       {e.status !== "published" && e.status !== "cancelled" && (
                         <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={busy || !canManage} title={!canManage ? "Only an Events Admin can publish an event" : ""} onClick={() => transition(e, "publish")}>Publish</button>
                       )}
@@ -165,6 +169,10 @@ export default function ManageEvents({ permissions }) {
           </div>
         </Modal>
       )}
+
+      {viewingReservations && (
+        <EventReservationsModal event={viewingReservations} onCancel={() => setViewingReservations(null)} />
+      )}
     </div>
   );
 }
@@ -179,6 +187,100 @@ async function resizeEventImage(file, maxDim) {
     if (dataUrl.length <= EVENT_IMAGE_TARGET_CHARS) return dataUrl;
   }
   throw new Error("That photo is too large even compressed — try a smaller or simpler image");
+}
+
+const RESERVATION_STATUS_STYLE = {
+  new: ["#f1ece0", colors.textSecondary],
+  confirmed: [colors.successBg, colors.success],
+  cancelled: [colors.dangerBg, colors.danger],
+};
+
+function EventReservationsModal({ event, onCancel }) {
+  const [data, setData] = useState(null); // { event, reservations, totals }
+  const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState(null);
+
+  function refresh() {
+    api.listEventReservations(event.id).then(setData).catch((err) => setError(err.message));
+  }
+  useEffect(refresh, [event.id]);
+
+  async function setStatus(id, status) {
+    setBusyId(id);
+    setError("");
+    try {
+      await api.setEventReservationStatus(id, status);
+      refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const totals = data?.totals;
+
+  return (
+    <Modal onCancel={onCancel} width={720} title={`Reservations — ${event.title}`}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {totals && (
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <SummaryPill label="Guests" value={totals.guests} />
+            {event.offersTakeout && <SummaryPill label="Eat in" value={totals.eatIn} />}
+            {event.offersTakeout && <SummaryPill label="Take out" value={totals.takeOut} />}
+            <SummaryPill label="Reservations" value={totals.reservations} />
+            {totals.cancelled > 0 && <SummaryPill label="Cancelled" value={totals.cancelled} muted />}
+          </div>
+        )}
+        {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
+        {!data ? (
+          <div style={{ fontSize: 13, color: colors.textSecondary }}>Loading…</div>
+        ) : data.reservations.length === 0 ? (
+          <div style={{ fontSize: 13, color: colors.textSecondary }}>No reservations yet.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: "56vh", overflowY: "auto" }}>
+            {data.reservations.map((r) => (
+              <div key={r.id} style={{ ...card, padding: "10px 14px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, fontSize: 13.5 }}>{r.name}</span>
+                    <span style={pill(...RESERVATION_STATUS_STYLE[r.status])}>{r.status}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+                    {r.partySize} {r.partySize === 1 ? "guest" : "guests"}
+                    {r.serviceType && ` · ${r.serviceType === "take-out" ? "Take out" : "Eat in"}`}
+                    {r.pickupTime && ` (pickup ${r.pickupTime})`}
+                  </div>
+                  <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+                    {[r.email, r.phone && formatPhone(r.phone)].filter(Boolean).join(" · ") || "No contact on file"}
+                  </div>
+                  {r.note && <div style={{ fontSize: 12, color: colors.textPrimary, marginTop: 4, fontStyle: "italic" }}>"{r.note}"</div>}
+                  <div style={{ fontSize: 11, color: colors.textTertiary, marginTop: 4 }}>{new Date(r.createdAt).toLocaleString()}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6, flex: "none" }}>
+                  {r.status !== "confirmed" && (
+                    <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 11.5 }} disabled={busyId === r.id} onClick={() => setStatus(r.id, "confirmed")}>Confirm</button>
+                  )}
+                  {r.status !== "cancelled" && (
+                    <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 11.5, color: colors.danger }} disabled={busyId === r.id} onClick={() => setStatus(r.id, "cancelled")}>Cancel</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function SummaryPill({ label, value, muted }) {
+  return (
+    <div style={{ ...card, padding: "8px 14px", display: "flex", flexDirection: "column", gap: 2, opacity: muted ? 0.6 : 1 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: colors.textSecondary }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 700 }}>{value}</div>
+    </div>
+  );
 }
 
 function EventModal({ event, onCancel, onSaved }) {
@@ -198,6 +300,7 @@ function EventModal({ event, onCancel, onSaved }) {
     price: event.price || "",
     priceUnit: event.priceUnit || "",
     payUrl: event.payUrl || "",
+    sellsRaffleTickets: event.sellsRaffleTickets || false,
     reservePhone: event.reservePhone || "",
     contactName: event.contactName || "",
     contactEmail: event.contactEmail || "",
@@ -206,6 +309,9 @@ function EventModal({ event, onCancel, onSaved }) {
     includesHeading: event.includesHeading || "",
     includes: (event.includes && event.includes.length > 0 ? event.includes : [""]),
     scheduleItems: (event.scheduleItems && event.scheduleItems.length > 0 ? event.scheduleItems : [{ time: "", label: "" }]),
+    reservationsEnabled: event.reservationsEnabled || false,
+    reservationDeadline: toLocalInputValue(event.reservationDeadline) || "",
+    offersTakeout: event.offersTakeout || false,
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -247,6 +353,7 @@ function EventModal({ event, onCancel, onSaved }) {
         ...form,
         startAt: form.startAt ? new Date(form.startAt).toISOString() : "",
         endAt: form.endAt ? new Date(form.endAt).toISOString() : "",
+        reservationDeadline: form.reservationsEnabled && form.reservationDeadline ? new Date(form.reservationDeadline).toISOString() : "",
         scheduleItems: form.scheduleItems
           .map((r) => ({ time: r.time.trim(), label: r.label.trim() }))
           .filter((r) => r.label),
@@ -301,9 +408,25 @@ function EventModal({ event, onCancel, onSaved }) {
             <Field label="Price (plain text)"><input style={inputStyle} value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="$25 or Free" /></Field>
             <Field label="Price unit"><input style={inputStyle} value={form.priceUnit} onChange={(e) => set("priceUnit", e.target.value)} placeholder="per meal · cash or card" /></Field>
           </div>
-          <div style={{ marginTop: 10 }}>
-            <Field label="Pay online link (optional)"><input style={inputStyle} type="url" value={form.payUrl} onChange={(e) => set("payUrl", e.target.value)} placeholder="https://venmo.com/..." /></Field>
-          </div>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, marginTop: 12 }}>
+            <input type="checkbox" checked={form.sellsRaffleTickets} onChange={(e) => set("sellsRaffleTickets", e.target.checked)} style={{ marginTop: 2 }} />
+            <span>
+              This event sells raffle or Bell Jar tickets
+              <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>
+                Selling raffle or Bell Jar tickets online isn't permitted in New York without a NY Gaming Commission license. When this is on, no online‑payment link or button appears anywhere for this event. Reservations and door sales are fine.
+              </div>
+            </span>
+          </label>
+          {!form.sellsRaffleTickets && (
+            <div style={{ marginTop: 10 }}>
+              <Field label="Pay online link (optional)"><input style={inputStyle} type="url" value={form.payUrl} onChange={(e) => set("payUrl", e.target.value)} placeholder="https://venmo.com/..." /></Field>
+              {form.payUrl.trim() && (
+                <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>
+                  Don't use this for raffle or Bell Jar tickets — online gaming ticket sales require a NY Gaming Commission license. It's fine for a dinner, breakfast, or similar.
+                </div>
+              )}
+            </div>
+          )}
           <Field label="Admission note (short line under the actions)">
             <input style={inputStyle} value={form.admissionNote} onChange={(e) => set("admissionNote", e.target.value)} placeholder="Members and guests welcome." />
           </Field>
@@ -354,6 +477,29 @@ function EventModal({ event, onCancel, onSaved }) {
           <Field label="Description">
             <textarea style={{ ...inputStyle, minHeight: 90, fontFamily: "inherit" }} value={form.description} onChange={(e) => set("description", e.target.value)} />
           </Field>
+        </Section>
+
+        <Section title="Reservations">
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13 }}>
+            <input type="checkbox" checked={form.reservationsEnabled} onChange={(e) => set("reservationsEnabled", e.target.checked)} style={{ marginTop: 2 }} />
+            <span>
+              Let people reserve online
+              <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>
+                Adds a "Reserve a meal" form to the public event page — name, headcount, and (below) eat‑in/take‑out. No payment is collected; people pay at the event. Submissions land in this event's Reservations list.
+              </div>
+            </span>
+          </label>
+          {form.reservationsEnabled && (
+            <>
+              <Field label="Reservations close (optional — leave blank to accept them until the event starts)">
+                <input style={inputStyle} type="datetime-local" value={form.reservationDeadline} onChange={(e) => set("reservationDeadline", e.target.value)} />
+              </Field>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                <input type="checkbox" checked={form.offersTakeout} onChange={(e) => set("offersTakeout", e.target.checked)} />
+                Offer eat‑in / take‑out choice (with a pickup‑time note for take‑out)
+              </label>
+            </>
+          )}
         </Section>
 
         {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}

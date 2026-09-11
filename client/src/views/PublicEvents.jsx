@@ -4,7 +4,7 @@ import { colors } from "../lib/tokens";
 import { parseThemeFromQuery, postEmbedResize, useGoogleFont } from "../lib/embedTheme";
 import { formatPhone, stripPhone } from "../lib/phone";
 import { EVT_CSS, evtStyleVars } from "../components/TournamentVisual";
-import { EventVisual, EventFooterContact, EVENT_EXTRA_CSS } from "../components/EventVisual";
+import { EventVisual, EventFooterContact, ReserveForm, reservationsOpen, EVENT_EXTRA_CSS } from "../components/EventVisual";
 import logo from "../assets/logo.png";
 
 // PREVIEW BUILD — adapts Golf's/Tournaments' .evt design system (hero photo
@@ -77,6 +77,7 @@ export default function PublicEvents({ slug, embed }) {
   const [error, setError] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [notifyOpen, setNotifyOpen] = useState(false);
+  const [reserving, setReserving] = useState(false);
   const initialized = useRef(false);
   const contentRef = useRef(null);
   const containerRef = useRef(null);
@@ -118,6 +119,7 @@ export default function PublicEvents({ slug, embed }) {
 
   function selectEvent(i) {
     setSelectedIndex(i);
+    setReserving(false);
     const next = new URLSearchParams(window.location.search);
     if (i === 0) next.delete("event");
     else next.set("event", events[i].slug);
@@ -189,16 +191,31 @@ export default function PublicEvents({ slug, embed }) {
 
               <div className="evt-card">
                 <EventVisual event={event} notice={event.statusNote} />
-                {(event.admissionNote || event.payUrl || event.reservePhone || event.contactName || event.contactEmail) && (
-                  <div className="evt-footer">
-                    <EventFooterContact event={event} />
-                    {event.payUrl && (
-                      <div className="evt-footer-actions">
-                        <a className="evt-btn" href={event.payUrl} target="_blank" rel="noreferrer">Order &amp; pay online</a>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {(() => {
+                  // Raffle / Bell Jar ticket events never show an online-pay
+                  // affordance — selling those online needs a NY Gaming
+                  // Commission license (the server also nulls payUrl for them).
+                  const payUrl = event.sellsRaffleTickets ? null : event.payUrl;
+                  const canReserve = reservationsOpen(event);
+                  const reservationsClosed = event.reservationsEnabled && !canReserve;
+                  const show = event.admissionNote || payUrl || event.reservePhone || event.contactName || event.contactEmail || event.reservationsEnabled;
+                  return show ? (
+                    <div className="evt-footer">
+                      <EventFooterContact event={event} />
+                      {reserving ? (
+                        <ReserveForm event={event} slug={slug} onCancel={() => setReserving(false)} />
+                      ) : (
+                        (payUrl || canReserve || reservationsClosed) && (
+                          <div className="evt-footer-actions">
+                            {payUrl && <a className="evt-btn" href={payUrl} target="_blank" rel="noreferrer">Order &amp; pay online</a>}
+                            {canReserve && <button type="button" className="evt-btn-secondary" onClick={() => setReserving(true)}>Reserve a meal</button>}
+                            {reservationsClosed && <span className="evt-reservations-closed">Reservations are closed</span>}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  ) : null;
+                })()}
               </div>
             </div>
 

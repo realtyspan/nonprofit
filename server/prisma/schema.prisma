@@ -76,6 +76,7 @@ model Organization {
   calendarRecurrences      CalendarRecurrence[]
   events                   Event[]
   eventInterestSignups     EventInterestSignup[]
+  eventReservations        EventReservation[]
   orgMemberships           OrgMembership[]
   moduleGrants             ModuleGrant[]
   tierLabel                TierLabel?
@@ -632,7 +633,8 @@ model Event {
   secondaryImage  String? // base64 data URL, capped server-side, same as heroImage
   price           String? // plain text, not a number — e.g. "$25" or "Ticket holders"; rendered verbatim
   priceUnit       String? // e.g. "per meal · cash or card"
-  payUrl          String? // admin-entered external payment link (Venmo/PayPal/Square/etc.) — "Order & pay online" only renders when this is set
+  payUrl          String? // admin-entered external payment link (Venmo/PayPal/Square/etc.) — "Order & pay online" only renders when this is set; force-cleared (and its button suppressed everywhere) when sellsRaffleTickets is true
+  sellsRaffleTickets Boolean   @default(false) // this event's admission is a raffle / Bell Jar ticket — selling those online is not permitted in NY without a Gaming Commission license, so every online-payment affordance (public button, flyer "pay online" line) is hidden and payUrl is nulled on save
   reservePhone    String? // "reserve / contact by phone" — stored as bare digits, masked at the edge (lib/phone)
   contactName     String? // person to reach for reservations or questions — mirrors GolfTournament/Tournament contactName
   contactEmail    String? // optional contact email — mirrors GolfTournament/Tournament contactEmail
@@ -641,6 +643,13 @@ model Event {
   includesHeading String? // "On the plate" / "What's included" — per-event, since it varies by event type
   includes        Json? // string[] — bulleted list
   scheduleItems   Json? // { time: string, label: string }[] — mirrors GolfTournament.scheduleItems; renders as a timeline on the public page and the flyer
+
+  // --- Meal / seat reservations (no payment — people pay at the event) ---
+  reservationsEnabled  Boolean   @default(false) // shows a "Reserve a meal" form on the public event page
+  reservationDeadline  DateTime? // real instant (stored UTC like startAt); after this the form closes
+  offersTakeout        Boolean   @default(false) // when true the reservation form offers an "Eat in / Take out" choice + a pickup-time note
+  reservations         EventReservation[]
+
   createdByUserId String?
   createdBy       User?        @relation(fields: [createdByUserId], references: [id])
   createdByName   String       @default("")
@@ -668,6 +677,31 @@ model EventInterestSignup {
   createdAt   DateTime     @default(now())
 
   @@index([orgId])
+}
+
+// A public "reserve a meal / seat" submission for one Event. No payment is
+// taken — people pay at the door. Same lead-capture shape as
+// EventInterestSignup (name + email/phone + honeypot on the public route),
+// plus a headcount and, for food events that offer it, an eat-in/take-out
+// choice. Cascade-deletes with its Event.
+model EventReservation {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  eventId     String
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  email       String       @default("")
+  phone       String       @default("")
+  partySize   Int          @default(1)
+  serviceType String? // "eat-in" | "take-out" | null (only set when the event offersTakeout)
+  pickupTime  String? // free-text, only meaningful for a take-out reservation
+  note        String?
+  status      String       @default("new") // new | confirmed | cancelled — admin-managed
+  createdAt   DateTime     @default(now())
+
+  @@index([orgId])
+  @@index([eventId, createdAt])
 }
 
 model CalendarRecurrence {

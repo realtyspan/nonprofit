@@ -84,7 +84,8 @@ async function buildEventRecordFlyerPdf({ org, event, flyerUrl }) {
     contactPhone: event.reservePhone,
     contactEmail: event.contactEmail || null,
     contactHeading: "QUESTIONS OR RESERVATIONS?",
-    payUrl: event.payUrl || null,
+    payUrl: event.sellsRaffleTickets ? null : (event.payUrl || null), // never advertise online payment for a raffle/Bell Jar ticket event
+
     registerUrl: flyerUrl,
     registerUrlLabel,
     fineText: fineParts.join("  ·  "),

@@ -428,6 +428,9 @@ export const api = {
   downloadEventFlyerPdf: (eventId, eventTitle) => download(`/events/${eventId}/flyer`, `${(eventTitle || "Event").replace(/\s+/g, "_")}_Flyer.pdf`),
   listEventInterestSignups: () => request("/events/interest-signups"),
   setEventInterestSignupContacted: (id, contacted) => request(`/events/interest-signups/${id}`, { method: "PATCH", body: { contacted } }),
+  listEventReservations: (eventId) => request(`/events/${eventId}/reservations`),
+  setEventReservationStatus: (id, status) => request(`/events/reservations/${id}`, { method: "PATCH", body: { status } }),
+  deleteEventReservation: (id) => request(`/events/reservations/${id}`, { method: "DELETE" }),
 };
 
 export { downloadTextFile };
@@ -476,6 +479,16 @@ export const publicApi = {
   },
   async submitEventInterest(slug, payload) {
     const res = await fetch(`/api/public/events/${slug}/interest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  },
+  async submitEventReservation(slug, payload) {
+    const res = await fetch(`/api/public/events/${slug}/reserve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

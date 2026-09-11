@@ -62,8 +62,9 @@ function resolveEventFields(body) {
   const {
     title, tagline, description, location, startAt, endAt, allDay,
     shortTitle, recurrenceLabel, heroImage, secondaryImage,
-    price, priceUnit, payUrl, reservePhone, contactName, contactEmail, statusNote, admissionNote,
+    price, priceUnit, payUrl, sellsRaffleTickets, reservePhone, contactName, contactEmail, statusNote, admissionNote,
     includesHeading, includes, scheduleItems,
+    reservationsEnabled, reservationDeadline, offersTakeout,
   } = body;
 
   if (!title || !title.trim()) throw Object.assign(new Error("title is required"), { status: 400 });
@@ -72,6 +73,12 @@ function resolveEventFields(body) {
   if (isNaN(parsedStart.getTime())) throw Object.assign(new Error("startAt must be a valid date"), { status: 400 });
   const parsedEnd = endAt ? new Date(endAt) : parsedStart;
   if (isNaN(parsedEnd.getTime())) throw Object.assign(new Error("endAt must be a valid date"), { status: 400 });
+
+  let parsedDeadline = null;
+  if (reservationsEnabled && reservationDeadline) {
+    parsedDeadline = new Date(reservationDeadline);
+    if (isNaN(parsedDeadline.getTime())) throw Object.assign(new Error("The reservation deadline isn't a valid date"), { status: 400 });
+  }
 
   if (heroImage && heroImage.length > MAX_EVENT_IMAGE_CHARS) {
     throw Object.assign(new Error("That hero photo is too large — choose a smaller or simpler image"), { status: 400 });
@@ -94,7 +101,11 @@ function resolveEventFields(body) {
     secondaryImage: secondaryImage || null,
     price: price?.trim ? price.trim() || null : price || null,
     priceUnit: priceUnit?.trim() || null,
-    payUrl: payUrl?.trim() || null,
+    // A raffle/Bell Jar ticket event must never carry an online-payment link —
+    // null it here so a stale value can't leak onto the public page or flyer
+    // even if the form somehow submits one.
+    sellsRaffleTickets: !!sellsRaffleTickets,
+    payUrl: sellsRaffleTickets ? null : (payUrl?.trim() || null),
     reservePhone: reservePhone?.trim() || null,
     contactName: contactName?.trim() || null,
     contactEmail: contactEmail?.trim() || null,
@@ -103,6 +114,9 @@ function resolveEventFields(body) {
     includesHeading: includesHeading?.trim() || null,
     includes: cleanIncludes(includes),
     scheduleItems: cleanScheduleItems(scheduleItems),
+    reservationsEnabled: !!reservationsEnabled,
+    reservationDeadline: reservationsEnabled ? parsedDeadline : null,
+    offersTakeout: !!(reservationsEnabled && offersTakeout),
   };
 }
 
@@ -241,6 +255,53 @@ router.patch("/interest-signups/:id", requirePermission("events", "Helper"), asy
     data: { contactedAt: req.body.contacted ? new Date() : null },
   });
   res.json(updated);
+});
+
+// --- Meal / seat reservations ---
+// Public submissions from the "Reserve a meal" form (publicEvents.js's
+// POST /:slug/reserve); managed from the Events module's Reservations view.
+
+const RESERVATION_STATUSES = ["new", "confirmed", "cancelled"];
+
+// One event's reservation list plus a headcount summary. Scoped to the org.
+router.get("/:id/reservations", requireReadAccess("events"), async (req, res) => {
+  const event = await prisma.event.findFirst({ where: { id: req.params.id, orgId: req.user.orgId }, select: { id: true, title: true, offersTakeout: true } });
+  if (!event) return res.status(404).json({ error: "Event not found" });
+
+  const reservations = await prisma.eventReservation.findMany({
+    where: { eventId: event.id, orgId: req.user.orgId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const active = reservations.filter((r) => r.status !== "cancelled");
+  const totals = {
+    reservations: active.length,
+    guests: active.reduce((n, r) => n + (r.partySize || 0), 0),
+    eatIn: active.filter((r) => r.serviceType === "eat-in").reduce((n, r) => n + (r.partySize || 0), 0),
+    takeOut: active.filter((r) => r.serviceType === "take-out").reduce((n, r) => n + (r.partySize || 0), 0),
+    cancelled: reservations.length - active.length,
+  };
+  res.json({ event, reservations, totals });
+});
+
+router.patch("/reservations/:id", requirePermission("events", "Helper"), async (req, res) => {
+  const reservation = await prisma.eventReservation.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!reservation) return res.status(404).json({ error: "Reservation not found" });
+
+  const data = {};
+  if (req.body.status !== undefined) {
+    if (!RESERVATION_STATUSES.includes(req.body.status)) return res.status(400).json({ error: "Unknown status" });
+    data.status = req.body.status;
+  }
+  const updated = await prisma.eventReservation.update({ where: { id: reservation.id }, data });
+  res.json(updated);
+});
+
+router.delete("/reservations/:id", requirePermission("events", "Admin"), async (req, res) => {
+  const reservation = await prisma.eventReservation.findFirst({ where: { id: req.params.id, orgId: req.user.orgId } });
+  if (!reservation) return res.status(404).json({ error: "Reservation not found" });
+  await prisma.eventReservation.delete({ where: { id: reservation.id } });
+  res.json({ ok: true });
 });
 
 module.exports = router;

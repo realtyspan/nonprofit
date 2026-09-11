@@ -4,6 +4,7 @@ const { rateLimit } = require("../lib/rateLimit");
 const { stripPhone } = require("../lib/phone");
 const { resolveEventAlertRecipients } = require("../lib/eventAlerts");
 const { eventInterestAlertHtml } = require("../lib/eventInterestEmail");
+const { eventReservationConfirmationHtml, eventReservationAlertHtml } = require("../lib/eventReservationEmail");
 const { sendEmail } = require("../lib/notifications");
 
 const router = express.Router();
@@ -29,9 +30,10 @@ router.get("/:slug", async (req, res) => {
     select: {
       slug: true, title: true, shortTitle: true, tagline: true, description: true,
       location: true, startAt: true, endAt: true, allDay: true, recurrenceLabel: true,
-      heroImage: true, secondaryImage: true, price: true, priceUnit: true, payUrl: true,
+      heroImage: true, secondaryImage: true, price: true, priceUnit: true, payUrl: true, sellsRaffleTickets: true,
       reservePhone: true, contactName: true, contactEmail: true, statusNote: true, admissionNote: true, includesHeading: true, includes: true,
       scheduleItems: true,
+      reservationsEnabled: true, reservationDeadline: true, offersTakeout: true,
     },
   });
 
@@ -83,6 +85,90 @@ router.post(
         });
       } catch (err) {
         console.error(`Event interest alert email failed for signup ${signup.id} -> ${recipient.email}:`, err.message);
+      }
+    }
+  }
+);
+
+// A public "reserve a meal / seat" submission for one event. No payment —
+// people pay at the door. Same honeypot + rate-limit shape as the interest
+// route above; validates against the event's own reservation settings.
+router.post(
+  "/:slug/reserve",
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 8 }),
+  async (req, res) => {
+    const org = await prisma.organization.findUnique({ where: { slug: req.params.slug } });
+    if (!org) return res.status(404).json({ error: "Not found" });
+
+    if (req.body.website) return res.json({ ok: true }); // honeypot — silently drop bots
+
+    const { eventSlug, name, email, phone, partySize, serviceType, pickupTime, note } = req.body;
+
+    const event = eventSlug
+      ? await prisma.event.findUnique({ where: { orgId_slug: { orgId: org.id, slug: eventSlug } } })
+      : null;
+    if (!event || event.status !== "published") return res.status(404).json({ error: "That event isn't available." });
+    if (!event.reservationsEnabled) return res.status(400).json({ error: "This event isn't taking reservations." });
+    if (event.reservationDeadline && new Date() > new Date(event.reservationDeadline)) {
+      return res.status(400).json({ error: "Reservations for this event have closed." });
+    }
+
+    if (!name || !name.trim()) return res.status(400).json({ error: "Name is required" });
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedPhone = stripPhone(phone);
+    if (!normalizedEmail && !normalizedPhone) return res.status(400).json({ error: "Enter an email or phone number so we can reach you" });
+
+    const size = Math.round(Number(partySize) || 1);
+    if (!Number.isFinite(size) || size < 1 || size > 50) return res.status(400).json({ error: "Number of guests must be between 1 and 50" });
+
+    let cleanServiceType = null;
+    if (event.offersTakeout) {
+      if (serviceType === "eat-in" || serviceType === "take-out") cleanServiceType = serviceType;
+      else return res.status(400).json({ error: "Choose eat in or take out" });
+    }
+
+    const reservation = await prisma.eventReservation.create({
+      data: {
+        orgId: org.id,
+        eventId: event.id,
+        name: name.trim(),
+        email: normalizedEmail || "",
+        phone: normalizedPhone || "",
+        partySize: size,
+        serviceType: cleanServiceType,
+        pickupTime: cleanServiceType === "take-out" && pickupTime && pickupTime.trim() ? pickupTime.trim() : null,
+        note: note && note.trim() ? note.trim() : null,
+      },
+    });
+    res.json({ ok: true });
+
+    // Fire-and-forget notifications — the reservation is already saved and
+    // the visitor already has their on-screen confirmation.
+    const timeZone = org.timeZone || "America/New_York";
+    if (reservation.email) {
+      try {
+        await sendEmail({
+          to: reservation.email, toName: reservation.name,
+          subject: `Reservation confirmed — ${event.title}`,
+          html: eventReservationConfirmationHtml({ reservation, event, org, timeZone }),
+          fromName: org.name,
+          replyTo: event.contactEmail || org.contactEmail || undefined,
+        });
+      } catch (err) {
+        console.error(`Reservation confirmation email failed for ${reservation.id} -> ${reservation.email}:`, err.message);
+      }
+    }
+    const recipients = await resolveEventAlertRecipients(org.id, org);
+    for (const recipient of recipients) {
+      try {
+        await sendEmail({
+          to: recipient.email, toName: recipient.name,
+          subject: `New reservation — ${event.title} (${reservation.name}, ${reservation.partySize})`,
+          html: eventReservationAlertHtml({ reservation, event, org, timeZone }),
+          fromName: org.name, replyTo: reservation.email || undefined,
+        });
+      } catch (err) {
+        console.error(`Reservation alert email failed for ${reservation.id} -> ${recipient.email}:`, err.message);
       }
     }
   }
