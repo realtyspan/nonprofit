@@ -60,6 +60,7 @@ export default function RaffleDrawings({ gameId }) {
               drawing={d}
               onConduct={() => setConductDrawing(d)}
               onEdit={() => setFormState({ mode: "edit", drawing: d })}
+              onDuplicate={() => setFormState({ mode: "new", seedFrom: d })}
               onDeleted={refresh}
               onError={setError}
             />
@@ -70,7 +71,13 @@ export default function RaffleDrawings({ gameId }) {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: "uppercase", color: colors.textSecondary, letterSpacing: ".03em" }}>Winners</div>
-        <WinnersTable winners={winners} gameId={gameId} onChanged={refresh} onError={setError} />
+        <WinnersTable
+          winners={winners}
+          gameId={gameId}
+          onChanged={refresh}
+          onError={setError}
+          onDuplicate={(w) => setFormState({ mode: "new", seedFrom: w })}
+        />
       </div>
 
       {conductDrawing && (
@@ -95,7 +102,7 @@ export default function RaffleDrawings({ gameId }) {
   );
 }
 
-function ScheduledCard({ drawing, onConduct, onEdit, onDeleted, onError }) {
+function ScheduledCard({ drawing, onConduct, onEdit, onDuplicate, onDeleted, onError }) {
   const [busy, setBusy] = useState(false);
   const overdue = isOverdue(drawing.drawingDate);
   const confirm = useConfirm();
@@ -132,6 +139,7 @@ function ScheduledCard({ drawing, onConduct, onEdit, onDeleted, onError }) {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button style={button.primary} disabled={busy} onClick={onConduct}>Conduct drawing</button>
         <button style={button.ghost} disabled={busy} onClick={onEdit}>Edit</button>
+        <button style={button.ghost} disabled={busy} onClick={onDuplicate}>Duplicate</button>
         <button style={{ ...button.ghost, color: colors.danger }} disabled={busy} onClick={deleteDrawing}>Delete</button>
       </div>
     </div>
@@ -201,7 +209,7 @@ function ConductDrawingModal({ gameId, drawing, onCancel, onDrawn, onError }) {
   );
 }
 
-function WinnersTable({ winners, gameId, onChanged, onError }) {
+function WinnersTable({ winners, gameId, onChanged, onError, onDuplicate }) {
   const [busyId, setBusyId] = useState(null);
   const confirm = useConfirm();
 
@@ -236,7 +244,12 @@ function WinnersTable({ winners, gameId, onChanged, onError }) {
           { key: "pool", label: "Pool", grid: "1.3fr", render: (w) => <span style={{ color: colors.textSecondary }}>{w.eligibleCount} eligible {w.drawMode === "manual" ? "(manual)" : "(random)"}</span> },
           {
             key: "actions", label: "", grid: "auto", fullWidthOnMobile: true,
-            render: (w) => <button style={{ ...button.ghost, color: colors.danger }} disabled={busyId === w.id} onClick={() => redraw(w)}>Redraw</button>,
+            render: (w) => (
+              <div style={{ display: "flex", gap: 6 }}>
+                <button style={button.ghost} onClick={() => onDuplicate(w)}>Duplicate</button>
+                <button style={{ ...button.ghost, color: colors.danger }} disabled={busyId === w.id} onClick={() => redraw(w)}>Redraw</button>
+              </div>
+            ),
           },
         ]}
       />
@@ -245,12 +258,17 @@ function WinnersTable({ winners, gameId, onChanged, onError }) {
 }
 
 function DrawingFormModal({ gameId, state, onCancel, onSaved }) {
-  const { mode, drawing } = state;
-  const [name, setName] = useState(drawing?.name || "");
+  const { mode, drawing, seedFrom } = state;
+  // Editing seeds every field including the date (it's the same record).
+  // Duplicating seeds the reusable template fields — name/type/prize/notes,
+  // the parts that tend to repeat drawing to drawing — but leaves the date
+  // blank so a copy is never silently created for the same day.
+  const template = drawing || seedFrom;
+  const [name, setName] = useState(template?.name || "");
   const [drawingDate, setDrawingDate] = useState(drawing ? drawing.drawingDate.slice(0, 10) : "");
-  const [drawingType, setDrawingType] = useState(drawing?.drawingType || "main");
-  const [prizeAmount, setPrizeAmount] = useState(drawing?.prizeAmount ?? 1000);
-  const [notes, setNotes] = useState(drawing?.notes || "");
+  const [drawingType, setDrawingType] = useState(template?.drawingType || "main");
+  const [prizeAmount, setPrizeAmount] = useState(template?.prizeAmount ?? 1000);
+  const [notes, setNotes] = useState(template?.notes || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -271,7 +289,7 @@ function DrawingFormModal({ gameId, state, onCancel, onSaved }) {
   }
 
   return (
-    <Modal onCancel={onCancel} width={420} title={mode === "edit" ? "Edit drawing" : "New drawing"}>
+    <Modal onCancel={onCancel} width={420} title={mode === "edit" ? "Edit drawing" : seedFrom ? `Duplicate "${seedFrom.name}"` : "New drawing"}>
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <Field label="Name"><input style={inputStyle} required value={name} onChange={(e) => setName(e.target.value)} placeholder="1st Prize" /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
