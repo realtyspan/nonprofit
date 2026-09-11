@@ -12,12 +12,14 @@ function money(n) {
 
 // Wherever the org has actually told us this module's public page lives
 // (PublicLinkBox's "Where did you put this?" field, org.embedPageUrls.
-// tournaments) if they've set one, else our own /tournaments/:orgSlug/
-// :tournamentSlug page — deep-linked to this specific tournament, since
-// more than one can be open at once. Same reasoning as golf.js's
-// resolveGolfRegisterUrl and events.js's resolveEventFlyerUrl.
+// tournaments) if they've set one; else the Activities embed destination
+// (org.embedPageUrls.activities), for orgs that embed the combined
+// Activities feed rather than a dedicated Tournaments page; else our own
+// /tournaments/:orgSlug/:tournamentSlug page — deep-linked to this specific
+// tournament, since more than one can be open at once. Same reasoning as
+// golf.js's resolveGolfRegisterUrl and events.js's resolveEventFlyerUrl.
 function resolveTournamentFlyerUrl(org, tournament) {
-  const ownSiteUrl = org.embedPageUrls?.tournaments;
+  const ownSiteUrl = org.embedPageUrls?.tournaments || org.embedPageUrls?.activities;
   if (ownSiteUrl) return ownSiteUrl;
   if (!org.slug) return null;
   const appUrl = process.env.APP_URL || "http://localhost:5173";

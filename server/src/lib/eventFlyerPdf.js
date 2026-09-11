@@ -8,12 +8,16 @@ const { formatPhone } = require("./phone");
 
 // Wherever the org has actually told us this event's public page lives:
 // their own external website (PublicLinkBox's "Where did you put this?"
-// field, org.embedPageUrls.events) if they've set one, else our own
-// /events/:slug page, deep-linked straight to this one event so scanning
-// the flyer doesn't dump a visitor on "soonest event" if this isn't it.
-// Same reasoning as golf.js's resolveGolfRegisterUrl.
+// field, org.embedPageUrls.events) if they've set one; else the Activities
+// embed destination (org.embedPageUrls.activities), since plenty of orgs
+// embed the combined Activities feed on their site instead of a dedicated
+// Events page, and a QR that ignores that setting sends visitors to our own
+// hosted page instead of theirs; else our own /events/:slug page,
+// deep-linked straight to this one event so scanning the flyer doesn't dump
+// a visitor on "soonest event" if this isn't it. Same reasoning as golf.js's
+// resolveGolfRegisterUrl.
 function resolveEventFlyerUrl(org, event) {
-  const ownSiteUrl = org.embedPageUrls?.events;
+  const ownSiteUrl = org.embedPageUrls?.events || org.embedPageUrls?.activities;
   if (ownSiteUrl) return ownSiteUrl;
   if (!org.slug) return null;
   const appUrl = process.env.APP_URL || "http://localhost:5173";

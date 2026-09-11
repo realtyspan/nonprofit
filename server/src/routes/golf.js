@@ -279,12 +279,15 @@ router.get("/tournaments/:tournamentId", requireReadAccess("golf"), async (req, 
 
 // Wherever the org has actually told us this registers a team: their own
 // external webpage (PublicLinkBox's "Where did you put this?" field,
-// org.embedPageUrls.golf) if they've set one, else our own /golf/:slug
-// page. Shared by the flyer (below) and the marketing emails — a link that
-// leads nowhere is worse than no link, so both require at least one of the
-// two to exist rather than generating a broken one.
+// org.embedPageUrls.golf) if they've set one; else the Activities embed
+// destination (org.embedPageUrls.activities), for orgs that embed the
+// combined Activities feed rather than a dedicated Golf page — see
+// eventFlyerPdf.js's resolveEventFlyerUrl for the same reasoning; else our
+// own /golf/:slug page. Shared by the flyer (below) and the marketing
+// emails — a link that leads nowhere is worse than no link, so both require
+// at least one of the three to exist rather than generating a broken one.
 function resolveGolfRegisterUrl(org) {
-  const ownSiteUrl = org.embedPageUrls?.golf;
+  const ownSiteUrl = org.embedPageUrls?.golf || org.embedPageUrls?.activities;
   if (ownSiteUrl) return ownSiteUrl;
   if (!org.slug) return null;
   const appUrl = process.env.APP_URL || "http://localhost:5173";
