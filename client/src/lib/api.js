@@ -199,6 +199,7 @@ export const api = {
   deleteRaffleGame: (gameId) => request(`/raffle/games/${gameId}`, { method: "DELETE" }),
   closeRaffleGame: (gameId) => request(`/raffle/games/${gameId}/close`, { method: "POST" }),
   reopenRaffleGame: (gameId) => request(`/raffle/games/${gameId}/reopen`, { method: "POST" }),
+  downloadRaffleFlyerPdf: (gameId, gameName) => download(`/raffle/games/${gameId}/flyer`, `${(gameName || "Raffle").replace(/\s+/g, "_")}_Flyer.pdf`),
 
   getRaffleKickoffEmail: (gameId) => request(`/raffle/games/${gameId}/kickoff-email`),
   getRaffleKickoffRecipients: (gameId) => request(`/raffle/games/${gameId}/kickoff-email/recipients`),

@@ -2,16 +2,20 @@ import React, { useEffect, useState } from "react";
 import { colors, card, pill, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import { formatPhone } from "../lib/phone";
+import { hasModuleTier } from "../lib/modules";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
 
-// Raffle's one marketing tool — relocated wholesale out of
-// ManageRaffles.jsx into the Marketing tab. No PublicLinkBox here: raffle
-// has no public storefront page — ticket links are per-buyer, sent
-// directly, not a page visitors browse. Logic unchanged from
-// ManageRaffles.jsx's own KickoffEmailCard/SendKickoffEmailModal (neither
-// was isAdmin-gated there — any Raffle grant could send — preserved as-is).
-export default function MarketingRaffle({ game }) {
+// Raffle's marketing tools — relocated wholesale out of ManageRaffles.jsx
+// into the Marketing tab. No PublicLinkBox here: raffle has no public
+// storefront page — ticket links are per-buyer, sent directly, not a page
+// visitors browse. The flyer below is the one exception that needed its
+// own small "where did you put this" control (see FlyerCard) since it
+// still needs a QR destination even with no page of its own. Logic
+// unchanged from ManageRaffles.jsx's own KickoffEmailCard/
+// SendKickoffEmailModal (neither was isAdmin-gated there — any Raffle
+// grant could send — preserved as-is).
+export default function MarketingRaffle({ game, permissions }) {
   if (!game) {
     return (
       <div style={{ ...card, fontSize: 12.5, color: colors.textSecondary }}>
@@ -19,7 +23,103 @@ export default function MarketingRaffle({ game }) {
       </div>
     );
   }
-  return <KickoffEmailCard game={game} />;
+  const isAdmin = hasModuleTier(permissions, "raffle", "Admin");
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <FlyerCard game={game} isAdmin={isAdmin} />
+      <KickoffEmailCard game={game} />
+    </div>
+  );
+}
+
+// A printable, announcement-only flyer for one raffle game — same visual
+// system as Golf's/Events' own flyers (see raffleFlyerPdf.js), but this one
+// NEVER carries an online-payment or registration link: selling raffle or
+// Bell Jar tickets online isn't permitted in New York without a Gaming
+// Commission license. Raffle has no public page of its own (see the module
+// comment above), so its flyer's QR needs a destination from somewhere else
+// — it defaults to the org's Activities embed destination (Marketing →
+// Activities), with an optional raffle-specific override here for an org
+// that wants this flyer to point somewhere different.
+function FlyerCard({ game, isAdmin }) {
+  const [flyerBusy, setFlyerBusy] = useState(false);
+  const [flyerError, setFlyerError] = useState("");
+  const [destination, setDestination] = useState("");
+  const [activitiesUrl, setActivitiesUrl] = useState(null);
+  const [destInput, setDestInput] = useState("");
+  const [destEditing, setDestEditing] = useState(false);
+  const [destBusy, setDestBusy] = useState(false);
+  const [destError, setDestError] = useState("");
+
+  useEffect(() => {
+    api.getOrg().then((o) => {
+      setDestination(o.embedPageUrls?.raffle || "");
+      setDestInput(o.embedPageUrls?.raffle || "");
+      setActivitiesUrl(o.embedPageUrls?.activities || null);
+    }).catch(() => {});
+  }, []);
+
+  async function downloadFlyer() {
+    setFlyerBusy(true);
+    setFlyerError("");
+    try {
+      await api.downloadRaffleFlyerPdf(game.id, game.name);
+    } catch (err) {
+      setFlyerError(err.message);
+    } finally {
+      setFlyerBusy(false);
+    }
+  }
+
+  async function saveDestination() {
+    setDestBusy(true);
+    setDestError("");
+    try {
+      const updated = await api.updateOrgEmbedPageUrl("raffle", destInput.trim());
+      setDestination(updated.embedPageUrls?.raffle || "");
+      setActivitiesUrl(updated.embedPageUrls?.activities || null);
+      setDestEditing(false);
+    } catch (err) {
+      setDestError(err.message);
+    } finally {
+      setDestBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Flyer — "{game.name}"</div>
+        <div style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>
+          Price, drawing date, venue, and how to reach you — announcement only. No online payment or registration link, ever: selling raffle or Bell Jar tickets online isn't permitted in New York without a Gaming Commission license.
+        </div>
+      </div>
+      {flyerError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{flyerError}</div>}
+      <div><button style={button.secondary} disabled={flyerBusy} onClick={downloadFlyer}>{flyerBusy ? "Generating…" : "Download flyer (PDF)"}</button></div>
+
+      <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700 }}>Where did you put this?</div>
+        <div style={{ fontSize: 11.5, color: colors.textSecondary }}>
+          Raffle has no page of its own, so this flyer's QR code uses your Activities embed destination (Marketing → Activities) by default. Set a raffle-specific page here only if you want this one flyer to point somewhere different.
+        </div>
+        {destEditing ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <input style={{ ...inputStyle, flex: "1 1 260px" }} value={destInput} onChange={(e) => setDestInput(e.target.value)} placeholder="https://yourlodge.org/raffle" />
+            <button style={button.primary} disabled={destBusy} onClick={saveDestination}>{destBusy ? "Saving…" : "Save"}</button>
+            <button style={button.ghost} onClick={() => { setDestEditing(false); setDestInput(destination || ""); }}>Cancel</button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12.5, color: destination ? colors.textPrimary : colors.textSecondary, fontFamily: destination ? "monospace" : undefined }}>
+              {destination || (activitiesUrl ? `Using your Activities page: ${activitiesUrl}` : "Not set — will use our own Activities page")}
+            </span>
+            {isAdmin && <button style={button.ghost} onClick={() => setDestEditing(true)}>{destination ? "Edit" : "Set it"}</button>}
+          </div>
+        )}
+        {destError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{destError}</div>}
+      </div>
+    </div>
+  );
 }
 
 // Generates the season-kickoff marketing email from this raffle's own

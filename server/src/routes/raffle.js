@@ -10,6 +10,7 @@ const { parseHistoricalCsv } = require("../lib/raffleHistoricalImport");
 const { raffleKickoffEmailHtml } = require("../lib/raffleKickoffEmail");
 const { buildUnsubscribeToken, normalizeEmail } = require("../lib/raffleUnsubscribe");
 const { publishRaffleGame, removeCalendarEventFor } = require("../lib/calendarSync");
+const { buildRaffleFlyerPdf, resolveRaffleFlyerUrl } = require("../lib/raffleFlyerPdf");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -589,6 +590,30 @@ router.get("/games/:gameId/reports/tickets-turned-in.pdf", requireReadAccess("ra
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="${req.raffleGame.name.replace(/\s+/g, "_")}_Tickets_Turned_In_Report.pdf"`);
   res.send(Buffer.from(pdfBytes));
+});
+
+// Print-ready flyer PDF with a QR code — announcement-only, same shape as
+// Golf's/Events' own flyer routes, but this one never carries an online-pay
+// or registration link (see raffleFlyerPdf.js's header comment for why).
+// See resolveRaffleFlyerUrl for the QR's destination.
+router.get("/games/:gameId/flyer", requireReadAccess("raffle"), async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId } });
+  const flyerUrl = resolveRaffleFlyerUrl(org, req.raffleGame);
+  if (!flyerUrl) {
+    return res.status(400).json({ error: "Set up your organization's public link first (Marketing → Activities), then download the flyer." });
+  }
+
+  let bytes;
+  try {
+    bytes = await buildRaffleFlyerPdf({ org, game: req.raffleGame, flyerUrl });
+  } catch (err) {
+    return res.status(500).json({ error: "Couldn't generate the flyer: " + err.message });
+  }
+
+  const fileSafeName = req.raffleGame.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "raffle";
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileSafeName}-flyer.pdf"`);
+  res.send(Buffer.from(bytes));
 });
 
 // Season-kickoff marketing email, generated from this raffle's own fields
