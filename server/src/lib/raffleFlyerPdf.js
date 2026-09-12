@@ -17,6 +17,12 @@ function money(n) {
   return `$${Math.round(Number(n) || 0).toLocaleString("en-US")}`;
 }
 
+// "Sep 11" — read as UTC, matching raffleEndDate's bare-calendar-day
+// convention (see the date tab's own comment below).
+function shortUtcDate(d) {
+  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
 // Wherever the org has actually told us this raffle is announced: a
 // raffle-specific page on their own site (PublicLinkBox's "Where did you
 // put this?" field under Marketing -> Raffle, org.embedPageUrls.raffle) if
@@ -36,9 +42,14 @@ function resolveRaffleFlyerUrl(org, game) {
 }
 
 async function buildRaffleFlyerPdf({ org, game, flyerUrl }) {
+  // The date tab already shows the drawing date, but on its own in a
+  // corner it read as disconnected from the "Drawing" stat next to a bare
+  // time ("1:00 PM") — printing as if the date were missing. Pairing the
+  // date with the time here makes the stat self-contained.
+  const drawingWhen = [shortUtcDate(game.raffleEndDate), game.eventDoorsOpenTime].filter(Boolean).join(" · ");
   const stats = [
     { label: "Ticket", value: money(game.ticketPrice) },
-    { label: "Drawing", value: game.eventDoorsOpenTime || undefined },
+    { label: "Drawing", value: drawingWhen || undefined },
     game.eventVenue && { label: "Venue", value: game.eventVenue },
   ].filter((s) => s && s.value);
 
