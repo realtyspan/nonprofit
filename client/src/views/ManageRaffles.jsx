@@ -43,6 +43,23 @@ export default function ManageRaffles({ games, gameId, onGamesChanged, permissio
     }
   }
 
+  // Independent of active/closed above — whether this raffle currently
+  // appears on the public Activities feed. Mirrors Tournaments' own
+  // publish/unpublish.
+  async function togglePublish(game) {
+    setLifecycleBusy(true);
+    setLifecycleError("");
+    try {
+      if (game.published) await api.unpublishRaffleGame(game.id);
+      else await api.publishRaffleGame(game.id);
+      onGamesChanged();
+    } catch (err) {
+      setLifecycleError(err.message);
+    } finally {
+      setLifecycleBusy(false);
+    }
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <AdminAccessNotice permissions={permissions} moduleKey="raffle" moduleLabel="Raffle" itemLabel="a raffle" />
@@ -53,14 +70,24 @@ export default function ManageRaffles({ games, gameId, onGamesChanged, permissio
             <div style={{ fontSize: 15, fontWeight: 700 }}>
               {selectedGame.name} — tickets #{selectedGame.startNumber}–#{selectedGame.endNumber}
             </div>
-            <span style={pill(selectedGame.status === "active" ? colors.successBg : "#f1ece0", selectedGame.status === "active" ? colors.success : colors.textSecondary)}>
-              {selectedGame.status}
-            </span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <span style={pill(selectedGame.status === "active" ? colors.successBg : "#f1ece0", selectedGame.status === "active" ? colors.success : colors.textSecondary)}>
+                {selectedGame.status}
+              </span>
+              <span style={pill(selectedGame.published ? colors.successBg : "#f1ece0", selectedGame.published ? colors.success : colors.textSecondary)}>
+                {selectedGame.published ? "Published" : "Unpublished"}
+              </span>
+            </div>
           </div>
           <div style={{ fontSize: 12, color: colors.textSecondary }}>
             {selectedGame.status === "active"
               ? "Closing stops new sales, drawings, and check-ins for this raffle. Its tickets and history stay fully visible for reporting. Other raffles are unaffected."
               : "Reopening allows new sales, drawings, and check-ins for this raffle again."}
+          </div>
+          <div style={{ fontSize: 12, color: colors.textSecondary }}>
+            {selectedGame.published
+              ? "Showing on your public Activities feed. Unpublish to pull it down without closing ticket sales."
+              : "Not on your public Activities feed — nobody sees this raffle there until you publish it."}
           </div>
           <div style={{ fontSize: 12, color: colors.textSecondary }}>
             Buyer history source:{" "}
@@ -75,7 +102,7 @@ export default function ManageRaffles({ games, gameId, onGamesChanged, permissio
             {selectedGame.eventDoorsOpenTime ? ` · Doors open ${selectedGame.eventDoorsOpenTime}` : ""}
           </div>
           {lifecycleError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{lifecycleError}</div>}
-          <div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
               style={!isAdmin ? button.disabled : selectedGame.status === "active" ? { ...button.ghost, color: colors.danger } : button.primary}
               disabled={lifecycleBusy || !isAdmin}
@@ -84,6 +111,16 @@ export default function ManageRaffles({ games, gameId, onGamesChanged, permissio
             >
               {lifecycleBusy ? "Working…" : selectedGame.status === "active" ? "Close raffle" : "Reopen raffle"}
             </button>
+            {selectedGame.status === "active" && (
+              <button
+                style={!isAdmin ? button.disabled : button.ghost}
+                disabled={lifecycleBusy || !isAdmin}
+                title={!isAdmin ? "Only a Raffle Admin can publish or unpublish a raffle" : ""}
+                onClick={() => togglePublish(selectedGame)}
+              >
+                {lifecycleBusy ? "Working…" : selectedGame.published ? "Unpublish" : "Publish"}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -103,11 +140,13 @@ export default function ManageRaffles({ games, gameId, onGamesChanged, permissio
             { key: "price", label: "Price", grid: "1fr", render: (g) => money(g.ticketPrice) },
             { key: "dates", label: "Dates", grid: "1fr", render: (g) => <span style={{ fontSize: 12, color: colors.textSecondary }}>{formatUtcDate(g.raffleStartDate)} – {formatUtcDate(g.raffleEndDate)}</span> },
             { key: "status", label: "Status", grid: "0.6fr", render: (g) => <span style={pill(g.status === "active" ? colors.successBg : "#f1ece0", g.status === "active" ? colors.success : colors.textSecondary)}>{g.status}</span> },
+            { key: "published", label: "Activities", grid: "0.7fr", render: (g) => <span style={pill(g.published ? colors.successBg : "#f1ece0", g.published ? colors.success : colors.textSecondary)}>{g.published ? "Published" : "Unpublished"}</span> },
             {
               key: "actions", label: "", footerRow: true,
               render: (g) => g.status === "active" ? (
                 <div style={{ display: "flex", gap: 6 }}>
                   <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={!isAdmin} title={!isAdmin ? "Only a Raffle Admin can edit a raffle" : ""} onClick={() => setEditingGame(g)}>Edit</button>
+                  <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={!isAdmin || lifecycleBusy} title={!isAdmin ? "Only a Raffle Admin can publish or unpublish a raffle" : ""} onClick={() => togglePublish(g)}>{g.published ? "Unpublish" : "Publish"}</button>
                   <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12, color: colors.danger }} disabled={!isAdmin} title={!isAdmin ? "Only a Raffle Admin can delete a raffle" : ""} onClick={() => setDeletingGame(g)}>Delete</button>
                 </div>
               ) : null,
@@ -120,7 +159,7 @@ export default function ManageRaffles({ games, gameId, onGamesChanged, permissio
         <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{games.length === 0 ? "Start your first raffle" : "Start another raffle"}</div>
           <div style={{ fontSize: 12.5, color: colors.textSecondary }}>
-            Creating a new raffle never touches any other raffle — you can run more than one at the same time, each with its own ticket numbering, price, and dates.
+            Creating a new raffle never touches any other raffle — you can run more than one at the same time, each with its own ticket numbering, price, and dates. It starts unpublished (not on your public Activities feed) so you can set it up before anyone sees it — publish it from the list below when it's ready.
           </div>
           <div>
             <button

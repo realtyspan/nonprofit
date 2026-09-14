@@ -760,6 +760,16 @@ model RaffleGame {
   raffleEndDate      DateTime // closing date / final drawing
   status             String       @default("active") // active | closed
   closedAt           DateTime?
+  // Whether this raffle currently appears on the public Activities feed —
+  // independent of `status` above, which gates ticket sales/draws, not
+  // visibility. Mirrors Tournament's draft/open distinction (see
+  // Tournament.status and its /publish, /unpublish routes). DB default
+  // stays true so every already-existing raffle (across every org) keeps
+  // showing exactly as it did before this field existed; a brand-new
+  // raffle is explicitly created with published: false instead (see
+  // raffle.js's POST /games) so it can be built privately and published
+  // when ready, same as a new Tournament starts in draft.
+  published          Boolean      @default(true)
   estimatedExpenses  Float        @default(0) // rough non-prize-expense planning number the chairman can set anytime, for an early compliance projection before real RaffleExpense rows exist — not part of the official GC-7R math once actuals are entered
   isHistorical       Boolean      @default(false) // true for a past-years CSV import kept only to power the "past buyers" lookup — hidden from the live game switcher and every operational raffle screen
   admitsPerTicket    Int          @default(1) // how many guests one ticket admits to the drawing event — printed/emailed as "good for N guests" (this raffle's physical ticket says "entitles 2 persons to attend")
@@ -836,7 +846,7 @@ model RaffleLog {
   org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   gameId           String
   game             RaffleGame   @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  type             String // sold | reserved | funds_received | released | reassigned | drawing | checkin | reminder_sent | email_sent | game_started | game_closed | game_reopened
+  type             String // sold | reserved | funds_received | released | reassigned | drawing | checkin | reminder_sent | email_sent | game_started | game_closed | game_reopened | game_published | game_unpublished
   text             String
   sellerName       String       @default("")
   ticketNumber     Int?
