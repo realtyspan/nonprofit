@@ -2,7 +2,7 @@ const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess, requireOwner } = require("../lib/auth");
 const { normalizeEmail, findOrCreatePlayer, registerTeam, addLog } = require("../lib/tournamentLogic");
-const { stripe, createExpressAccount, createOnboardingLink } = require("../lib/stripe");
+const { stripe, createStandardAccount, createOnboardingLink } = require("../lib/stripe");
 const { buildTournamentFlyerPdf, resolveTournamentFlyerUrl } = require("../lib/tournamentFlyerPdf");
 const { tournamentKickoffEmailHtml } = require("../lib/tournamentKickoffEmail");
 const { tournamentSponsorEmailHtml } = require("../lib/tournamentSponsorEmail");
@@ -84,7 +84,7 @@ router.post("/stripe-connect/onboard", requireOwnerOrTournamentsAdmin, async (re
   let connect = await prisma.orgStripeConnect.findUnique({ where: { orgId: req.user.orgId } });
 
   if (!connect?.stripeAccountId) {
-    const account = await createExpressAccount({ email: org.contactEmail, orgName: org.name });
+    const account = await createStandardAccount({ email: org.contactEmail, orgName: org.name });
     try {
       connect = await prisma.orgStripeConnect.upsert({
         where: { orgId: req.user.orgId },

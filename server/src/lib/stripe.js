@@ -33,15 +33,19 @@ const PRICE_AMOUNTS = {
   annual: 390,
 };
 
-// Golf Stripe Connect: Express accounts, direct charges. The platform takes
-// no fee and must never touch a connected org's player payments even
-// transiently, so this runs on the platform's own Stripe account/key (same
-// client as above) purely to create/manage the connected account — actual
-// charges are made directly against the connected account via the
-// `{ stripeAccount: acctId }` request option, elsewhere.
-async function createExpressAccount({ email, orgName }) {
+// Golf/Tournament Stripe Connect: Standard accounts, direct charges. The
+// connected org has its own real Stripe account and is the merchant of
+// record and the liable party for its own disputes/refunds/negative
+// balance — the platform is never on the hook for a connected org's losses,
+// unlike Express/Custom. The platform takes no fee and must never touch a
+// connected org's player payments even transiently, so this runs on the
+// platform's own Stripe account/key (same client as above) purely to
+// create/manage the connected account — actual charges are made directly
+// against the connected account via the `{ stripeAccount: acctId }` request
+// option, elsewhere.
+async function createStandardAccount({ email, orgName }) {
   return stripe.accounts.create({
-    type: "express",
+    type: "standard",
     email: email || undefined,
     business_profile: { name: orgName },
     capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
@@ -57,4 +61,4 @@ async function createOnboardingLink(accountId, { refreshUrl, returnUrl }) {
   });
 }
 
-module.exports = { stripe, PRICE_IDS, PRICE_AMOUNTS, createExpressAccount, createOnboardingLink };
+module.exports = { stripe, PRICE_IDS, PRICE_AMOUNTS, createStandardAccount, createOnboardingLink };

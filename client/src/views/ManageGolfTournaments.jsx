@@ -186,9 +186,9 @@ export default function ManageGolfTournaments({ tournaments, tournamentId, onTou
 // client/src/views/MarketingGolf.jsx (the new Marketing tab).
 
 // Org-wide (not per-tournament) — one connected Stripe account covers every
-// tournament this org ever runs. Express account + direct charges, so the
-// connected account (not this platform) is the merchant of record; see plan
-// doc for why. Onboarding happens on Stripe's own hosted page — clicking
+// tournament this org ever runs. Standard account + direct charges, so the
+// connected account (not this platform) is the merchant of record and bears
+// its own liability. Onboarding happens on Stripe's own hosted page — clicking
 // "Connect Stripe" redirects there immediately rather than copy-pasting a
 // link, since the org admin is the one clicking through, not someone else.
 function StripeConnectCard() {

@@ -4,7 +4,7 @@ const { requireAuth, loadPermissions, requirePermission, requireReadAccess, requ
 const { normalizeEmail, findOrCreatePlayer, registerTeam, addGolfLog } = require("../lib/golfLogic");
 const { readWorkbookRows, interpretPlayerRows, interpretSponsorRows, RECOMMENDED_PLAYER_FORMAT, RECOMMENDED_SPONSOR_FORMAT } = require("../lib/golfHistoricalImport");
 const { extractPlayersFromRows, extractSponsorsFromRows } = require("../lib/golfHistoricalImportAi");
-const { stripe, createExpressAccount, createOnboardingLink } = require("../lib/stripe");
+const { stripe, createStandardAccount, createOnboardingLink } = require("../lib/stripe");
 const { decodeDataUrl } = require("../lib/dataUrl");
 const { buildGolfFlyerPdf } = require("../lib/golfFlyerPdf");
 const { golfKickoffEmailHtml } = require("../lib/golfKickoffEmail");
@@ -72,10 +72,10 @@ router.param("sponsorshipId", async (req, res, next, sponsorshipId) => {
 });
 
 // --- Stripe Connect (org-wide, not tournament-scoped) ---
-// Express account + direct charges — see plan doc for why (Stripe hosts the
-// whole KYC flow for a volunteer treasurer; direct charges make the
-// connected account the merchant of record so the platform never touches
-// player money, even transiently).
+// Standard account + direct charges — the connected account is its own real
+// Stripe account and the merchant of record, liable for its own disputes/
+// refunds/negative balance (not the platform); direct charges mean the
+// platform never touches player money, even transiently.
 
 router.get("/stripe-connect", requireOwnerOrGolfAdmin, async (req, res) => {
   const connect = await prisma.orgStripeConnect.findUnique({ where: { orgId: req.user.orgId } });
@@ -87,7 +87,7 @@ router.post("/stripe-connect/onboard", requireOwnerOrGolfAdmin, async (req, res)
   let connect = await prisma.orgStripeConnect.findUnique({ where: { orgId: req.user.orgId } });
 
   if (!connect?.stripeAccountId) {
-    const account = await createExpressAccount({ email: org.contactEmail, orgName: org.name });
+    const account = await createStandardAccount({ email: org.contactEmail, orgName: org.name });
     try {
       connect = await prisma.orgStripeConnect.upsert({
         where: { orgId: req.user.orgId },
