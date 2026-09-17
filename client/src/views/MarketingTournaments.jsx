@@ -6,6 +6,7 @@ import { hasModuleTier } from "../lib/modules";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
 import PublicLinkBox from "../components/PublicLinkBox";
+import FlyerPreviewModal from "../components/FlyerPreviewModal";
 
 // Tournaments' marketing tools — direct port of MarketingGolf.jsx,
 // generalized off "golf." Same relocation out of ManageTournaments.jsx as
@@ -16,13 +17,14 @@ export default function MarketingTournaments({ tournament, permissions }) {
   const isAdmin = hasModuleTier(permissions, "tournaments", "Admin");
   const [flyerBusy, setFlyerBusy] = useState(false);
   const [flyerError, setFlyerError] = useState("");
+  const [previewFlyer, setPreviewFlyer] = useState(null);
   const [showFlyerColors, setShowFlyerColors] = useState(false);
 
   async function downloadFlyer() {
     setFlyerBusy(true);
     setFlyerError("");
     try {
-      await api.downloadTournamentFlyerPdf(tournament.id, tournament.name);
+      setPreviewFlyer(await api.downloadTournamentFlyerPdf(tournament.id, tournament.name));
     } catch (err) {
       setFlyerError(err.message);
     } finally {
@@ -45,7 +47,7 @@ export default function MarketingTournaments({ tournament, permissions }) {
           {flyerError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{flyerError}</div>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button style={button.secondary} disabled={flyerBusy} onClick={downloadFlyer}>
-              {flyerBusy ? "Generating…" : "Download flyer (PDF)"}
+              {flyerBusy ? "Opening…" : "Preview flyer (PDF)"}
             </button>
             <button style={button.ghost} onClick={() => setShowFlyerColors((s) => !s)}>{showFlyerColors ? "Hide flyer colors" : "Flyer colors"}</button>
           </div>
@@ -63,6 +65,8 @@ export default function MarketingTournaments({ tournament, permissions }) {
       )}
 
       <InterestSignupsCard />
+
+      {previewFlyer && <FlyerPreviewModal flyer={previewFlyer} onClose={() => setPreviewFlyer(null)} />}
     </div>
   );
 }

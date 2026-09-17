@@ -69,6 +69,32 @@ async function download(path, filename) {
   URL.revokeObjectURL(url);
 }
 
+// Fetches a binary (PDF) response as a blob URL for the caller to show in
+// an in-page preview (see FlyerPreviewModal) instead of an immediate silent
+// save like download() above — used for flyers specifically, where the
+// point is visually checking the design/content before deciding to keep
+// it. Deliberately NOT window.open()/a target="_blank": both are subject to
+// the browser's popup blocker once they happen after an await (the fetch
+// has to finish first, so by the time there's a blob to show, it's no
+// longer inside the click handler's synchronous call stack that a popup
+// blocker will trust) — a real risk for any admin who has popups blocked
+// broadly, not an edge case. An in-page modal has no such failure mode.
+// Caller owns the returned URL's lifetime and must URL.revokeObjectURL it
+// when the preview closes (FlyerPreviewModal does this).
+async function fetchPdfPreview(path, filename) {
+  const headers = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE}${path}`, { headers });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Request failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  return { url: URL.createObjectURL(blob), filename };
+}
+
 export const api = {
   login: (email, password) => request("/auth/login", { method: "POST", body: { email, password } }),
   signupOrg: (payload) => request("/auth/signup-org", { method: "POST", body: payload }),
@@ -201,7 +227,7 @@ export const api = {
   reopenRaffleGame: (gameId) => request(`/raffle/games/${gameId}/reopen`, { method: "POST" }),
   publishRaffleGame: (gameId) => request(`/raffle/games/${gameId}/publish`, { method: "POST" }),
   unpublishRaffleGame: (gameId) => request(`/raffle/games/${gameId}/unpublish`, { method: "POST" }),
-  downloadRaffleFlyerPdf: (gameId, gameName) => download(`/raffle/games/${gameId}/flyer`, `${(gameName || "Raffle").replace(/\s+/g, "_")}_Flyer.pdf`),
+  downloadRaffleFlyerPdf: (gameId, gameName) => fetchPdfPreview(`/raffle/games/${gameId}/flyer`, `${(gameName || "Raffle").replace(/\s+/g, "_")}_Flyer.pdf`),
 
   getRaffleKickoffEmail: (gameId) => request(`/raffle/games/${gameId}/kickoff-email`),
   getRaffleKickoffRecipients: (gameId) => request(`/raffle/games/${gameId}/kickoff-email/recipients`),
@@ -266,7 +292,7 @@ export const api = {
   closeGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}/close`, { method: "POST" }),
   reopenGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}/reopen`, { method: "POST" }),
   listGolfLog: (tournamentId) => request(`/golf/tournaments/${tournamentId}/log`),
-  downloadGolfFlyerPdf: (tournamentId, tournamentName) => download(`/golf/tournaments/${tournamentId}/flyer`, `${(tournamentName || "Tournament").replace(/\s+/g, "_")}_Flyer.pdf`),
+  downloadGolfFlyerPdf: (tournamentId, tournamentName) => fetchPdfPreview(`/golf/tournaments/${tournamentId}/flyer`, `${(tournamentName || "Tournament").replace(/\s+/g, "_")}_Flyer.pdf`),
 
   getGolfKickoffEmail: (tournamentId) => request(`/golf/tournaments/${tournamentId}/kickoff-email`),
   getGolfKickoffRecipients: (tournamentId) => request(`/golf/tournaments/${tournamentId}/kickoff-email/recipients`),
@@ -364,7 +390,7 @@ export const api = {
   reopenTournament: (tournamentId) => request(`/tournaments/${tournamentId}/reopen`, { method: "POST" }),
   unpublishTournament: (tournamentId) => request(`/tournaments/${tournamentId}/unpublish`, { method: "POST" }),
   listTournamentLog: (tournamentId) => request(`/tournaments/${tournamentId}/log`),
-  downloadTournamentFlyerPdf: (tournamentId, tournamentName) => download(`/tournaments/${tournamentId}/flyer`, `${(tournamentName || "Tournament").replace(/\s+/g, "_")}_Flyer.pdf`),
+  downloadTournamentFlyerPdf: (tournamentId, tournamentName) => fetchPdfPreview(`/tournaments/${tournamentId}/flyer`, `${(tournamentName || "Tournament").replace(/\s+/g, "_")}_Flyer.pdf`),
 
   listTournamentTeams: (tournamentId) => request(`/tournaments/${tournamentId}/teams`),
   createTournamentTeam: (tournamentId, payload) => request(`/tournaments/${tournamentId}/teams`, { method: "POST", body: payload }),
@@ -428,7 +454,7 @@ export const api = {
   unpublishEvent: (eventId) => request(`/events/${eventId}/unpublish`, { method: "POST" }),
   cancelEvent: (eventId) => request(`/events/${eventId}/cancel`, { method: "POST" }),
   deleteEvent: (eventId) => request(`/events/${eventId}`, { method: "DELETE" }),
-  downloadEventFlyerPdf: (eventId, eventTitle) => download(`/events/${eventId}/flyer`, `${(eventTitle || "Event").replace(/\s+/g, "_")}_Flyer.pdf`),
+  downloadEventFlyerPdf: (eventId, eventTitle) => fetchPdfPreview(`/events/${eventId}/flyer`, `${(eventTitle || "Event").replace(/\s+/g, "_")}_Flyer.pdf`),
   listEventInterestSignups: () => request("/events/interest-signups"),
   setEventInterestSignupContacted: (id, contacted) => request(`/events/interest-signups/${id}`, { method: "PATCH", body: { contacted } }),
   listEventReservations: (eventId) => request(`/events/${eventId}/reservations`),

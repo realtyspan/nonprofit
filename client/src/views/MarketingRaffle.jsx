@@ -5,6 +5,7 @@ import { formatPhone } from "../lib/phone";
 import { hasModuleTier } from "../lib/modules";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
+import FlyerPreviewModal from "../components/FlyerPreviewModal";
 
 // Raffle's marketing tools — relocated wholesale out of ManageRaffles.jsx
 // into the Marketing tab. No PublicLinkBox here: raffle has no public
@@ -44,6 +45,7 @@ export default function MarketingRaffle({ game, permissions }) {
 function FlyerCard({ game, isAdmin }) {
   const [flyerBusy, setFlyerBusy] = useState(false);
   const [flyerError, setFlyerError] = useState("");
+  const [previewFlyer, setPreviewFlyer] = useState(null);
   const [destination, setDestination] = useState("");
   const [activitiesUrl, setActivitiesUrl] = useState(null);
   const [destInput, setDestInput] = useState("");
@@ -63,7 +65,7 @@ function FlyerCard({ game, isAdmin }) {
     setFlyerBusy(true);
     setFlyerError("");
     try {
-      await api.downloadRaffleFlyerPdf(game.id, game.name);
+      setPreviewFlyer(await api.downloadRaffleFlyerPdf(game.id, game.name));
     } catch (err) {
       setFlyerError(err.message);
     } finally {
@@ -87,6 +89,7 @@ function FlyerCard({ game, isAdmin }) {
   }
 
   return (
+    <>
     <div style={{ ...card, display: "flex", flexDirection: "column", gap: 10 }}>
       <div>
         <div style={{ fontSize: 15, fontWeight: 700 }}>Flyer — "{game.name}"</div>
@@ -95,7 +98,7 @@ function FlyerCard({ game, isAdmin }) {
         </div>
       </div>
       {flyerError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{flyerError}</div>}
-      <div><button style={button.secondary} disabled={flyerBusy} onClick={downloadFlyer}>{flyerBusy ? "Generating…" : "Download flyer (PDF)"}</button></div>
+      <div><button style={button.secondary} disabled={flyerBusy} onClick={downloadFlyer}>{flyerBusy ? "Opening…" : "Preview flyer (PDF)"}</button></div>
 
       <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
         <div style={{ fontSize: 12.5, fontWeight: 700 }}>Where did you put this?</div>
@@ -119,6 +122,8 @@ function FlyerCard({ game, isAdmin }) {
         {destError && <div style={{ color: colors.danger, fontSize: 12.5 }}>{destError}</div>}
       </div>
     </div>
+    {previewFlyer && <FlyerPreviewModal flyer={previewFlyer} onClose={() => setPreviewFlyer(null)} />}
+    </>
   );
 }
 

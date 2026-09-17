@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { formatPhone } from "../lib/phone";
 import DataList from "../components/DataList";
 import PublicLinkBox from "../components/PublicLinkBox";
+import FlyerPreviewModal from "../components/FlyerPreviewModal";
 
 // Events' marketing tools — public link/embed plus a per-event flyer
 // download — relocated out of ManageEvents.jsx into the Marketing tab.
@@ -16,6 +17,7 @@ export default function MarketingEvents() {
   const [loaded, setLoaded] = useState(false);
   const [flyerBusyId, setFlyerBusyId] = useState(null);
   const [flyerError, setFlyerError] = useState("");
+  const [previewFlyer, setPreviewFlyer] = useState(null);
 
   useEffect(() => {
     api.listEvents().then((rows) => { setEvents(rows); setLoaded(true); }).catch(() => setLoaded(true));
@@ -25,7 +27,7 @@ export default function MarketingEvents() {
     setFlyerBusyId(event.id);
     setFlyerError("");
     try {
-      await api.downloadEventFlyerPdf(event.id, event.title);
+      setPreviewFlyer(await api.downloadEventFlyerPdf(event.id, event.title));
     } catch (err) {
       setFlyerError(err.message);
     } finally {
@@ -45,7 +47,7 @@ export default function MarketingEvents() {
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "14px 18px", borderBottom: `1px solid ${colors.borderLight}` }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>Flyers</div>
-          <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>Download a printable flyer for any event.</div>
+          <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>Preview a printable flyer for any event before saving or printing it.</div>
         </div>
 
         {flyerError && <div style={{ padding: "10px 18px 0", color: colors.danger, fontSize: 12.5, fontWeight: 600 }}>{flyerError}</div>}
@@ -74,7 +76,7 @@ export default function MarketingEvents() {
                   const flyerBusy = flyerBusyId === e.id;
                   return (
                     <button style={{ ...button.ghost, padding: "5px 10px", fontSize: 12 }} disabled={flyerBusy} onClick={() => downloadFlyer(e)}>
-                      {flyerBusy ? "Preparing…" : "Download flyer"}
+                      {flyerBusy ? "Opening…" : "Preview flyer"}
                     </button>
                   );
                 },
@@ -85,6 +87,8 @@ export default function MarketingEvents() {
       </div>
 
       <InterestSignupsCard />
+
+      {previewFlyer && <FlyerPreviewModal flyer={previewFlyer} onClose={() => setPreviewFlyer(null)} />}
     </div>
   );
 }
