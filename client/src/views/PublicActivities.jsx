@@ -24,7 +24,12 @@ const PAC_CSS = `
   --pac-text: ${colors.textPrimary};
   --pac-text-secondary: ${colors.textSecondary};
   --pac-accent: ${colors.accent};
-  --pac-accent-bg: ${colors.accentSoft};
+  /* Derived from --pac-accent (not a fixed color) so it follows the org's
+     own chosen accent when pacStyleVars overrides --pac-accent below — a
+     light tint of *their* color, not this app's own internal teal. Mirrors
+     EventVisual.jsx's .evt-pill/.evt-side-row.selected, which already do
+     this inline; --pac-accent-bg just names it once for reuse here. */
+  --pac-accent-bg: color-mix(in srgb, var(--pac-accent) 14%, white);
   font-family: "Inter", system-ui, -apple-system, sans-serif;
   background: var(--pac-bg);
   color: var(--pac-text);

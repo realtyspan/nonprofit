@@ -30,6 +30,14 @@ export const EVENT_EXTRA_CSS = `
 .evt-description strong, .evt-description b { font-weight: 700; color: var(--evt-ink); }
 .evt-about-photo { flex: none; width: 220px; border-radius: var(--evt-radius-sm); overflow: hidden; }
 .evt-about-photo img { width: 100%; height: 100%; object-fit: cover; }
+/* TournamentVisual.jsx's shared .evt-section (also on this row) sets
+   flex-direction: column as its own default — this row needs the opposite,
+   description and photo side by side, so it has to say so explicitly rather
+   than relying on the inline display:flex style, which never touched
+   flex-direction and so left .evt-section's column in charge at every
+   width. Only the narrow-phone media query below should ever put it back
+   to column. */
+.evt-about-row { flex-direction: row; }
 .evt-btn-secondary {
   display: inline-flex; align-items: center; justify-content: center; gap: 9px;
   padding: 13px 29px; border-radius: var(--evt-radius-sm);
@@ -42,7 +50,17 @@ export const EVENT_EXTRA_CSS = `
 .evt-btn-secondary:disabled { opacity: .6; cursor: default; }
 .evt-reservations-closed { font-size: 12.5px; color: var(--evt-ink-muted); }
 
-@media (max-width: 780px) {
+/* Its own breakpoint, deliberately narrower than the 780px one
+   PublicEvents.jsx/PublicActivities.jsx use to stack their whole
+   sidebar-vs-content layout — that page-level breakpoint is about a
+   sidebar fitting next to the main column, but by the time it's already
+   fired, the About row has the *full* page width to itself again (no
+   sidebar competing for room). Reusing 780px here anyway meant this row
+   stacked well before it had to: description + the photo's fixed 220px +
+   32px gap comfortably fits in a much narrower row than that, so this
+   only stacks once the row is actually too tight for it, on real phone
+   widths — not on a mid-size embedded iframe. */
+@media (max-width: 460px) {
   .evt-about-row { flex-direction: column; }
   .evt-about-photo { width: 100%; aspect-ratio: 16/9; }
 }
