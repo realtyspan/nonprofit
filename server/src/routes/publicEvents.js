@@ -30,7 +30,7 @@ router.get("/:slug", async (req, res) => {
     select: {
       slug: true, title: true, shortTitle: true, tagline: true, description: true,
       location: true, startAt: true, endAt: true, allDay: true, recurrenceLabel: true,
-      heroImage: true, secondaryImage: true, price: true, priceUnit: true, payUrl: true, sellsRaffleTickets: true,
+      heroImage: true, heroImagePosition: true, secondaryImage: true, price: true, priceUnit: true, payUrl: true, sellsRaffleTickets: true,
       reservePhone: true, contactName: true, contactEmail: true, statusNote: true, admissionNote: true, includesHeading: true, includes: true,
       scheduleItems: true,
       reservationsEnabled: true, reservationDeadline: true, offersTakeout: true,

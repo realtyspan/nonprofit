@@ -64,11 +64,15 @@ export function EventVisual({ event, notice }) {
   // one, otherwise Charity Pulse's own default event graphic, same fallback
   // convention Golf already uses for a tournament with no flyer image.
   const heroImage = event.heroImage || defaultHeroImage;
+  // Only the org's own upload has a crop choice to honor — the platform
+  // default graphic is pre-framed to sit centered, same as before this field
+  // existed. Mirrors TournamentVisual.jsx's own flyerImagePosition handling.
+  const heroPosition = event.heroImage ? (event.heroImagePosition || "center") : "center";
 
   return (
     <>
       <div className="evt-hero">
-        <img className="evt-hero-img" src={heroImage} alt="" />
+        <img className="evt-hero-img" src={heroImage} alt="" style={{ objectPosition: `center ${heroPosition}` }} />
         <div className="evt-hero-scrim" />
         <div className="evt-hero-text">
           <h2 className="evt-title">{event.title}</h2>

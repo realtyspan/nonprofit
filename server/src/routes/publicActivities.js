@@ -52,7 +52,7 @@ const TOURNAMENT_DETAIL_FIELDS = { ...GOLF_TOURNAMENT_DETAIL_FIELDS };
 
 const EVENT_DETAIL_FIELDS = {
   id: true, slug: true, title: true, tagline: true, description: true, location: true,
-  startAt: true, endAt: true, allDay: true, heroImage: true, secondaryImage: true,
+  startAt: true, endAt: true, allDay: true, heroImage: true, heroImagePosition: true, secondaryImage: true,
   price: true, priceUnit: true, payUrl: true, sellsRaffleTickets: true, reservePhone: true, statusNote: true,
   contactName: true, contactEmail: true,
   admissionNote: true, includesHeading: true, includes: true, recurrenceLabel: true,

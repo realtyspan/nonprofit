@@ -296,6 +296,7 @@ function EventModal({ event, onCancel, onSaved }) {
     allDay: event.allDay || false,
     recurrenceLabel: event.recurrenceLabel || "",
     heroImage: event.heroImage || "",
+    heroImagePosition: event.heroImagePosition || "center",
     secondaryImage: event.secondaryImage || "",
     price: event.price || "",
     priceUnit: event.priceUnit || "",
@@ -398,7 +399,11 @@ function EventModal({ event, onCancel, onSaved }) {
 
         <Section title="Photos">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
-            <EventPhotoField label="Hero photo (optional)" hint="Shown large at the top of the event page." image={form.heroImage} maxDim={1400} aspect="4/3" onChange={(img) => set("heroImage", img)} />
+            <EventPhotoField
+              label="Hero photo (optional)" hint="Shown large at the top of the event page and flyer."
+              image={form.heroImage} maxDim={1400} aspect="3/1" onChange={(img) => set("heroImage", img)}
+              position={form.heroImagePosition} onPositionChange={(pos) => set("heroImagePosition", pos)}
+            />
             <EventPhotoField label="Second photo (optional)" hint="Shown beside the description." image={form.secondaryImage} maxDim={1200} aspect="1/1" onChange={(img) => set("secondaryImage", img)} />
           </div>
         </Section>
@@ -513,7 +518,20 @@ function EventModal({ event, onCancel, onSaved }) {
   );
 }
 
-function EventPhotoField({ label, hint, image, maxDim, aspect, onChange }) {
+const EVENT_PHOTO_POSITIONS = [
+  { value: "top", label: "Top" },
+  { value: "center", label: "Center" },
+  { value: "bottom", label: "Bottom" },
+];
+
+// position/onPositionChange are only passed for the hero photo — it's the
+// one forced into a fixed-height wide band (event page hero + flyer PDF, see
+// EventVisual.jsx and eventFlyerPdf.js), so a tall or off-center photo can
+// get its top cropped off there even though this field's own preview (a
+// wider 3:1 box, closer to that real band shape than the old 4:3) looks
+// fine — the position picker is how the admin corrects that. The second
+// photo isn't forced into any fixed band, so it never needs this.
+function EventPhotoField({ label, hint, image, maxDim, aspect, onChange, position, onPositionChange }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -543,8 +561,25 @@ function EventPhotoField({ label, hint, image, maxDim, aspect, onChange }) {
       {image && (
         <img
           src={image} alt=""
-          style={{ width: "100%", aspectRatio: aspect, objectFit: "cover", borderRadius: 8, border: `1px solid ${colors.border}` }}
+          style={{ width: "100%", aspectRatio: aspect, objectFit: "cover", objectPosition: onPositionChange ? `center ${position || "center"}` : "center", borderRadius: 8, border: `1px solid ${colors.border}` }}
         />
+      )}
+      {image && onPositionChange && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 11, color: colors.textSecondary }}>Crop position:</span>
+          {EVENT_PHOTO_POSITIONS.map((p) => (
+            <button
+              key={p.value} type="button"
+              style={{
+                ...button.ghost, padding: "4px 10px", fontSize: 11.5,
+                ...(position === p.value || (!position && p.value === "center") ? { background: colors.indigoBg, borderColor: colors.accent, color: colors.accent } : {}),
+              }}
+              onClick={() => onPositionChange(p.value)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       )}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <label style={{ cursor: "pointer" }}>

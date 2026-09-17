@@ -20,6 +20,11 @@ router.use(async (req, res, next) => {
 // step already targets.
 const MAX_EVENT_IMAGE_CHARS = 600000;
 
+// Same three-way vertical crop anchor as golf.js/tournaments.js's own
+// FLYER_IMAGE_POSITIONS — kept as a local const per that same convention
+// rather than a shared lib export.
+const HERO_IMAGE_POSITIONS = ["top", "center", "bottom"];
+
 function cleanIncludes(items) {
   if (!Array.isArray(items)) return null;
   const cleaned = items.map((s) => String(s || "").trim()).filter(Boolean);
@@ -61,7 +66,7 @@ async function uniqueSlug(orgId, title) {
 function resolveEventFields(body) {
   const {
     title, tagline, description, location, startAt, endAt, allDay,
-    shortTitle, recurrenceLabel, heroImage, secondaryImage,
+    shortTitle, recurrenceLabel, heroImage, heroImagePosition, secondaryImage,
     price, priceUnit, payUrl, sellsRaffleTickets, reservePhone, contactName, contactEmail, statusNote, admissionNote,
     includesHeading, includes, scheduleItems,
     reservationsEnabled, reservationDeadline, offersTakeout,
@@ -98,6 +103,7 @@ function resolveEventFields(body) {
     allDay: !!allDay,
     recurrenceLabel: recurrenceLabel?.trim() || null,
     heroImage: heroImage || null,
+    heroImagePosition: HERO_IMAGE_POSITIONS.includes(heroImagePosition) ? heroImagePosition : "center",
     secondaryImage: secondaryImage || null,
     price: price?.trim ? price.trim() || null : price || null,
     priceUnit: priceUnit?.trim() || null,

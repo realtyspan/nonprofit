@@ -630,6 +630,7 @@ model Event {
   allDay          Boolean      @default(false)
   recurrenceLabel String? // cosmetic display text only, e.g. "Monthly · Second Saturday" — not a real recurrence; each Event is a single occurrence
   heroImage       String? // base64 data URL, capped server-side — see events.js's MAX_EVENT_IMAGE_CHARS
+  heroImagePosition String     @default("center") // top | center | bottom — where the flyer/embed hero band's fixed-height crop is vertically anchored; mirrors GolfTournament/Tournament's flyerImagePosition
   secondaryImage  String? // base64 data URL, capped server-side, same as heroImage
   price           String? // plain text, not a number — e.g. "$25" or "Ticket holders"; rendered verbatim
   priceUnit       String? // e.g. "per meal · cash or card"

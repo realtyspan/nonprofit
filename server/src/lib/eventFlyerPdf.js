@@ -75,6 +75,7 @@ async function buildEventRecordFlyerPdf({ org, event, flyerUrl }) {
     eventName: event.title,
     subLine,
     heroImage: event.heroImage || null,
+    heroImagePosition: event.heroImagePosition || "center",
     secondaryImage: event.secondaryImage || null,
     description: event.description || null,
     statusNote: event.statusNote || null,

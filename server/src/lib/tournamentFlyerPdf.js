@@ -55,6 +55,7 @@ async function buildTournamentFlyerPdf({ org, tournament, type, flyerUrl }) {
     eventName: tournament.name,
     subLine: subParts.join(" · "),
     heroImage: tournament.flyerImage || null,
+    heroImagePosition: tournament.flyerImagePosition || "center",
     date: tournament.date,
     stats,
     includedItems: tournament.includedItems || [],

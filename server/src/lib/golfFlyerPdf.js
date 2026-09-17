@@ -219,6 +219,7 @@ async function embedFlyerImage(doc, dataUrl) {
 //   eventName,                       // hero headline
 //   subLine,                         // tagline / one-liner under the headline
 //   heroImage, secondaryImage,       // optional base64 data URLs — hero fills the top band; secondary is an inset beside the description
+//   heroImagePosition,               // optional "top" | "center" | "bottom" — vertical crop anchor for the hero band (default "center")
 //   date,                            // Date | ISO string — drives the corner date tab
 //   dateTimeZone,                    // optional IANA zone the date tab's day is read in (default UTC — for a bare calendar day; events pass their org zone since their date is a real instant)
 //   statusNote,                      // optional — highlighted bar under the stat row
@@ -283,16 +284,24 @@ async function buildEventFlyerPdf(content) {
 
   let heroBottom;
   if (heroImg) {
-    // Photo hero: fixed-height band, image scaled to cover and centre-cropped.
-    // pdf-lib has no clip path, so vertical overflow is masked by re-painting
-    // the cream page below the band; horizontal overflow just clips at the
-    // page edge.
+    // Photo hero: fixed-height band, image scaled to cover and cropped per
+    // content.heroImagePosition ("top" | "center" | "bottom", default
+    // "center") — same three-way anchor as the website embed's CSS
+    // object-position (see PublicGolf.jsx), just computed in PDF points
+    // instead of a CSS keyword. pdf-lib has no clip path, so vertical
+    // overflow is masked by re-painting the cream page below the band;
+    // horizontal overflow just clips at the page edge.
     const HERO_H = 238;
     heroBottom = PAGE.height - HERO_H;
     const s = Math.max(PAGE.width / heroImg.width, HERO_H / heroImg.height);
     const dw = heroImg.width * s;
     const dh = heroImg.height * s;
-    page.drawImage(heroImg, { x: (PAGE.width - dw) / 2, y: heroBottom - (dh - HERO_H) / 2, width: dw, height: dh });
+    const excess = dh - HERO_H; // how much of the scaled image's height falls outside the band
+    let y;
+    if (content.heroImagePosition === "top") y = PAGE.height - dh; // show the image's top edge — crop excess off the bottom
+    else if (content.heroImagePosition === "bottom") y = heroBottom; // show the image's bottom edge — crop excess off the top
+    else y = heroBottom - excess / 2; // center — crop evenly off both edges
+    page.drawImage(heroImg, { x: (PAGE.width - dw) / 2, y, width: dw, height: dh });
     page.drawRectangle({ x: 0, y: 0, width: PAGE.width, height: heroBottom, color: NEUTRAL.cream });
     // Darkening scrim toward the bottom, where the overlaid text sits —
     // pdf-lib has no gradient. Each band runs from its own top edge all the
@@ -642,6 +651,7 @@ async function buildGolfFlyerPdf({ org, tournament, registerUrl }) {
     eventName: tournament.name,
     subLine: subParts.join(" · "),
     heroImage: tournament.flyerImage || null,
+    heroImagePosition: tournament.flyerImagePosition || "center",
     date: tournament.date,
     stats,
     includedItems: tournament.includedItems || [],
