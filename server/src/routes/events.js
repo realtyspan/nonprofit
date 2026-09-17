@@ -3,6 +3,7 @@ const prisma = require("../lib/prisma");
 const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = require("../lib/auth");
 const { publishEvent, removeCalendarEventFor } = require("../lib/calendarSync");
 const { buildEventRecordFlyerPdf, resolveEventFlyerUrl } = require("../lib/eventFlyerPdf");
+const { sanitizeDescriptionHtml } = require("../lib/richText");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -96,7 +97,10 @@ function resolveEventFields(body) {
     title: title.trim(),
     shortTitle: shortTitle?.trim() || null,
     tagline: tagline?.trim() || null,
-    description: description?.trim() || null,
+    // sanitized here (not just constrained by the editor's own toolbar) —
+    // this is the real trust boundary, since a direct API call bypasses the
+    // editor entirely, and this HTML renders on the event's public page.
+    description: sanitizeDescriptionHtml(description),
     location: location?.trim() || null,
     startAt: parsedStart,
     endAt: parsedEnd,

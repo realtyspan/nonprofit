@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { colors, card, pill, button, input as inputStyle } from "../lib/tokens";
 import { api } from "../lib/api";
 import { resizeImageFile } from "../lib/imageResize";
@@ -479,9 +479,7 @@ function EventModal({ event, onCancel, onSaved }) {
             <button type="button" style={{ ...button.ghost, padding: "6px 10px", fontSize: 12, alignSelf: "flex-start" }} onClick={addScheduleItem}>+ Add schedule item</button>
             <span style={{ fontSize: 11, color: colors.textSecondary }}>Time is optional — leave it blank for an item with no fixed time. Shows as a timeline under "When" on the public page and the flyer.</span>
           </div>
-          <Field label="Description">
-            <textarea style={{ ...inputStyle, minHeight: 90, fontFamily: "inherit" }} value={form.description} onChange={(e) => set("description", e.target.value)} />
-          </Field>
+          <DescriptionField value={form.description} onChange={(html) => set("description", html)} />
         </Section>
 
         <Section title="Reservations">
@@ -596,6 +594,60 @@ function EventPhotoField({ label, hint, image, maxDim, aspect, onChange, positio
       </div>
       {error && <div style={{ color: colors.danger, fontSize: 11.5 }}>{error}</div>}
     </div>
+  );
+}
+
+// "Light formatting" per the request this came from — bold + bullet points
+// only, matching what the flyer PDF can actually reproduce (see
+// richText.js/golfFlyerPdf.js's rich description rendering; italic is left
+// out because the PDF has no italic font face loaded, so it'd look right
+// here and silently render upright on the printed flyer). A plain
+// contentEditable + document.execCommand rather than a real editor
+// library — the formatting surface is intentionally this small.
+//
+// The contentEditable div is deliberately uncontrolled after mount
+// (initialHtml is captured once via useRef and never updates the DOM from
+// React again) — feeding value back in as a live controlled prop would
+// reset the DOM on every keystroke and throw the cursor to the start.
+// onChange still fires on every input so form.description always has the
+// latest HTML for submission; the div's own DOM is just never told to
+// "catch up" to it.
+function DescriptionField({ value, onChange }) {
+  const ref = useRef(null);
+  const initialHtml = useRef(value || "");
+
+  function exec(command) {
+    ref.current.focus();
+    document.execCommand(command, false, null);
+    onChange(ref.current.innerHTML);
+  }
+
+  return (
+    <Field label="Description">
+      <div style={{ display: "flex", gap: 6 }}>
+        <button
+          type="button" title="Bold" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("bold")}
+          style={{ ...button.ghost, padding: "4px 11px", fontSize: 12.5, fontWeight: 700 }}
+        >
+          B
+        </button>
+        <button
+          type="button" title="Bullet list" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("insertUnorderedList")}
+          style={{ ...button.ghost, padding: "4px 11px", fontSize: 12.5 }}
+        >
+          • List
+        </button>
+      </div>
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        onFocus={() => document.execCommand("defaultParagraphSeparator", false, "p")}
+        onInput={() => onChange(ref.current.innerHTML)}
+        dangerouslySetInnerHTML={{ __html: initialHtml.current }}
+        style={{ ...inputStyle, minHeight: 90, padding: "8px 10px", lineHeight: 1.5, cursor: "text" }}
+      />
+    </Field>
   );
 }
 

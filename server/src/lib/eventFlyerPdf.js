@@ -5,6 +5,7 @@
 // its own mapping.").
 const { buildEventFlyerPdf } = require("./golfFlyerPdf");
 const { formatPhone } = require("./phone");
+const { plainTextToHtml, looksLikeHtml } = require("./richText");
 
 // Wherever the org has actually told us this event's public page lives:
 // their own external website (PublicLinkBox's "Where did you put this?"
@@ -77,7 +78,14 @@ async function buildEventRecordFlyerPdf({ org, event, flyerUrl }) {
     heroImage: event.heroImage || null,
     heroImagePosition: event.heroImagePosition || "center",
     secondaryImage: event.secondaryImage || null,
-    description: event.description || null,
+    // buildEventFlyerPdf's description parser expects well-formed minimal
+    // HTML (or null) — true for anything saved through the new rich-text
+    // editor (sanitized on save, see events.js), but a row saved before
+    // that feature existed is plain text with no tags at all, which
+    // plainTextToHtml escapes and paragraph-wraps into the same shape
+    // rather than risk a stray "<" in old freeform text being misread as a
+    // tag.
+    description: looksLikeHtml(event.description) ? event.description : plainTextToHtml(event.description),
     statusNote: event.statusNote || null,
     date: event.startAt,
     dateTimeZone: timeZone, // event dates are real instants — read the calendar day in the org's zone, not UTC

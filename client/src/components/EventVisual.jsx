@@ -21,7 +21,13 @@ export const EVENT_EXTRA_CSS = `
   border-radius: 999px; padding: 5px 12px; font-size: 11px; font-weight: 700;
   letter-spacing: .02em;
 }
-.evt-description { font-size: 14.5px; line-height: 1.65; color: var(--evt-ink-2); white-space: pre-wrap; }
+.evt-description { font-size: 14.5px; line-height: 1.65; color: var(--evt-ink-2); }
+.evt-description p { margin: 0 0 10px; white-space: pre-wrap; }
+.evt-description p:last-child { margin-bottom: 0; }
+.evt-description ul, .evt-description ol { margin: 0 0 10px; padding-left: 1.3em; }
+.evt-description ul:last-child, .evt-description ol:last-child { margin-bottom: 0; }
+.evt-description li { margin-bottom: 3px; }
+.evt-description strong, .evt-description b { font-weight: 700; color: var(--evt-ink); }
 .evt-about-photo { flex: none; width: 220px; border-radius: var(--evt-radius-sm); overflow: hidden; }
 .evt-about-photo img { width: 100%; height: 100%; object-fit: cover; }
 .evt-btn-secondary {
@@ -118,7 +124,9 @@ export function EventVisual({ event, notice }) {
 
         {(event.description || event.secondaryImage) && (
           <div className="evt-section evt-about-row" style={{ display: "flex", gap: 32, alignItems: "flex-start" }}>
-            {event.description && <p className="evt-description" style={{ flex: 1, minWidth: 0 }}>{event.description}</p>}
+            {event.description && (
+              <div className="evt-description" style={{ flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: event.description }} />
+            )}
             {event.secondaryImage && (
               <div className="evt-about-photo"><img src={event.secondaryImage} alt="" /></div>
             )}

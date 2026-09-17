@@ -28,6 +28,7 @@ const fontkit = require("@pdf-lib/fontkit");
 const QRCode = require("qrcode");
 const { formatPhone } = require("./phone");
 const { decodeDataUrl } = require("./dataUrl");
+const { parseDescriptionBlocks } = require("./richText");
 
 const FONT_DIR = path.join(__dirname, "../../templates/fonts");
 const FONT_FILES = {
@@ -190,6 +191,71 @@ function fitWrapped(font, text, maxWidth, sizes, maxLines) {
   return { lines, size, lineHeight: size * 1.05 };
 }
 
+// Word-wraps parsed description blocks (see richText.js's
+// parseDescriptionBlocks) into visual lines that can mix the regular and
+// bold fonts on the same line — plain wrapText only ever draws one font
+// per call, which can't represent "some words in this sentence are bold".
+// Each returned line is { tokens: [{text, font}], indent, bullet,
+// gapBefore } — drawAbout below walks a line's tokens left to right,
+// advancing x by each token's own measured width, and adds a little extra
+// vertical space before a line marked gapBefore (the first line of a new
+// paragraph/list item after the first).
+function wrapRichBlocks(blocks, { regularFont, boldFont, size, maxWidth, bulletIndent = 14 }) {
+  const lines = [];
+  blocks.forEach((block, blockIndex) => {
+    const isBullet = block.type === "li";
+    const indent = isBullet ? bulletIndent : 0;
+    const availWidth = Math.max(20, maxWidth - indent);
+    let tokens = [];
+    let width = 0;
+    let firstLineOfBlock = true;
+
+    function flush() {
+      lines.push({ tokens, indent, bullet: isBullet && firstLineOfBlock, gapBefore: firstLineOfBlock && blockIndex > 0 });
+      firstLineOfBlock = false;
+      tokens = [];
+      width = 0;
+    }
+
+    for (const run of block.runs) {
+      if (run.break) { flush(); continue; }
+      const font = run.bold ? boldFont : regularFont;
+      const parts = run.text.split(/(\s+)/).filter((p) => p !== "");
+      for (const part of parts) {
+        const isSpace = /^\s+$/.test(part);
+        const w = font.widthOfTextAtSize(part, size);
+        if (!isSpace && tokens.length && width + w > availWidth) flush();
+        if (isSpace && tokens.length === 0) continue; // never start a wrapped line with a leading space
+        tokens.push({ text: part, font });
+        width += w;
+      }
+    }
+    flush(); // always end the block on its own line, even one left empty (e.g. a blank bullet)
+  });
+  return lines;
+}
+
+// Same job as fitWrapped's own tail — when descMaxLines cuts a rich
+// description short, shrink the last kept line's last token(s) until an
+// appended "…" fits, rather than let it run past maxWidth.
+function ellipsizeRichLine(line, size, maxWidth, fallbackFont) {
+  const availWidth = Math.max(20, maxWidth - line.indent);
+  const tokens = line.tokens.map((t) => ({ ...t }));
+  function widthWithEllipsis() {
+    const base = tokens.reduce((s, t) => s + t.font.widthOfTextAtSize(t.text, size), 0);
+    const ellipsisFont = tokens.length ? tokens[tokens.length - 1].font : fallbackFont;
+    return base + ellipsisFont.widthOfTextAtSize("…", size);
+  }
+  while (tokens.length && widthWithEllipsis() > availWidth) {
+    const last = tokens[tokens.length - 1];
+    if (last.text.length <= 1) tokens.pop();
+    else last.text = last.text.slice(0, -1);
+  }
+  if (tokens.length) tokens[tokens.length - 1].text += "…";
+  else tokens.push({ text: "…", font: fallbackFont });
+  line.tokens = tokens;
+}
+
 function loadFonts() {
   const bytes = {};
   for (const [key, file] of Object.entries(FONT_FILES)) {
@@ -224,7 +290,7 @@ async function embedFlyerImage(doc, dataUrl) {
 //   dateTimeZone,                    // optional IANA zone the date tab's day is read in (default UTC — for a bare calendar day; events pass their org zone since their date is a real instant)
 //   statusNote,                      // optional — highlighted bar under the stat row
 //   stats: [{ label, value }],       // up to 3, e.g. Time/Location/Price
-//   description,                     // optional prose block
+//   description,                     // optional prose block — well-formed minimal HTML (<p>/<br>/<strong>/<b>/<ul>/<ol>/<li> only, see richText.js's parseDescriptionBlocks) or null; Golf/Tournament never set this today
 //   includedItems: string[],
 //   includedItemsHeading,             // optional — defaults to "What's Included"
 //   ctaEyebrow, ctaHeadline,          // optional — default to golf's "REGISTER YOUR TEAM" / "SCAN TO SIGN UP"
@@ -378,16 +444,29 @@ async function buildEventFlyerPdf(content) {
   let y2 = tabY - 14;
   const stats = (content.stats || []).filter((s) => s.value);
   if (stats.length) {
-    const rowH = 44;
     const colW = contentW / stats.length;
+    // Most values (a price, a time range) fit one line at 12.5pt — but a
+    // street address routinely doesn't, and truncating it with an ellipsis
+    // (the old behavior) silently drops the city/state/zip. So each cell
+    // wraps to up to 2 lines, stepping down a size first if that still
+    // doesn't fit; the row's height then grows to fit whichever cell needs
+    // the most room, so every column stays the same height as the tallest.
+    const VALUE_SIZES = [12.5, 11];
+    const statCells = stats.map((s) => fitWrapped(interBold, s.value, colW - 24, VALUE_SIZES, 2));
+    // 32 = distance from the row's top to the first value line's baseline
+    // (label + its gap); 12 = bottom padding after the last value line —
+    // together these reproduce the old fixed 44 exactly when there's just
+    // one line, and grow only for a cell that actually wrapped to two.
+    const rowH = Math.max(44, ...statCells.map((c) => 32 + (c.lines.length - 1) * c.lineHeight + 12));
     page.drawRectangle({ x: MARGIN, y: y2 - rowH, width: contentW, height: rowH, borderWidth: 1, borderColor: NEUTRAL.line, color: NEUTRAL.white });
     stats.forEach((s, i) => {
       const cx = MARGIN + colW * i;
       if (i > 0) page.drawLine({ start: { x: cx, y: y2 - rowH }, end: { x: cx, y: y2 }, thickness: 1, color: NEUTRAL.line });
       page.drawText(s.label.toUpperCase(), { x: cx + 12, y: y2 - 16, size: 8, font: interBold, color: NEUTRAL.inkFaint });
-      const valSize = 12.5;
-      const fitVal = fitWrapped(interBold, s.value, colW - 24, [valSize], 1).lines[0];
-      page.drawText(fitVal, { x: cx + 12, y: y2 - 32, size: valSize, font: interBold, color: NEUTRAL.ink });
+      const cell = statCells[i];
+      cell.lines.forEach((ln, li) => {
+        page.drawText(ln, { x: cx + 12, y: y2 - 32 - li * cell.lineHeight, size: cell.size, font: interBold, color: NEUTRAL.ink });
+      });
     });
     y2 -= rowH + 16;
   } else {
@@ -421,7 +500,10 @@ async function buildEventFlyerPdf(content) {
   const bodyBottomY = footerH + ctaBandH + 20;
 
   const secondaryImg = await embedFlyerImage(doc, content.secondaryImage);
-  const hasAbout = !!(content.description && content.description.trim());
+  // Parsed once (not per planBody attempt below) — content.description is
+  // sanitized HTML by the time it gets here (see richText.js), or null.
+  const descriptionBlocks = parseDescriptionBlocks(content.description);
+  const hasAbout = descriptionBlocks.some((b) => b.runs.some((r) => r.text));
   const includedItems = (content.includedItems || []).filter(Boolean);
   const scheduleItems = (content.scheduleItems || []).filter((s) => s && (s.label || s.time));
   const hasContact = !!(content.contactName || content.contactPhone || content.contactEmail);
@@ -446,18 +528,19 @@ async function buildEventFlyerPdf(content) {
     if (hasAbout && descMaxLines > 0) {
       const withImg = keepSecondary && !!secondaryImg;
       const textW = withImg ? Math.round(contentW * 0.56) : contentW;
-      let lines = wrapText(interRegular, bs, content.description.trim(), textW);
-      if (lines.length > descMaxLines) {
-        lines = lines.slice(0, descMaxLines);
-        lines[lines.length - 1] = ellipsize(interRegular, lines[lines.length - 1], bs, textW);
+      let richLines = wrapRichBlocks(descriptionBlocks, { regularFont: interRegular, boldFont: interBold, size: bs, maxWidth: textW });
+      if (richLines.length > descMaxLines) {
+        richLines = richLines.slice(0, descMaxLines);
+        ellipsizeRichLine(richLines[richLines.length - 1], bs, textW, interRegular);
       }
-      const textH = lines.length * lh;
+      const gapH = lh * 0.35;
+      const textH = richLines.reduce((h, ln) => h + lh + (ln.gapBefore ? gapH : 0), 0);
       let imgW = 0, imgH = 0;
       if (withImg) {
         imgW = Math.round(contentW * 0.4);
         imgH = Math.min(Math.round(imgW * (secondaryImg.height / secondaryImg.width)), Math.max(textH, 96), 150);
       }
-      blocks.push({ type: "about", h: headingH + Math.max(textH, imgH), lines, bs, lh, headingH, withImg, imgW, imgH });
+      blocks.push({ type: "about", h: headingH + Math.max(textH, imgH), richLines, bs, lh, gapH, headingH, withImg, imgW, imgH });
     }
 
     const inc = includedItems.slice(0, listCap);
@@ -503,8 +586,18 @@ async function buildEventFlyerPdf(content) {
   function drawAbout(b, top) {
     drawSectionHeading(page, "About This Event", MARGIN, top - 8, interBold, theme.primaryDeep);
     const startY = top - b.headingH;
-    b.lines.forEach((ln, i) => {
-      page.drawText(ln, { x: MARGIN, y: startY - b.bs - i * b.lh, size: b.bs, font: interRegular, color: NEUTRAL.inkSoft });
+    let y = startY - b.bs;
+    b.richLines.forEach((ln) => {
+      if (ln.gapBefore) y -= b.gapH;
+      if (ln.bullet) {
+        page.drawText("•", { x: MARGIN, y, size: b.bs, font: interBold, color: theme.primaryDeep });
+      }
+      let x = MARGIN + ln.indent;
+      ln.tokens.forEach((t) => {
+        page.drawText(t.text, { x, y, size: b.bs, font: t.font, color: NEUTRAL.inkSoft });
+        x += t.font.widthOfTextAtSize(t.text, b.bs);
+      });
+      y -= b.lh;
     });
     if (b.withImg) {
       page.drawImage(secondaryImg, { x: MARGIN + contentW - b.imgW, y: startY - b.imgH, width: b.imgW, height: b.imgH });
