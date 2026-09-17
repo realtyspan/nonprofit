@@ -582,6 +582,7 @@ model CalendarEvent {
   orgId           String
   org             Organization        @relation(fields: [orgId], references: [id])
   title           String
+  shortTitle      String? // compact label for narrow-context listings (the Activities embed's row list) — only ever set for source "event", where Event.shortTitle exists; every other source leaves this null and those views fall back to title
   description     String?
   location        String? // freeform — off-site address, or blank/implied "at the lodge"
   linkUrl         String? // link back to a related website/page (flyer, signup form, event page)

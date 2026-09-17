@@ -29,7 +29,7 @@ router.get("/:slug", async (req, res) => {
 
   const activities = await prisma.calendarEvent.findMany({
     where: { orgId: org.id, visibility: "public", source: { in: ACTIVITY_SOURCES }, recurrenceId: null, endAt: { gte: new Date() } },
-    select: { id: true, title: true, description: true, location: true, linkUrl: true, startAt: true, endAt: true, allDay: true, source: true, sourceId: true },
+    select: { id: true, title: true, shortTitle: true, description: true, location: true, linkUrl: true, startAt: true, endAt: true, allDay: true, source: true, sourceId: true },
     orderBy: { startAt: "asc" },
     take: MAX_ACTIVITIES,
   });

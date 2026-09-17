@@ -52,6 +52,7 @@ async function publishEvent(orgId, event, org) {
   const appUrl = process.env.APP_URL || "http://localhost:5173";
   const data = {
     title: event.title,
+    shortTitle: event.shortTitle || null,
     description: event.tagline || event.description || null,
     location: event.location || null,
     startAt: event.startAt,

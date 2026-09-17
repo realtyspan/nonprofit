@@ -249,7 +249,7 @@ export default function PublicActivities({ slug, embed }) {
                     <div className="pac-row-day">{day}</div>
                   </div>
                   <div className="pac-row-body">
-                    <div className="pac-row-title">{a.title}</div>
+                    <div className="pac-row-title">{a.shortTitle || a.title}</div>
                     {SOURCE_LABELS[a.source] && <div className="pac-badge">{SOURCE_LABELS[a.source]}</div>}
                     {a.location && <div className="pac-row-meta">{a.location}</div>}
                   </div>
