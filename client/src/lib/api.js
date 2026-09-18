@@ -283,72 +283,6 @@ export const api = {
 
   sendRaffleReminders: (gameId) => request(`/raffle/games/${gameId}/reminders/send`, { method: "POST" }),
 
-  listGolfTournaments: () => request("/golf/tournaments"),
-  createGolfTournament: (payload) => request("/golf/tournaments", { method: "POST", body: payload }),
-  getGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}`),
-  updateGolfTournament: (tournamentId, payload) => request(`/golf/tournaments/${tournamentId}`, { method: "PATCH", body: payload }),
-  deleteGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}`, { method: "DELETE" }),
-  openGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}/open`, { method: "POST" }),
-  closeGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}/close`, { method: "POST" }),
-  reopenGolfTournament: (tournamentId) => request(`/golf/tournaments/${tournamentId}/reopen`, { method: "POST" }),
-  listGolfLog: (tournamentId) => request(`/golf/tournaments/${tournamentId}/log`),
-  downloadGolfFlyerPdf: (tournamentId, tournamentName) => fetchPdfPreview(`/golf/tournaments/${tournamentId}/flyer`, `${(tournamentName || "Tournament").replace(/\s+/g, "_")}_Flyer.pdf`),
-
-  getGolfKickoffEmail: (tournamentId) => request(`/golf/tournaments/${tournamentId}/kickoff-email`),
-  getGolfKickoffRecipients: (tournamentId) => request(`/golf/tournaments/${tournamentId}/kickoff-email/recipients`),
-  sendGolfKickoffEmail: (tournamentId) => request(`/golf/tournaments/${tournamentId}/kickoff-email/send`, { method: "POST" }),
-  sendGolfKickoffTestEmail: (tournamentId, email) => request(`/golf/tournaments/${tournamentId}/kickoff-email/send-test`, { method: "POST", body: { email } }),
-
-  getGolfSponsorEmail: (tournamentId) => request(`/golf/tournaments/${tournamentId}/sponsor-email`),
-  getGolfSponsorEmailRecipients: (tournamentId) => request(`/golf/tournaments/${tournamentId}/sponsor-email/recipients`),
-  sendGolfSponsorEmail: (tournamentId) => request(`/golf/tournaments/${tournamentId}/sponsor-email/send`, { method: "POST" }),
-  sendGolfSponsorTestEmail: (tournamentId, email) => request(`/golf/tournaments/${tournamentId}/sponsor-email/send-test`, { method: "POST", body: { email } }),
-
-  getGolfUnsubscribeInfo: (token) => request(`/public/golf/unsubscribe-info?token=${encodeURIComponent(token)}`),
-  confirmGolfUnsubscribe: (token) => request("/public/golf/unsubscribe", { method: "POST", body: { token } }),
-
-  listGolfTeams: (tournamentId) => request(`/golf/tournaments/${tournamentId}/teams`),
-  createGolfTeam: (tournamentId, payload) => request(`/golf/tournaments/${tournamentId}/teams`, { method: "POST", body: payload }),
-  updateGolfTeam: (tournamentId, teamId, payload) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}`, { method: "PATCH", body: payload }),
-  deleteGolfTeam: (tournamentId, teamId) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}`, { method: "DELETE" }),
-  addGolfTeamPlayer: (tournamentId, teamId, payload) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}/players`, { method: "POST", body: payload }),
-  updateGolfTeamPlayer: (tournamentId, teamId, teamPlayerId, payload) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}/players/${teamPlayerId}`, { method: "PATCH", body: payload }),
-  removeGolfTeamPlayer: (tournamentId, teamId, teamPlayerId) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}/players/${teamPlayerId}`, { method: "DELETE" }),
-  markGolfTeamPaid: (tournamentId, teamId, payload) => request(`/golf/tournaments/${tournamentId}/teams/${teamId}/mark-paid`, { method: "POST", body: payload }),
-  getGolfStats: (tournamentId) => request(`/golf/tournaments/${tournamentId}/stats`),
-  searchGolfPlayers: (search) => request(`/golf/players?search=${encodeURIComponent(search)}`),
-  listGolfPlayers: () => request("/golf/players"),
-  updateGolfPlayer: (playerId, payload) => request(`/golf/players/${playerId}`, { method: "PATCH", body: payload }),
-
-  searchGolfCheckIn: (tournamentId) => request(`/golf/tournaments/${tournamentId}/checkin-search`),
-  listGolfCheckIns: (tournamentId) => request(`/golf/tournaments/${tournamentId}/checkins`),
-  toggleGolfCheckIn: (tournamentId, teamPlayerId) => request(`/golf/tournaments/${tournamentId}/checkins/${teamPlayerId}`, { method: "POST" }),
-
-  listGolfSponsorships: (tournamentId) => request(`/golf/tournaments/${tournamentId}/sponsorships`),
-  createGolfSponsorship: (tournamentId, payload) => request(`/golf/tournaments/${tournamentId}/sponsorships`, { method: "POST", body: payload }),
-  updateGolfSponsorship: (tournamentId, sponsorshipId, payload) => request(`/golf/tournaments/${tournamentId}/sponsorships/${sponsorshipId}`, { method: "PATCH", body: payload }),
-  deleteGolfSponsorship: (tournamentId, sponsorshipId) => request(`/golf/tournaments/${tournamentId}/sponsorships/${sponsorshipId}`, { method: "DELETE" }),
-  confirmGolfSponsorship: (tournamentId, sponsorshipId) => request(`/golf/tournaments/${tournamentId}/sponsorships/${sponsorshipId}/confirm`, { method: "POST" }),
-  searchGolfSponsors: (search) => request(`/golf/sponsors?search=${encodeURIComponent(search)}`),
-  listGolfSponsorDirectory: () => request("/golf/sponsors"),
-  updateGolfSponsorContact: (sponsorId, payload) => request(`/golf/sponsors/${sponsorId}`, { method: "PATCH", body: payload }),
-
-  listGolfHistoricalImports: () => request("/golf/historical-imports"),
-  interpretGolfHistoricalPlayers: (payload) => request("/golf/historical-imports/players/interpret", { method: "POST", body: payload }),
-  interpretGolfHistoricalSponsors: (payload) => request("/golf/historical-imports/sponsors/interpret", { method: "POST", body: payload }),
-  importGolfHistoricalPlayers: (payload) => request("/golf/historical-imports/players", { method: "POST", body: payload }),
-  importGolfHistoricalSponsors: (payload) => request("/golf/historical-imports/sponsors", { method: "POST", body: payload }),
-  updateGolfHistoricalImport: (id, payload) => request(`/golf/historical-imports/${id}`, { method: "PATCH", body: payload }),
-  deleteGolfHistoricalImport: (id) => request(`/golf/historical-imports/${id}`, { method: "DELETE" }),
-
-  getGolfStripeConnect: () => request("/golf/stripe-connect"),
-  onboardGolfStripeConnect: () => request("/golf/stripe-connect/onboard", { method: "POST" }),
-  syncGolfStripeConnect: () => request("/golf/stripe-connect/sync", { method: "POST" }),
-  disconnectGolfStripeConnect: () => request("/golf/stripe-connect", { method: "DELETE" }),
-
-  listGolfInterestSignups: () => request("/golf/interest-signups"),
-  setGolfInterestSignupContacted: (id, contacted) => request(`/golf/interest-signups/${id}`, { method: "PATCH", body: { contacted } }),
-
   generateFrsReport: (file, fileName) => request("/elks-tools/frs-report", { method: "POST", body: { file, fileName } }),
   listFrsReportRuns: () => request("/elks-tools/frs-report/runs"),
   downloadFrsReportSource: (id, filename) => download(`/elks-tools/frs-report/runs/${id}/source-file`, filename),
@@ -527,12 +461,6 @@ export const publicApi = {
     if (!res.ok) throw new Error(data.error || "Request failed");
     return data;
   },
-  async getGolfPage(slug) {
-    const res = await fetch(`/api/public/golf/${slug}`);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Not found");
-    return data;
-  },
   async getTournamentsIndexPage(orgSlug) {
     const res = await fetch(`/api/public/tournaments/${orgSlug}`);
     const data = await res.json().catch(() => ({}));
@@ -611,77 +539,6 @@ export const publicApi = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Request failed");
-    return data;
-  },
-  // Always resolves (never throws) — a failed lookup should feel identical
-  // to a plain no-match on the registration form, not surface as an error.
-  async lookupGolfPlayer(slug, payload) {
-    try {
-      const res = await fetch(`/api/public/golf/${slug}/lookup-player`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json().catch(() => ({}));
-      return { name: data.name || "" };
-    } catch {
-      return { name: "" };
-    }
-  },
-  async registerGolfTeam(slug, tournamentId, payload) {
-    const res = await fetch(`/api/public/golf/${slug}/tournaments/${tournamentId}/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Registration failed");
-    return data;
-  },
-  async submitGolfInterest(slug, payload) {
-    const res = await fetch(`/api/public/golf/${slug}/interest`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Request failed");
-    return data;
-  },
-  async getGolfTeamForPay(slug, tournamentId, teamId) {
-    const res = await fetch(`/api/public/golf/${slug}/tournaments/${tournamentId}/teams/${teamId}`);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Not found");
-    return data;
-  },
-  async payForGolfTeam(slug, tournamentId, teamId, payload) {
-    const res = await fetch(`/api/public/golf/${slug}/tournaments/${tournamentId}/teams/${teamId}/pay`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Request failed");
-    return data;
-  },
-  async syncGolfPayment(slug, tournamentId, teamId, sessionId) {
-    const res = await fetch(`/api/public/golf/${slug}/tournaments/${tournamentId}/teams/${teamId}/pay/sync`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Request failed");
-    return data;
-  },
-  async cancelGolfPayment(slug, tournamentId, teamId, sessionId) {
-    const res = await fetch(`/api/public/golf/${slug}/tournaments/${tournamentId}/teams/${teamId}/pay/cancel`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Request failed");

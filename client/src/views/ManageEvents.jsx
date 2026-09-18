@@ -644,7 +644,7 @@ function EventPhotoField({ label, hint, image, maxDim, aspect, onChange, positio
 
 // "Light formatting" per the request this came from — bold + bullet points
 // only, matching what the flyer PDF can actually reproduce (see
-// richText.js/golfFlyerPdf.js's rich description rendering; italic is left
+// richText.js/flyerPdf.js's rich description rendering; italic is left
 // out because the PDF has no italic font face loaded, so it'd look right
 // here and silently render upright on the printed flyer). A plain
 // contentEditable + document.execCommand rather than a real editor

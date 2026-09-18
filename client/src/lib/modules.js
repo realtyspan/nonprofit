@@ -59,21 +59,6 @@ export const MODULES = [
     ],
   },
   {
-    key: "golf",
-    label: "Golf Tournament",
-    icon: icons.flag,
-    blurb: "Annual golf tournament fundraiser · Registration, roster & payment",
-    navItems: [
-      { key: "manage", label: "Tournaments", icon: icons.layers, title: "Tournaments", subtitle: "Start, edit, open, close, or reopen a tournament", requiresTier: "Admin" },
-      { key: "players", label: "All Players", icon: icons.users, title: "All Players", subtitle: "Every player on file, across every tournament — for marketing and outreach" },
-      { key: "sponsor-directory", label: "All Sponsors", icon: icons.bank, title: "All Sponsors", subtitle: "Every sponsor on file, across every tournament — for marketing and outreach" },
-      { key: "roster", label: "Tournament Roster", icon: icons.users, title: "Tournament Roster", subtitle: "Register teams, track payments, and comp entries via sponsorships" },
-      { key: "sponsors", label: "Tournament Sponsors", icon: icons.bank, title: "Tournament Sponsors", subtitle: "Track sponsorships and confirm inquiries" },
-      { key: "checkin", label: "Check-In", icon: icons.checkCircle, title: "Check-In", subtitle: "Check in players on tournament day" },
-      { key: "log", label: "Activity Log", icon: icons.fileCheck, title: "Activity Log", subtitle: "Every registration, payment, and check-in, in order" },
-    ],
-  },
-  {
     key: "tournaments",
     label: "Tournaments",
     icon: icons.trophy,
@@ -106,9 +91,8 @@ export const MODULES = [
     // of its source modules (see visibleIfAnyOf handling in
     // filterModulesForUser below). Each sub-item below is further gated to
     // its own module's grant via moduleKey + filterNavItemsForUser.
-    visibleIfAnyOf: ["golf", "tournaments", "raffle", "rentals", "calendar", "events"],
+    visibleIfAnyOf: ["tournaments", "raffle", "rentals", "calendar", "events"],
     navItems: [
-      { key: "golf", moduleKey: "golf", requiresTier: "Viewer", label: "Golf Tournament", icon: icons.flag, title: "Golf Tournament Marketing", subtitle: "Public link, embed, flyer, and marketing emails" },
       { key: "tournaments", moduleKey: "tournaments", requiresTier: "Viewer", label: "Tournaments", icon: icons.trophy, title: "Tournaments Marketing", subtitle: "Public link, embed, flyer, and marketing emails" },
       { key: "raffle", moduleKey: "raffle", requiresTier: "Viewer", label: "Raffle", icon: icons.ticket, title: "Raffle Marketing", subtitle: "Season-kickoff email to past buyers" },
       { key: "rentals", moduleKey: "rentals", requiresTier: "Viewer", label: "Rental Space", icon: icons.key, title: "Rental Space Marketing", subtitle: "Public link and website embed" },

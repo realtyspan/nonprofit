@@ -72,9 +72,9 @@ export default function MarketingTournaments({ tournament, permissions }) {
 }
 
 // Org-wide (not per-tournament) — the two brand colors a generated flyer
-// draws with. Shared with Golf's own flyer (same org.flyerPrimaryColor/
-// flyerAccentColor fields) — setting them here also affects Golf's flyer,
-// which is expected: it's one org identity, not a per-module setting.
+// draws with. The same org.flyerPrimaryColor/flyerAccentColor fields every
+// flyer-printing module uses (Events, Raffle too) — one org identity, not a
+// per-module setting.
 function FlyerColorsCard() {
   const [colorsForm, setColorsForm] = useState({ primary: "", accent: "" });
   const [busy, setBusy] = useState(false);

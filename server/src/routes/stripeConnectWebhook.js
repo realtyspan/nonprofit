@@ -7,7 +7,6 @@
 // Mounted in index.js with express.raw(), same as stripeWebhook.js.
 const prisma = require("../lib/prisma");
 const { stripe } = require("../lib/stripe");
-const { addGolfLog, markGolfCheckoutSessionPaid, revertGolfCheckoutSession } = require("../lib/golfLogic");
 const { addLog: addTournamentLog, markCheckoutSessionPaid: markTournamentCheckoutSessionPaid, revertCheckoutSession: revertTournamentCheckoutSession } = require("../lib/tournamentLogic");
 
 function onboardingStatusFor(account) {
@@ -57,27 +56,17 @@ async function stripeConnectWebhookHandler(req, res) {
         });
         break;
       }
-      // The authoritative backstop for golf- and tournament- pay-page
-      // checkouts — the client's own /pay/sync and /pay/cancel calls race
-      // to handle the same outcome for instant feedback on return, but
-      // this is what catches anyone who closes the tab before either of
-      // those ever fires. A given session belongs to exactly one of Golf's
-      // or Tournaments' own tables, keyed by stripeCheckoutSessionId — both
+      // The authoritative backstop for tournament pay-page checkouts — the
+      // client's own /pay/sync and /pay/cancel calls race to handle the same
+      // outcome for instant feedback on return, but this is what catches
+      // anyone who closes the tab before either of those ever fires. The
       // mark/revert helpers are guarded on paymentStatus: "pending" and
-      // return {count: 0} when the session isn't one of theirs, so trying
-      // both here (and running the same outcome twice from client+webhook)
-      // is always a safe, documented no-op.
+      // return {count: 0} for a session that isn't a tournament's, so
+      // running the same outcome twice (client + webhook) is always a safe,
+      // documented no-op.
       case "checkout.session.completed": {
         const session = event.data.object;
         if (session.payment_status === "paid") {
-          const golfResult = await markGolfCheckoutSessionPaid(session.id, { paymentIntentId: session.payment_intent });
-          if (golfResult.count > 0) {
-            await addGolfLog(golfResult.orgId, golfResult.tournamentId, {
-              type: "payment_recorded",
-              text: `${golfResult.count} player(s) paid online via Stripe`,
-              teamId: golfResult.teamId,
-            });
-          }
           const tournamentResult = await markTournamentCheckoutSessionPaid(session.id, { paymentIntentId: session.payment_intent });
           if (tournamentResult.count > 0) {
             await addTournamentLog(tournamentResult.orgId, tournamentResult.tournamentId, {
@@ -94,14 +83,6 @@ async function stripeConnectWebhookHandler(req, res) {
         // explicitly canceled — reverts it the same way /pay/cancel does,
         // so an abandoned attempt doesn't leave a team stuck showing
         // "pending" indefinitely.
-        const golfResult = await revertGolfCheckoutSession(event.data.object.id);
-        if (golfResult.count > 0) {
-          await addGolfLog(golfResult.orgId, golfResult.tournamentId, {
-            type: "payment_recorded",
-            text: `${golfResult.count} player(s)' online payment attempt expired`,
-            teamId: golfResult.teamId,
-          });
-        }
         const tournamentResult = await revertTournamentCheckoutSession(event.data.object.id);
         if (tournamentResult.count > 0) {
           await addTournamentLog(tournamentResult.orgId, tournamentResult.tournamentId, {

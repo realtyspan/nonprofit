@@ -29,9 +29,6 @@ import RentalFundsTurnover from "./views/RentalFundsTurnover";
 import PublicRental from "./views/PublicRental";
 import CalendarView from "./views/CalendarView";
 import PublicCalendar from "./views/PublicCalendar";
-import PublicGolf from "./views/PublicGolf";
-import PublicGolfPay from "./views/PublicGolfPay";
-import PublicGolfUnsubscribe from "./views/PublicGolfUnsubscribe";
 import PublicTournamentsUnsubscribe from "./views/PublicTournamentsUnsubscribe";
 import PublicEvents from "./views/PublicEvents";
 import PublicActivities from "./views/PublicActivities";
@@ -52,14 +49,7 @@ import RaffleReport from "./views/RaffleReport";
 import RaffleDrawings from "./views/RaffleDrawings";
 import RaffleFinancials from "./views/RaffleFinancials";
 import RaffleCheckIn from "./views/RaffleCheckIn";
-import ManageGolfTournaments from "./views/ManageGolfTournaments";
 import ManageEvents from "./views/ManageEvents";
-import GolfPlayerDirectory from "./views/GolfPlayerDirectory";
-import GolfSponsorDirectory from "./views/GolfSponsorDirectory";
-import GolfRoster from "./views/GolfRoster";
-import GolfSponsors from "./views/GolfSponsors";
-import GolfCheckIn from "./views/GolfCheckIn";
-import GolfLog from "./views/GolfLog";
 import ManageTournaments from "./views/ManageTournaments";
 import TournamentRoster from "./views/TournamentRoster";
 import TournamentPlayerDirectory from "./views/TournamentPlayerDirectory";
@@ -67,7 +57,6 @@ import TournamentSponsorDirectory from "./views/TournamentSponsorDirectory";
 import TournamentSponsors from "./views/TournamentSponsors";
 import TournamentCheckIn from "./views/TournamentCheckIn";
 import TournamentLog from "./views/TournamentLog";
-import MarketingGolf from "./views/MarketingGolf";
 import MarketingTournaments from "./views/MarketingTournaments";
 import MarketingRaffle from "./views/MarketingRaffle";
 import MarketingRentals from "./views/MarketingRentals";
@@ -103,7 +92,6 @@ function Shell() {
   // even after the cleanup effect below strips the query string — Stripe's
   // Account Link return_url lands here after the org admin finishes (or
   // abandons) hosted onboarding.
-  const [golfStripeReturn] = useState(() => new URLSearchParams(window.location.search).get("golfStripeReturn") === "1");
   const [tournamentsStripeReturn] = useState(() => new URLSearchParams(window.location.search).get("tournamentsStripeReturn") === "1");
   const [permissions, setPermissions] = useState(null);
   const [activeModuleKey, setActiveModuleKey] = useState(null);
@@ -114,9 +102,6 @@ function Shell() {
   const [raffleGames, setRaffleGames] = useState([]);
   const [selectedRaffleGameId, setSelectedRaffleGameId] = useState(null);
   const selectedRaffleGame = raffleGames.find((g) => g.id === selectedRaffleGameId) || null;
-  const [golfTournaments, setGolfTournaments] = useState([]);
-  const [selectedGolfTournamentId, setSelectedGolfTournamentId] = useState(null);
-  const selectedGolfTournament = golfTournaments.find((t) => t.id === selectedGolfTournamentId) || null;
   const [tournaments, setTournaments] = useState([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState(null);
   const selectedTournament = tournaments.find((t) => t.id === selectedTournamentId) || null;
@@ -137,10 +122,6 @@ function Shell() {
     return api.listRaffleGames().then(setRaffleGames).catch(() => {});
   }, []);
 
-  const refreshGolfTournaments = useCallback(() => {
-    return api.listGolfTournaments().then(setGolfTournaments).catch(() => {});
-  }, []);
-
   const refreshTournaments = useCallback(() => {
     return api.listTournaments().then(setTournaments).catch(() => {});
   }, []);
@@ -151,18 +132,8 @@ function Shell() {
 
   // Stripe doesn't push account.updated the instant hosted onboarding
   // finishes, so this gives an immediate, accurate status right when the
-  // admin lands back instead of waiting on the webhook — see golfLogic/
-  // golf.js's own /stripe-connect/sync route (same call, admin-triggered).
-  useEffect(() => {
-    if (!golfStripeReturn) return;
-    api.syncGolfStripeConnect().catch(() => {}).finally(() => {
-      window.history.replaceState({}, "", window.location.pathname);
-    });
-  }, [golfStripeReturn]);
-
-  // Same immediate status sync for an org that onboarded from the Tournaments
-  // module (its onboard route returns to ?tournamentsStripeReturn=1) — the
-  // connected account is one shared per-org row either way.
+  // admin lands back instead of waiting on the webhook — same call as the
+  // admin-triggered /tournaments/stripe-connect/sync.
   useEffect(() => {
     if (!tournamentsStripeReturn) return;
     api.syncTournamentsStripeConnect().catch(() => {}).finally(() => {
@@ -184,10 +155,9 @@ function Shell() {
     refreshDeals();
     refreshRentals();
     refreshRaffleGames();
-    refreshGolfTournaments();
     refreshTournaments();
     refreshPermissions().then(() => setLoading(false));
-  }, [userId, refreshDeals, refreshRentals, refreshRaffleGames, refreshGolfTournaments, refreshTournaments, refreshPermissions]);
+  }, [userId, refreshDeals, refreshRentals, refreshRaffleGames, refreshTournaments, refreshPermissions]);
 
   // Default to the most-recently-created active game whenever the game list
   // changes and nothing (or something that no longer exists) is selected —
@@ -201,12 +171,6 @@ function Shell() {
   // Same default-selection convention as raffle above: prefer an open
   // tournament over a draft/closed one whenever nothing (or something that
   // no longer exists) is selected.
-  useEffect(() => {
-    if (selectedGolfTournamentId && golfTournaments.some((t) => t.id === selectedGolfTournamentId)) return;
-    const firstOpen = golfTournaments.find((t) => t.status === "open");
-    setSelectedGolfTournamentId(firstOpen ? firstOpen.id : golfTournaments[0]?.id || null);
-  }, [golfTournaments, selectedGolfTournamentId]);
-
   useEffect(() => {
     if (selectedTournamentId && tournaments.some((t) => t.id === selectedTournamentId)) return;
     const firstOpen = tournaments.find((t) => t.status === "open");
@@ -222,11 +186,6 @@ function Shell() {
     if (!permissions || activeModuleKey !== null) return;
     const visible = filterModulesForUser(MODULES, permissions);
 
-    if (golfStripeReturn && visible.some((m) => m.key === "golf")) {
-      setActiveModuleKey("golf");
-      setView("manage");
-      return;
-    }
     if (tournamentsStripeReturn && visible.some((m) => m.key === "tournaments")) {
       setActiveModuleKey("tournaments");
       setView("manage");
@@ -254,7 +213,7 @@ function Shell() {
     } else {
       setView("profile");
     }
-  }, [permissions, activeModuleKey, userId, golfStripeReturn, tournamentsStripeReturn]);
+  }, [permissions, activeModuleKey, userId, tournamentsStripeReturn]);
 
   // Keep the saved module/view current as the user navigates, so the effect
   // above has something fresh to restore on the next refresh.
@@ -347,28 +306,6 @@ function Shell() {
             </div>
           )}
 
-          {(activeModuleKey === "golf" || (activeModuleKey === "marketing" && view === "golf")) && view !== "team" && view !== "profile" && (
-            <div style={{ padding: isMobile ? "10px 16px" : "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#f7f4ec", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Golf</span>
-              {selectedGolfTournament && (
-                <span style={{ fontSize: 17, fontWeight: 700, color: colors.textPrimary }}>{selectedGolfTournament.name}</span>
-              )}
-              {golfTournaments.length > 0 ? (
-                <select
-                  value={selectedGolfTournamentId || ""}
-                  onChange={(e) => setSelectedGolfTournamentId(e.target.value)}
-                  style={{ border: `1px solid ${colors.border}`, borderRadius: 7, padding: "6px 10px", fontSize: 13, minWidth: isMobile ? 0 : 220, flex: isMobile ? 1 : undefined }}
-                >
-                  {golfTournaments.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.status})</option>
-                  ))}
-                </select>
-              ) : (
-                <span style={{ fontSize: 13, color: colors.textSecondary }}>No tournaments yet</span>
-              )}
-            </div>
-          )}
-
           {(activeModuleKey === "tournaments" || (activeModuleKey === "marketing" && view === "tournaments")) && view !== "team" && view !== "profile" && (
             <div style={{ padding: isMobile ? "10px 16px" : "10px 32px", borderBottom: `1px solid ${colors.border}`, background: "#f7f4ec", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: ".03em" }}>Tournaments</span>
@@ -413,13 +350,6 @@ function Shell() {
             {activeModuleKey === "raffle" && view === "drawings" && <RaffleDrawings gameId={selectedRaffleGameId} />}
             {activeModuleKey === "raffle" && view === "financials" && <RaffleFinancials />}
             {activeModuleKey === "raffle" && view === "checkin" && <RaffleCheckIn gameId={selectedRaffleGameId} />}
-            {activeModuleKey === "golf" && view === "manage" && <ManageGolfTournaments tournaments={golfTournaments} tournamentId={selectedGolfTournamentId} onTournamentsChanged={refreshGolfTournaments} permissions={permissions} />}
-            {activeModuleKey === "golf" && view === "players" && <GolfPlayerDirectory />}
-            {activeModuleKey === "golf" && view === "sponsor-directory" && <GolfSponsorDirectory />}
-            {activeModuleKey === "golf" && view === "roster" && <GolfRoster tournament={selectedGolfTournament} />}
-            {activeModuleKey === "golf" && view === "sponsors" && <GolfSponsors tournament={selectedGolfTournament} />}
-            {activeModuleKey === "golf" && view === "checkin" && <GolfCheckIn tournament={selectedGolfTournament} />}
-            {activeModuleKey === "golf" && view === "log" && <GolfLog tournament={selectedGolfTournament} />}
             {activeModuleKey === "tournaments" && view === "manage" && <ManageTournaments tournaments={tournaments} tournamentId={selectedTournamentId} onTournamentsChanged={refreshTournaments} permissions={permissions} />}
             {activeModuleKey === "tournaments" && view === "players" && <TournamentPlayerDirectory />}
             {activeModuleKey === "tournaments" && view === "sponsor-directory" && <TournamentSponsorDirectory />}
@@ -428,7 +358,6 @@ function Shell() {
             {activeModuleKey === "tournaments" && view === "checkin" && <TournamentCheckIn tournament={selectedTournament} />}
             {activeModuleKey === "tournaments" && view === "log" && <TournamentLog tournament={selectedTournament} />}
             {activeModuleKey === "events" && view === "manage" && <ManageEvents permissions={permissions} />}
-            {activeModuleKey === "marketing" && view === "golf" && <MarketingGolf tournament={selectedGolfTournament} permissions={permissions} />}
             {activeModuleKey === "marketing" && view === "tournaments" && <MarketingTournaments tournament={selectedTournament} permissions={permissions} />}
             {activeModuleKey === "marketing" && view === "raffle" && <MarketingRaffle game={selectedRaffleGame} permissions={permissions} />}
             {activeModuleKey === "marketing" && view === "rentals" && <MarketingRentals permissions={permissions} />}
@@ -445,14 +374,19 @@ function Shell() {
   );
 }
 
+// The retired Golf module's public links (/golf/:slug and /golf/embed/:slug)
+// live on in the wild — an org's website iframe, printed flyer QR codes — so
+// they keep resolving, now to the Tournaments page for the same org.
+function legacyModule(module) {
+  return module === "golf" ? "tournaments" : module;
+}
+
 function matchPublicPath(pathname) {
   const embedMatch = pathname.match(/^\/(rentals|calendar|golf|events|tournaments|activities)\/embed\/([a-z0-9-]+)\/?$/);
-  if (embedMatch) return { module: embedMatch[1], slug: embedMatch[2], embed: true };
-  const payMatch = pathname.match(/^\/golf\/([a-z0-9-]+)\/tournaments\/([^/]+)\/teams\/([^/]+)\/pay\/?$/);
-  if (payMatch) return { module: "golf-pay", slug: payMatch[1], tournamentId: payMatch[2], teamId: payMatch[3] };
-  // Tournaments module: an org can have several tournaments open at once
-  // (each of a possibly different type), so unlike golf-pay above, the
-  // tournament itself is identified by its own slug, not just the org's.
+  if (embedMatch) return { module: legacyModule(embedMatch[1]), slug: embedMatch[2], embed: true };
+  // An org can have several tournaments open at once (each of a possibly
+  // different type), so the tournament itself is identified by its own
+  // slug, not just the org's.
   const tournamentPayMatch = pathname.match(/^\/tournaments\/([a-z0-9-]+)\/([a-z0-9-]+)\/teams\/([^/]+)\/pay\/?$/);
   if (tournamentPayMatch) return { module: "tournament-pay", orgSlug: tournamentPayMatch[1], tournamentSlug: tournamentPayMatch[2], teamId: tournamentPayMatch[3] };
   const tournamentMatch = pathname.match(/^\/tournaments\/([a-z0-9-]+)\/([a-z0-9-]+)\/?$/);
@@ -462,7 +396,7 @@ function matchPublicPath(pathname) {
   const ticketMatch = pathname.match(/^\/raffle-ticket\/([a-z0-9]+)\/?$/i);
   if (ticketMatch) return { module: "raffle-ticket", ticketId: ticketMatch[1] };
   const m = pathname.match(/^\/(rentals|calendar|golf|events|tournaments|activities)\/([a-z0-9-]+)\/?$/);
-  return m ? { module: m[1], slug: m[2] } : null;
+  return m ? { module: legacyModule(m[1]), slug: m[2] } : null;
 }
 
 // One hub page plus a dedicated page per module, at clean top-level paths
@@ -472,7 +406,8 @@ function MarketingSite() {
   const onGetStarted = () => { window.location.href = `${APP_URL}/?view=signup`; };
   const onLogin = () => { window.location.href = `${APP_URL}/?view=login`; };
 
-  const slug = window.location.pathname.replace(/^\//, "").replace(/\/$/, "");
+  const rawSlug = window.location.pathname.replace(/^\//, "").replace(/\/$/, "");
+  const slug = legacyModule(rawSlug);
   return (
     <>
       <StandaloneNudgeBanner />
@@ -496,10 +431,8 @@ export default function App() {
   const publicMatch = matchPublicPath(window.location.pathname);
   if (publicMatch?.module === "rentals") return <PublicRental slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "calendar") return <PublicCalendar slug={publicMatch.slug} embed={publicMatch.embed} />;
-  if (publicMatch?.module === "golf") return <PublicGolf slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "events") return <PublicEvents slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "activities") return <PublicActivities slug={publicMatch.slug} embed={publicMatch.embed} />;
-  if (publicMatch?.module === "golf-pay") return <PublicGolfPay slug={publicMatch.slug} tournamentId={publicMatch.tournamentId} teamId={publicMatch.teamId} />;
   if (publicMatch?.module === "tournaments") return <PublicTournaments slug={publicMatch.slug} embed={publicMatch.embed} />;
   if (publicMatch?.module === "tournament") return <PublicTournament orgSlug={publicMatch.orgSlug} tournamentSlug={publicMatch.tournamentSlug} />;
   if (publicMatch?.module === "tournament-pay") return <PublicTournamentPay orgSlug={publicMatch.orgSlug} tournamentSlug={publicMatch.tournamentSlug} teamId={publicMatch.teamId} />;
@@ -509,7 +442,6 @@ export default function App() {
   // it's handled before AuthProvider/Shell rather than as a route inside it.
   if (window.location.pathname === "/reset-password") return <ResetPassword />;
   if (window.location.pathname === "/raffle-unsubscribe") return <PublicRaffleUnsubscribe />;
-  if (window.location.pathname === "/golf-unsubscribe") return <PublicGolfUnsubscribe />;
   if (window.location.pathname === "/tournaments-unsubscribe") return <PublicTournamentsUnsubscribe />;
 
   // Requires being logged in (unlike the routes above), so it renders inside

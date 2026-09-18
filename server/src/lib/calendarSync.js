@@ -72,31 +72,10 @@ async function removeCalendarEventFor(source, sourceId) {
   await prisma.calendarEvent.deleteMany({ where: { source, sourceId } });
 }
 
-// The three functions below feed the public Activities feed
+// The two functions below feed the public Activities feed
 // (publicActivities.js) — same shared table, same visibility flag, just
-// three more sources. Golf has no per-tournament slug (its own public page
-// always shows whatever's currently open), so every golf-tournament row
-// points at the same org-wide URL; Tournaments links to the specific
-// tournament's own slug since more than one can be open at once.
-
-async function publishGolfTournament(orgId, tournament, org) {
-  const existing = await prisma.calendarEvent.findFirst({ where: { source: "golf-tournament", sourceId: tournament.id } });
-  const appUrl = process.env.APP_URL || "http://localhost:5173";
-  const data = {
-    title: tournament.name,
-    location: tournament.venueName || null,
-    startAt: tournament.date,
-    endAt: tournament.date,
-    allDay: true,
-    visibility: "public",
-    linkUrl: org?.slug ? `${appUrl}/golf/${org.slug}` : null,
-  };
-  if (existing) {
-    await prisma.calendarEvent.update({ where: { id: existing.id }, data });
-  } else {
-    await prisma.calendarEvent.create({ data: { orgId, source: "golf-tournament", sourceId: tournament.id, ...data } });
-  }
-}
+// more sources. Tournaments links to the specific tournament's own slug
+// since more than one can be open at once.
 
 async function publishTournament(orgId, tournament, org) {
   const existing = await prisma.calendarEvent.findFirst({ where: { source: "tournament", sourceId: tournament.id } });
@@ -142,5 +121,5 @@ async function publishRaffleGame(orgId, game) {
 
 module.exports = {
   publishRentalBooking, publishRentalBlock, publishEvent, removeCalendarEventFor,
-  publishGolfTournament, publishTournament, publishRaffleGame,
+  publishTournament, publishRaffleGame,
 };

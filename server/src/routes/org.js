@@ -69,11 +69,11 @@ router.patch("/identity", requireOwner, async (req, res) => {
   res.json(org);
 });
 
-// Flyer colors are shared by every module that prints a flyer (Golf,
-// Tournaments, Events, Raffle), not owned by any one of them — so the org
+// Flyer colors are shared by every module that prints a flyer (Tournaments,
+// Events, Raffle), not owned by any one of them — so the org
 // Owner, or an Admin of whichever flyer module they actually use, can set
 // them. Gating this on a single module locked out orgs that never bought it.
-const FLYER_MODULES = ["golf", "tournaments", "events", "raffle"];
+const FLYER_MODULES = ["tournaments", "events", "raffle"];
 function requireOwnerOrFlyerModuleAdmin(req, res, next) {
   if (req.orgTier === "Owner") return next();
   if (FLYER_MODULES.some((m) => req.moduleGrants?.[m] === "Admin")) return next();

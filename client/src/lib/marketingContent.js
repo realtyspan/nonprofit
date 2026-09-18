@@ -75,14 +75,14 @@ export const MARKETING_MODULES = {
     pricing: { amount: 25, period: "month", placeholder: true, bullets: ["Unlimited tickets and drawings", "Live NYS compliance dashboard", "Door check-in and renewal tracking", "30-day free trial, no card required"] },
   },
 
-  golf: {
-    slug: "golf",
-    name: "Golf Tournament",
-    tagline: "Registration, roster, and sponsorships for your annual golf outing",
-    icon: icons.flag,
-    badge: "For lodges running an annual golf tournament fundraiser",
-    heroHeadline: "Your golf tournament, from registration to the trophy",
-    heroSubhead: "A public signup page for your website, a real roster instead of a spreadsheet, and sponsorship tracking for the part of the tournament that actually raises the money.",
+  tournaments: {
+    slug: "tournaments",
+    name: "Tournaments",
+    tagline: "Registration, roster, and sponsorships for any team tournament you run",
+    icon: icons.trophy,
+    badge: "For lodges running golf, horseshoes, cornhole, or darts tournaments",
+    heroHeadline: "Your tournament, from registration to the trophy",
+    heroSubhead: "A public signup page for your website, a real roster instead of a spreadsheet, and sponsorship tracking for the part of the tournament that actually raises the money — for whatever sport you play.",
     features: [
       { icon: icons.inbox, title: "Public Team Registration", body: "A link for your website where a captain registers a team and adds players — no separate third-party form, no manual re-entry into a spreadsheet afterward." },
       { icon: icons.users, title: "Roster & Player History", body: "Every player's name, email, and phone carries over year to year, so \"who played last year\" is a real list you can email, not a memory." },
@@ -92,7 +92,7 @@ export const MARKETING_MODULES = {
       { icon: icons.fileCheck, title: "Activity Log", body: "Every registration, payment, and check-in, in order — a full record for whoever's reconciling after the tournament wraps up." },
     ],
     steps: [
-      { n: "1", title: "Set up this year's tournament", body: "Format, cost per player, capacity, and payment options — pull forward last year's players and sponsors as a starting list." },
+      { n: "1", title: "Set up this year's tournament", body: "Pick a type (golf, horseshoes, cornhole — your own list), then set format, cost per player, capacity, and payment options. Pull forward last year's players and sponsors as a starting list." },
       { n: "2", title: "Teams and sponsors sign up", body: "Players register publicly from your website; sponsors get tracked and confirmed the same way, on their own list." },
       { n: "3", title: "Check in and close it out", body: "Check players in on tournament day, then close the tournament with a full activity record intact for next year." },
     ],
@@ -139,8 +139,8 @@ export const MARKETING_MODULES = {
       { n: "2", title: "Upload it to Elks Tools", body: "The FRS Report reads the export directly — no manual reformatting, no copying numbers between spreadsheets." },
       { n: "3", title: "Download and submit", body: "Get back a balanced, correctly named CSV, ready to email to Adaptive@elks.cloud." },
     ],
-    pricing: { free: true, blurb: "Elks Tools comes included free for any Elks Lodge on Charity Pulse, alongside whichever paid modules — Bell Jar, Rental Space, Raffle, Golf Tournament — your lodge uses. Not available to other organization types." },
+    pricing: { free: true, blurb: "Elks Tools comes included free for any Elks Lodge on Charity Pulse, alongside whichever paid modules — Bell Jar, Rental Space, Raffle, Tournaments — your lodge uses. Not available to other organization types." },
   },
 };
 
-export const MARKETING_MODULE_ORDER = ["bell-jar", "rentals", "raffle", "golf", "calendar", "elks-tools"];
+export const MARKETING_MODULE_ORDER = ["bell-jar", "rentals", "raffle", "tournaments", "calendar", "elks-tools"];

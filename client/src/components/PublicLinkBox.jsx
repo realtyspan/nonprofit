@@ -189,7 +189,7 @@ window.addEventListener("message", function (e) {
             </div>
             {pageUrlEditing ? (
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                <input style={{ ...inputStyle, flex: "1 1 260px" }} value={pageUrl} onChange={(e) => setPageUrl(e.target.value)} placeholder="https://yourlodge.org/golf-tournament" />
+                <input style={{ ...inputStyle, flex: "1 1 260px" }} value={pageUrl} onChange={(e) => setPageUrl(e.target.value)} placeholder="https://yourlodge.org/tournaments" />
                 <button style={button.primary} disabled={pageUrlBusy} onClick={savePageUrl}>{pageUrlBusy ? "Saving…" : "Save"}</button>
                 <button style={button.ghost} onClick={() => { setPageUrlEditing(false); setPageUrl(org?.embedPageUrls?.[basePath] || ""); }}>Cancel</button>
               </div>

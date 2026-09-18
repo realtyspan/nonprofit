@@ -351,7 +351,7 @@ function OrganizationInfoCard({ isOwner }) {
               <span style={{ fontSize: 12.5, color: colors.textSecondary }}>{window.location.origin}/…/</span>
               <input style={inputStyle} value={form.slug} onChange={(e) => set("slug", e.target.value)} placeholder="red-hook-lodge-2022" />
             </div>
-            <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>Lowercase letters, numbers, and hyphens only — shared by Rentals, Calendar, and Golf's public pages.</div>
+            <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>Lowercase letters, numbers, and hyphens only — shared by Rentals, Calendar, Tournaments, and Events public pages.</div>
           </Field>
           {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
           <div><button style={button.primary} type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</button></div>
@@ -383,7 +383,7 @@ function AiUsageCard() {
   return (
     <div style={card}>
       <div style={{ fontSize: 15, fontWeight: 700 }}>AI-assisted feature usage</div>
-      <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>What features like the golf historical-import reader and the Bell Jar label scanner have cost so far — for your own visibility, not something you're billed for separately today.</div>
+      <div style={{ fontSize: 11.5, color: colors.textSecondary, marginTop: 2 }}>What features like the historical-import reader and the Bell Jar label scanner have cost so far — for your own visibility, not something you're billed for separately today.</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
         <span style={pill(colors.successBg, colors.success)}>{money(usage.totalCostUsd)} all-time</span>
         <span style={pill(colors.indigoBg, colors.indigo)}>{money(usage.last30DaysCostUsd)} last 30 days</span>

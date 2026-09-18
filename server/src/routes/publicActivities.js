@@ -10,7 +10,7 @@ const router = express.Router();
 // public": those are occupancy info ("Reserved — Banquet Hall"), already
 // shown on the internal-facing PublicCalendar grid, but not something an
 // org is trying to promote — so they're deliberately excluded here.
-const ACTIVITY_SOURCES = ["event", "manual", "golf-tournament", "tournament", "raffle-game"];
+const ACTIVITY_SOURCES = ["event", "manual", "tournament", "raffle-game"];
 
 // Soonest-first, capped well above what any real org would ever have
 // genuinely open at once — this is a marketing page, not a paginated
@@ -37,18 +37,17 @@ router.get("/:slug", async (req, res) => {
   res.json({ orgName: org.name, activities });
 });
 
-// Same field lists publicGolf.js/publicTournaments.js already select for
-// their own single-tournament public pages — reused here (not imported;
+// Same field list publicTournaments.js already selects for its own
+// single-tournament public page — reused here (not imported;
 // each module's public route stays independent, same convention
 // calendarSync.js's own three publish functions already follow) so the
 // inline detail view renders from the exact same input a real visit to
 // that tournament's own page would.
-const GOLF_TOURNAMENT_DETAIL_FIELDS = {
+const TOURNAMENT_DETAIL_FIELDS = {
   id: true, name: true, date: true, format: true, venueName: true, venueAddress: true,
   flyerImage: true, flyerImagePosition: true, costPerPlayer: true,
   includedItems: true, scheduleItems: true, contactName: true, contactPhone: true, contactEmail: true,
 };
-const TOURNAMENT_DETAIL_FIELDS = { ...GOLF_TOURNAMENT_DETAIL_FIELDS };
 
 const EVENT_DETAIL_FIELDS = {
   id: true, slug: true, title: true, tagline: true, description: true, location: true,
@@ -71,12 +70,6 @@ router.get("/:slug/detail/:source/:sourceId", async (req, res) => {
   if (!org) return res.status(404).json({ error: "Not found" });
 
   const { source, sourceId } = req.params;
-
-  if (source === "golf-tournament") {
-    const t = await prisma.golfTournament.findFirst({ where: { id: sourceId, orgId: org.id }, select: GOLF_TOURNAMENT_DETAIL_FIELDS });
-    if (!t) return res.status(404).json({ error: "Not found" });
-    return res.json({ source, ...t });
-  }
 
   if (source === "tournament") {
     const t = await prisma.tournament.findFirst({ where: { id: sourceId, orgId: org.id }, select: TOURNAMENT_DETAIL_FIELDS });

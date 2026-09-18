@@ -15,7 +15,7 @@ export default function MarketingActivities() {
         basePath="activities"
         embedBasePath="activities/embed"
         embedTitle="Activities"
-        description="One public page/embed listing everything currently open or published — golf, tournaments, events, raffles, and any manual calendar entries you've marked public."
+        description="One public page/embed listing everything currently open or published — tournaments, events, raffles, and any manual calendar entries you've marked public."
       />
       <div style={{ ...card, fontSize: 12.5, color: colors.textSecondary, lineHeight: 1.6 }}>
         There's nothing to manage here directly — this page automatically shows whatever's already public elsewhere. Open a tournament, publish an event, start a raffle, or mark a Calendar entry "Public," and it shows up here on its own. Closing or unpublishing it removes it from this page the same way.

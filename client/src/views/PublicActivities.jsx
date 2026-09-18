@@ -9,7 +9,7 @@ import logo from "../assets/logo.png";
 // One page listing everything currently public across every module, with
 // a generated detail view for whichever one is selected shown right on
 // this same page — no navigation, and no page for the org to build
-// themselves. A golf tournament, a Tournaments-module tournament, and a
+// themselves. A Tournaments-module tournament and a
 // published Event already have their own real registration/payment page;
 // the detail shown here is a preview generated from that same record's
 // own input, with a button handing off to the real page only once
@@ -111,7 +111,6 @@ function pacStyleVars(theme, font) {
 }
 
 const SOURCE_LABELS = {
-  "golf-tournament": "Golf Tournament",
   tournament: "Tournament",
   event: "Event",
   "raffle-game": "Raffle",
@@ -268,7 +267,7 @@ export default function PublicActivities({ slug, embed }) {
   );
 }
 
-// A tournament/golf-tournament detail is generated from the exact same
+// A tournament detail is generated from the exact same
 // input its own real page renders — TournamentVisual is reused as-is,
 // unmodified, rather than reimplemented here.
 function TournamentDetail({ activity, detail, theme, font }) {
@@ -356,7 +355,7 @@ function ManualDetail({ activity }) {
 }
 
 function ActivityDetail({ activity, detail, theme, font, slug }) {
-  if (activity.source === "golf-tournament" || activity.source === "tournament") {
+  if (activity.source === "tournament") {
     return <TournamentDetail activity={activity} detail={detail} theme={theme} font={font} />;
   }
   // key={detail.id} forces a fresh EventDetail instance per event — it holds
