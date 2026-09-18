@@ -104,6 +104,7 @@ function Shell() {
   // Account Link return_url lands here after the org admin finishes (or
   // abandons) hosted onboarding.
   const [golfStripeReturn] = useState(() => new URLSearchParams(window.location.search).get("golfStripeReturn") === "1");
+  const [tournamentsStripeReturn] = useState(() => new URLSearchParams(window.location.search).get("tournamentsStripeReturn") === "1");
   const [permissions, setPermissions] = useState(null);
   const [activeModuleKey, setActiveModuleKey] = useState(null);
   const [view, setView] = useState(null);
@@ -158,6 +159,16 @@ function Shell() {
       window.history.replaceState({}, "", window.location.pathname);
     });
   }, [golfStripeReturn]);
+
+  // Same immediate status sync for an org that onboarded from the Tournaments
+  // module (its onboard route returns to ?tournamentsStripeReturn=1) — the
+  // connected account is one shared per-org row either way.
+  useEffect(() => {
+    if (!tournamentsStripeReturn) return;
+    api.syncTournamentsStripeConnect().catch(() => {}).finally(() => {
+      window.history.replaceState({}, "", window.location.pathname);
+    });
+  }, [tournamentsStripeReturn]);
 
   // Keyed on the logged-in user's id, not just `session` truthiness — Shell
   // itself never unmounts across a login/logout cycle (AuthProvider wraps it
@@ -216,6 +227,11 @@ function Shell() {
       setView("manage");
       return;
     }
+    if (tournamentsStripeReturn && visible.some((m) => m.key === "tournaments")) {
+      setActiveModuleKey("tournaments");
+      setView("manage");
+      return;
+    }
 
     const saved = userId ? JSON.parse(localStorage.getItem(navStorageKey(userId)) || "null") : null;
     if (saved) {
@@ -238,7 +254,7 @@ function Shell() {
     } else {
       setView("profile");
     }
-  }, [permissions, activeModuleKey, userId, golfStripeReturn]);
+  }, [permissions, activeModuleKey, userId, golfStripeReturn, tournamentsStripeReturn]);
 
   // Keep the saved module/view current as the user navigates, so the effect
   // above has something fresh to restore on the next refresh.

@@ -1,7 +1,7 @@
-// RaffleGame -> the generic flyer content shape (see golfFlyerPdf.js's
+// RaffleGame -> the generic flyer content shape (see flyerPdf.js's
 // buildEventFlyerPdf, which this reuses directly — same renderer
-// eventFlyerPdf.js's buildEventRecordFlyerPdf and golfFlyerPdf.js's own
-// buildGolfFlyerPdf already use).
+// eventFlyerPdf.js's buildEventRecordFlyerPdf and tournamentFlyerPdf.js's
+// buildTournamentFlyerPdf already use).
 //
 // Unlike every other flyer this renderer produces, this one NEVER carries a
 // payUrl or a "register/sign up" CTA — selling raffle or Bell Jar tickets
@@ -10,7 +10,7 @@
 // exact same reason). This flyer is announcement-only: what the raffle is,
 // what a ticket costs, when the drawing is, and how to reach the org —
 // buying happens in person, from a member.
-const { buildEventFlyerPdf } = require("./golfFlyerPdf");
+const { buildEventFlyerPdf } = require("./flyerPdf");
 const { formatPhone } = require("./phone");
 
 function money(n) {

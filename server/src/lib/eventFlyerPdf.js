@@ -1,9 +1,7 @@
-// Event -> the generic flyer content shape (see golfFlyerPdf.js's
+// Event -> the generic flyer content shape (see flyerPdf.js's
 // buildEventFlyerPdf, which this reuses directly rather than duplicating
-// the PDF-drawing code — that file's own header comment anticipated exactly
-// this: "A future Events module can call buildEventFlyerPdf() directly with
-// its own mapping.").
-const { buildEventFlyerPdf } = require("./golfFlyerPdf");
+// the PDF-drawing code).
+const { buildEventFlyerPdf } = require("./flyerPdf");
 const { formatPhone } = require("./phone");
 const { plainTextToHtml, looksLikeHtml } = require("./richText");
 

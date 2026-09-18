@@ -1,9 +1,8 @@
-// Tournament -> the generic flyer content shape (see golfFlyerPdf.js's
+// Tournament -> the generic flyer content shape (see flyerPdf.js's
 // buildEventFlyerPdf, which this reuses directly rather than duplicating
-// the PDF-drawing code — the same renderer golfFlyerPdf.js's own
-// buildGolfFlyerPdf and eventFlyerPdf.js's buildEventRecordFlyerPdf
-// already use).
-const { buildEventFlyerPdf } = require("./golfFlyerPdf");
+// the PDF-drawing code — the same renderer eventFlyerPdf.js's
+// buildEventRecordFlyerPdf and raffleFlyerPdf.js already use).
+const { buildEventFlyerPdf } = require("./flyerPdf");
 const { formatPhone } = require("./phone");
 
 function money(n) {

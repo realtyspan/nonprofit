@@ -5,7 +5,7 @@
 // into styled runs for the flyer PDF (see eventDescriptionRuns below).
 //
 // Scoped deliberately narrow: no italic. The flyer PDF only has Regular/
-// Medium/SemiBold/Bold weights of Inter loaded (see golfFlyerPdf.js's
+// Medium/SemiBold/Bold weights of Inter loaded (see flyerPdf.js's
 // FONT_FILES) — no italic face — so an italic toggle would look right on
 // the web page but silently render upright in the printed flyer. Bold +
 // bullets + paragraphs already solves the "empty center" problem this was

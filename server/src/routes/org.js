@@ -69,13 +69,15 @@ router.patch("/identity", requireOwner, async (req, res) => {
   res.json(org);
 });
 
-// Mirrors golf.js's own requireOwnerOrGolfAdmin — flyer colors are a golf
-// operational detail today (only golf generates flyers), not core org
-// identity, so whoever can already generate a flyer can set them; if a
-// future module gets its own flyers, generalize this gate then.
-function requireOwnerOrGolfAdmin(req, res, next) {
+// Flyer colors are shared by every module that prints a flyer (Golf,
+// Tournaments, Events, Raffle), not owned by any one of them — so the org
+// Owner, or an Admin of whichever flyer module they actually use, can set
+// them. Gating this on a single module locked out orgs that never bought it.
+const FLYER_MODULES = ["golf", "tournaments", "events", "raffle"];
+function requireOwnerOrFlyerModuleAdmin(req, res, next) {
   if (req.orgTier === "Owner") return next();
-  return requirePermission("golf", "Admin")(req, res, next);
+  if (FLYER_MODULES.some((m) => req.moduleGrants?.[m] === "Admin")) return next();
+  return res.status(403).json({ error: "Requires Admin on a module that prints flyers (or org Owner)" });
 }
 
 // Accepts a hex color ("#25555f" or "25555f") and normalizes it to lowercase
@@ -90,7 +92,7 @@ function normalizeHexColor(value, label) {
   return `#${match[1].toLowerCase()}`;
 }
 
-router.patch("/flyer-colors", requireOwnerOrGolfAdmin, async (req, res) => {
+router.patch("/flyer-colors", requireOwnerOrFlyerModuleAdmin, async (req, res) => {
   const { primaryColor, accentColor } = req.body;
   let normalizedPrimary, normalizedAccent;
   try {
