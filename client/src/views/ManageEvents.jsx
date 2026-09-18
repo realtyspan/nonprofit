@@ -7,6 +7,7 @@ import { formatPhone, stripPhone } from "../lib/phone";
 import DataList from "../components/DataList";
 import Modal from "../components/Modal";
 import AdminAccessNotice from "../components/AdminAccessNotice";
+import { useConfirm } from "../lib/ConfirmContext";
 
 function toLocalInputValue(iso) {
   if (!iso) return "";
@@ -316,9 +317,50 @@ function EventModal({ event, onCancel, onSaved }) {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [draftError, setDraftError] = useState("");
+  // Bumped after each AI draft to force DescriptionField to remount with the
+  // new text as its fresh baseline — that field is deliberately uncontrolled
+  // after mount (see its own comment) so ordinary typing never fights a
+  // prop-driven re-render, but that same design means changing form.description
+  // from outside it (an AI draft replacing the whole field, not one keystroke)
+  // needs a real remount to actually show up.
+  const [descriptionVersion, setDescriptionVersion] = useState(0);
+  const confirm = useConfirm();
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  // Sends whatever's already in the form — no separate prompt input, by
+  // design (see the earlier scoping discussion: a single no-input button
+  // that works purely from the structured fields already on the form).
+  // Confirms first only when there's real existing text to lose; an empty
+  // or all-whitespace-after-stripping-tags description doesn't need one.
+  async function draftDescription() {
+    const hasText = form.description.replace(/<[^>]+>/g, "").trim().length > 0;
+    if (hasText && !(await confirm("This replaces the current description — continue?", { confirmLabel: "Replace" }))) return;
+    setDraftBusy(true);
+    setDraftError("");
+    try {
+      const { html } = await api.draftEventDescription({
+        title: form.title,
+        tagline: form.tagline,
+        startAt: form.startAt ? new Date(form.startAt).toISOString() : "",
+        endAt: form.endAt ? new Date(form.endAt).toISOString() : "",
+        allDay: form.allDay,
+        location: form.location,
+        price: form.price,
+        priceUnit: form.priceUnit,
+        includes: form.includes,
+      });
+      set("description", html);
+      setDescriptionVersion((v) => v + 1);
+    } catch (err) {
+      setDraftError(err.message);
+    } finally {
+      setDraftBusy(false);
+    }
   }
 
   function setIncludeAt(i, v) {
@@ -479,7 +521,10 @@ function EventModal({ event, onCancel, onSaved }) {
             <button type="button" style={{ ...button.ghost, padding: "6px 10px", fontSize: 12, alignSelf: "flex-start" }} onClick={addScheduleItem}>+ Add schedule item</button>
             <span style={{ fontSize: 11, color: colors.textSecondary }}>Time is optional — leave it blank for an item with no fixed time. Shows as a timeline under "When" on the public page and the flyer.</span>
           </div>
-          <DescriptionField value={form.description} onChange={(html) => set("description", html)} />
+          <DescriptionField
+            key={descriptionVersion} value={form.description} onChange={(html) => set("description", html)}
+            onDraft={draftDescription} draftBusy={draftBusy} draftError={draftError}
+          />
         </Section>
 
         <Section title="Reservations">
@@ -612,7 +657,7 @@ function EventPhotoField({ label, hint, image, maxDim, aspect, onChange, positio
 // onChange still fires on every input so form.description always has the
 // latest HTML for submission; the div's own DOM is just never told to
 // "catch up" to it.
-function DescriptionField({ value, onChange }) {
+function DescriptionField({ value, onChange, onDraft, draftBusy, draftError }) {
   const ref = useRef(null);
   const initialHtml = useRef(value || "");
 
@@ -624,7 +669,7 @@ function DescriptionField({ value, onChange }) {
 
   return (
     <Field label="Description">
-      <div style={{ display: "flex", gap: 6 }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <button
           type="button" title="Bold" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("bold")}
           style={{ ...button.ghost, padding: "4px 11px", fontSize: 12.5, fontWeight: 700 }}
@@ -637,6 +682,14 @@ function DescriptionField({ value, onChange }) {
         >
           • List
         </button>
+        {onDraft && (
+          <button
+            type="button" disabled={draftBusy} onClick={onDraft}
+            style={{ ...button.ghost, padding: "4px 11px", fontSize: 12.5, marginLeft: "auto" }}
+          >
+            {draftBusy ? "Drafting…" : "Draft with AI"}
+          </button>
+        )}
       </div>
       <div
         ref={ref}
@@ -647,6 +700,7 @@ function DescriptionField({ value, onChange }) {
         dangerouslySetInnerHTML={{ __html: initialHtml.current }}
         style={{ ...inputStyle, minHeight: 90, padding: "8px 10px", lineHeight: 1.5, cursor: "text" }}
       />
+      {draftError && <div style={{ color: colors.danger, fontSize: 11.5 }}>{draftError}</div>}
     </Field>
   );
 }

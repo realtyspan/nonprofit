@@ -4,6 +4,7 @@ const { requireAuth, loadPermissions, requirePermission, requireReadAccess } = r
 const { publishEvent, removeCalendarEventFor } = require("../lib/calendarSync");
 const { buildEventRecordFlyerPdf, resolveEventFlyerUrl } = require("../lib/eventFlyerPdf");
 const { sanitizeDescriptionHtml } = require("../lib/richText");
+const { draftEventDescription } = require("../lib/eventDescriptionAi");
 
 const router = express.Router();
 router.use(requireAuth, loadPermissions);
@@ -133,6 +134,22 @@ function resolveEventFields(body) {
 router.get("/", requireReadAccess("events"), async (req, res) => {
   const events = await prisma.event.findMany({ where: { orgId: req.user.orgId }, orderBy: { startAt: "asc" } });
   res.json(events);
+});
+
+// AI first-draft description from whatever's already filled into the editor
+// form — not tied to a saved event id (req.body carries the in-progress form
+// fields directly), so this works for a brand-new event that hasn't been
+// saved yet, not just an edit. Admin-gated like every other event-editing
+// route; read access alone isn't enough since this spends real (if tiny)
+// money per click.
+router.post("/draft-description", requirePermission("events", "Admin"), async (req, res) => {
+  const org = await prisma.organization.findUnique({ where: { id: req.user.orgId }, select: { timeZone: true } });
+  try {
+    const html = await draftEventDescription(req.body, req.user.orgId, org?.timeZone || "America/New_York");
+    res.json({ html });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
 });
 
 // Print-ready flyer PDF with a QR code — see resolveEventFlyerUrl for the

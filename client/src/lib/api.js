@@ -450,6 +450,7 @@ export const api = {
   listEvents: () => request("/events"),
   createEvent: (payload) => request("/events", { method: "POST", body: payload }),
   updateEvent: (eventId, payload) => request(`/events/${eventId}`, { method: "PATCH", body: payload }),
+  draftEventDescription: (fields) => request("/events/draft-description", { method: "POST", body: fields }),
   publishEvent: (eventId) => request(`/events/${eventId}/publish`, { method: "POST" }),
   unpublishEvent: (eventId) => request(`/events/${eventId}/unpublish`, { method: "POST" }),
   cancelEvent: (eventId) => request(`/events/${eventId}/cancel`, { method: "POST" }),
