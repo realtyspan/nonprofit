@@ -10,6 +10,7 @@ const STATUS_STYLE = {
   active: [colors.successBg, colors.success, "Active"],
   past_due: ["#fee2e2", colors.danger, "Past due"],
   canceled: ["#f1ece0", colors.textSecondary, "Canceled"],
+  comped: [colors.indigoBg, colors.indigo, "Comped"],
 };
 
 export default function OrganizationsList() {
@@ -40,6 +41,7 @@ export default function OrganizationsList() {
           <SummaryTile label="Active" value={summary.active} color={colors.success} />
           <SummaryTile label="Past due" value={summary.past_due} color={colors.danger} />
           <SummaryTile label="Canceled" value={summary.canceled} color={colors.textSecondary} />
+          <SummaryTile label="Comped" value={summary.comped ?? 0} color={colors.indigo} />
           <SummaryTile label="Renewals due (30d)" value={summary.renewalsDueSoon} color={colors.accent} />
         </div>
       )}

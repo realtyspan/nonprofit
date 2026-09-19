@@ -27,7 +27,12 @@ async function findOrCreatePlatformOrg() {
   return prisma.organization.create({ data: { name: PLATFORM_ORG_NAME } });
 }
 
-const BILLING_STATUSES = ["trial", "active", "past_due", "canceled"];
+// "comped" = an org that is intentionally free (the platform owner's own
+// lodge, a founding member, a partner) — distinct from "trial" (hasn't paid
+// YET, expected to) and from "active" (is paying). Anything that ever
+// enforces trials or payment, or reports revenue, must treat comped orgs as
+// exempt / non-revenue: check for this status rather than for $0.
+const BILLING_STATUSES = ["trial", "active", "past_due", "canceled", "comped"];
 const DEFAULT_BILLING = {
   status: "trial", planName: null, billingAmount: null, billingCycle: null, renewalDate: null, lastPaymentDate: null, notes: null,
   stripeCustomerId: null, stripeSubscriptionId: null, stripePriceId: null,
@@ -50,7 +55,7 @@ router.get("/summary", async (req, res) => {
     prisma.orgBilling.findMany({ select: { status: true, renewalDate: true } }),
   ]);
   const billedOrgCount = billings.length;
-  const counts = { trial: orgCount - billedOrgCount, active: 0, past_due: 0, canceled: 0 };
+  const counts = { trial: orgCount - billedOrgCount, active: 0, past_due: 0, canceled: 0, comped: 0 };
   const now = new Date();
   const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
   let renewalsDueSoon = 0;
@@ -167,11 +172,16 @@ router.patch("/organizations/:id/billing", async (req, res) => {
     return res.status(400).json({ error: `status must be one of ${BILLING_STATUSES.join(", ")}` });
   }
 
+  const comped = status === "comped";
   const data = {
     status: status || "trial",
-    planName: planName?.trim() || null,
-    billingAmount: billingAmount != null && billingAmount !== "" ? Number(billingAmount) : null,
-    billingCycle: billingCycle?.trim() || null,
+    // A comped org is $0 by definition, with no billing cycle — normalized
+    // here so a stale amount from an earlier paying/trial record can't linger
+    // and get mistaken for revenue. renewalDate is left alone on purpose: it
+    // doubles as "comp ends" for a time-limited comp.
+    planName: planName?.trim() || (comped ? "Comped" : null),
+    billingAmount: comped ? 0 : (billingAmount != null && billingAmount !== "" ? Number(billingAmount) : null),
+    billingCycle: comped ? null : (billingCycle?.trim() || null),
     renewalDate: renewalDate ? new Date(renewalDate) : null,
     lastPaymentDate: lastPaymentDate ? new Date(lastPaymentDate) : null,
     notes: notes?.trim() || null,

@@ -9,6 +9,7 @@ const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
   { value: "past_due", label: "Past due" },
   { value: "canceled", label: "Canceled" },
+  { value: "comped", label: "Comped (free)" },
 ];
 
 // Same palette as OrganizationsList.jsx's STATUS_STYLE, kept local here since
@@ -18,6 +19,7 @@ const STATUS_PILL_COLOR = {
   active: [colors.successBg, colors.success],
   past_due: ["#fee2e2", colors.danger],
   canceled: ["#f1ece0", colors.textSecondary],
+  comped: [colors.indigoBg, colors.indigo],
 };
 
 function toDateInput(value) {
@@ -135,7 +137,7 @@ function BillingSection({ orgId, billing, onSaved }) {
   return (
     <>
       <ManualBillingForm orgId={orgId} billing={billing} onSaved={onSaved} />
-      <StartStripeSubscription orgId={orgId} onStarted={onSaved} />
+      <StartStripeSubscription orgId={orgId} comped={billing.status === "comped"} onStarted={onSaved} />
     </>
   );
 }
@@ -188,7 +190,7 @@ function StripeSyncedBilling({ orgId, billing }) {
   );
 }
 
-function StartStripeSubscription({ orgId, onStarted }) {
+function StartStripeSubscription({ orgId, comped, onStarted }) {
   const [cadence, setCadence] = useState("annual");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -213,6 +215,7 @@ function StartStripeSubscription({ orgId, onStarted }) {
       <div style={{ fontSize: 14, fontWeight: 700 }}>Start a Stripe subscription</div>
       <div style={{ fontSize: 12, color: colors.textSecondary }}>
         Generates a Stripe Checkout link for this org's own card details — nothing here touches your side. Copy the link and send it to them directly.
+        {comped && " This org is currently comped; if they subscribe, they become a paying (Active) org."}
       </div>
       <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
         <Field label="Cadence">
@@ -244,9 +247,17 @@ function ManualBillingForm({ orgId, billing, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const comped = form.status === "comped";
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }));
+    setSaved(false);
+  }
+
+  // Picking Comped zeroes out the money fields right in the form so what's
+  // shown matches what the server will store (see platformAdmin.js).
+  function setStatus(v) {
+    setForm((f) => (v === "comped" ? { ...f, status: v, billingAmount: "0", billingCycle: "" } : { ...f, status: v }));
     setSaved(false);
   }
 
@@ -271,16 +282,16 @@ function ManualBillingForm({ orgId, billing, onSaved }) {
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
           <Field label="Status">
-            <select style={inputStyle} value={form.status} onChange={(e) => set("status", e.target.value)}>
+            <select style={inputStyle} value={form.status} onChange={(e) => setStatus(e.target.value)}>
               {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </Field>
-          <Field label="Plan name"><input style={inputStyle} placeholder="Standard Annual" value={form.planName} onChange={(e) => set("planName", e.target.value)} /></Field>
+          <Field label="Plan name"><input style={inputStyle} placeholder={comped ? "Founding Member" : "Standard Annual"} value={form.planName} onChange={(e) => set("planName", e.target.value)} /></Field>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
-          <Field label="Amount"><input style={inputStyle} type="number" step="0.01" min="0" value={form.billingAmount} onChange={(e) => set("billingAmount", e.target.value)} /></Field>
+          <Field label="Amount"><input style={inputStyle} type="number" step="0.01" min="0" disabled={comped} value={form.billingAmount} onChange={(e) => set("billingAmount", e.target.value)} /></Field>
           <Field label="Billing cycle">
-            <select style={inputStyle} value={form.billingCycle} onChange={(e) => set("billingCycle", e.target.value)}>
+            <select style={inputStyle} disabled={comped} value={form.billingCycle} onChange={(e) => set("billingCycle", e.target.value)}>
               <option value="">—</option>
               <option value="monthly">Monthly</option>
               <option value="annual">Annual</option>
@@ -289,12 +300,17 @@ function ManualBillingForm({ orgId, billing, onSaved }) {
           </Field>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
-          <Field label="Renewal date"><input style={inputStyle} type="date" value={form.renewalDate} onChange={(e) => set("renewalDate", e.target.value)} /></Field>
+          <Field label={comped ? "Comp ends (optional)" : "Renewal date"}><input style={inputStyle} type="date" value={form.renewalDate} onChange={(e) => set("renewalDate", e.target.value)} /></Field>
           <Field label="Last payment date"><input style={inputStyle} type="date" value={form.lastPaymentDate} onChange={(e) => set("lastPaymentDate", e.target.value)} /></Field>
         </div>
         <Field label="Notes">
-          <textarea style={{ ...inputStyle, minHeight: 60, resize: "vertical", fontFamily: "inherit" }} placeholder="Paid via check 3/1…" value={form.notes} onChange={(e) => set("notes", e.target.value)} />
+          <textarea style={{ ...inputStyle, minHeight: 60, resize: "vertical", fontFamily: "inherit" }} placeholder={comped ? "Why is this org comped? e.g. platform owner's own lodge" : "Paid via check 3/1…"} value={form.notes} onChange={(e) => set("notes", e.target.value)} />
         </Field>
+        {comped && (
+          <div style={{ fontSize: 12, color: colors.textSecondary }}>
+            Comped means intentionally free — $0, no billing cycle, and never counted as revenue or as an unpaid trial. Leave "Comp ends" blank for a permanent comp.
+          </div>
+        )}
         {error && <div style={{ color: colors.danger, fontSize: 12.5 }}>{error}</div>}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button type="submit" style={button.primary} disabled={busy}>{busy ? "Saving…" : "Save billing"}</button>

@@ -967,7 +967,7 @@ model OrgBilling {
   id                   String       @id @default(cuid())
   orgId                String       @unique
   org                  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  status               String       @default("trial") // trial | active | past_due | canceled
+  status               String       @default("trial") // trial | active | past_due | canceled | comped (intentionally free — see platformAdmin.js BILLING_STATUSES)
   planName             String? // free text for now: "Standard Annual", "Founding Member", etc.
   billingAmount        Float?
   billingCycle         String? // monthly | annual | one_time
