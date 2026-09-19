@@ -15,6 +15,7 @@ import StandaloneNudgeBanner from "./components/marketing/StandaloneNudgeBanner"
 import { MARKETING_MODULES } from "./lib/marketingContent";
 import Login from "./views/Login";
 import ResetPassword from "./views/ResetPassword";
+import Legal from "./views/Legal";
 import Dashboard from "./views/Dashboard";
 import Worksheet from "./views/Worksheet";
 import Deals from "./views/Deals";
@@ -419,6 +420,10 @@ function MarketingSite() {
 }
 
 export default function App() {
+  // Terms and Privacy render on every host, logged out — signup links to them.
+  const legalMatch = window.location.pathname.match(/^\/(terms|privacy)\/?$/);
+  if (legalMatch) return <Legal doc={legalMatch[1]} />;
+
   // `?preview=marketing` is a local/dev-only escape hatch — the marketing
   // site is otherwise only reachable via its real hostname, which local dev
   // never runs on. Harmless in production: it only changes which public

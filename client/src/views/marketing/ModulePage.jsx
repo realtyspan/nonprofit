@@ -1,6 +1,6 @@
 import React from "react";
 import { colors } from "../../lib/tokens";
-import { MARKETING_MODULES } from "../../lib/marketingContent";
+import { MARKETING_MODULES, pricingFor } from "../../lib/marketingContent";
 import MarketingHeader from "../../components/marketing/MarketingHeader";
 import Hero from "../../components/marketing/Hero";
 import FeatureGrid from "../../components/marketing/FeatureGrid";
@@ -20,7 +20,7 @@ export default function ModulePage({ slug, onGetStarted, onLogin }) {
       <Hero badge={content.badge} headline={content.heroHeadline} subhead={content.heroSubhead} onGetStarted={onGetStarted} onLogin={onLogin} />
       <FeatureGrid features={content.features} />
       <HowItWorks steps={content.steps} />
-      <PricingCard moduleName={content.name} pricing={content.pricing} onGetStarted={onGetStarted} />
+      <PricingCard moduleName={pricingFor(content).flat ? "Charity Pulse" : content.name} pricing={pricingFor(content)} onGetStarted={onGetStarted} />
       <MarketingFooter />
     </div>
   );

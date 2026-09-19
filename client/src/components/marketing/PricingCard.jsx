@@ -8,16 +8,24 @@ import { colors, button, mono } from "../../lib/tokens";
 export default function PricingCard({ moduleName, pricing, onGetStarted }) {
   return (
     <section style={{ maxWidth: 640, margin: "0 auto", padding: "80px 32px", textAlign: "center" }}>
-      <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 10 }}>{pricing.free ? "Included free" : "Simple, flat pricing"}</h2>
+      <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 10 }}>{pricing.flat ? "One plan, everything included" : pricing.free ? "Included free" : "Simple, flat pricing"}</h2>
       <p style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 36 }}>
-        {pricing.free ? pricing.blurb : "One price for your whole lodge — every role, every feature. No per-seat games."}
+        {pricing.flat
+          ? "One price for your whole organization — every module, every role, every feature. No per-seat games."
+          : pricing.free ? pricing.blurb : "One price for your whole lodge — every role, every feature. No per-seat games."}
       </p>
       <div style={{ background: "#fff", border: `1px solid ${colors.border}`, borderRadius: 14, padding: 36 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: colors.accent, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 6 }}>
           {moduleName}
         </div>
 
-        {pricing.free ? (
+        {pricing.flat ? (
+          <>
+            <div style={{ fontFamily: mono, fontSize: 44, fontWeight: 800, marginBottom: 2 }}>${pricing.monthly}</div>
+            <div style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 4 }}>per month, per organization</div>
+            <div style={{ fontSize: 12.5, color: colors.textTertiary, marginBottom: 24 }}>{pricing.annualNote}</div>
+          </>
+        ) : pricing.free ? (
           <div style={{ fontFamily: mono, fontSize: 32, fontWeight: 800, margin: "10px 0 24px" }}>Free with any module</div>
         ) : (
           <>
@@ -39,6 +47,8 @@ export default function PricingCard({ moduleName, pricing, onGetStarted }) {
             {pricing.bullets.map((b) => <li key={b}>✓ {b}</li>)}
           </ul>
         )}
+
+        {pricing.note && <div style={{ fontSize: 12, color: colors.textTertiary, margin: "-8px 0 20px" }}>{pricing.note}</div>}
 
         <div>
           <button style={{ ...button.primary, fontSize: 15, padding: "12px 28px", width: "100%" }} onClick={onGetStarted}>

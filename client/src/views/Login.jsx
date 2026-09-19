@@ -7,7 +7,7 @@ import logo from "../assets/logo.png";
 export default function Login({ initialMode = "login", onBack }) {
   const { login, signupOrg } = useAuth();
   const [mode, setMode] = useState(initialMode); // login | signup | forgot
-  const [form, setForm] = useState({ email: "", password: "", orgName: "", name: "", licenseId: "", orgCategoryId: "" });
+  const [form, setForm] = useState({ email: "", password: "", orgName: "", name: "", licenseId: "", orgCategoryId: "", acceptedTerms: false, website: "" });
   const [categories, setCategories] = useState([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -103,8 +103,26 @@ export default function Login({ initialMode = "login", onBack }) {
               <input style={input} type="email" required value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="you@lodge.org" />
             </Field>
             <Field label="Password">
-              <input style={input} type="password" required value={form.password} onChange={(e) => set("password", e.target.value)} placeholder="••••••••" />
+              <input style={input} type="password" required minLength={mode === "signup" ? 8 : undefined} value={form.password} onChange={(e) => set("password", e.target.value)} placeholder="••••••••" />
+              {mode === "signup" && <span style={{ fontWeight: 400, fontSize: 11.5, color: colors.textSecondary }}>At least 8 characters.</span>}
             </Field>
+          </>
+        )}
+
+        {mode === "signup" && (
+          <>
+            {/* Honeypot: a real visitor never sees this; a bot that fills every field trips it. */}
+            <input
+              type="text" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={(e) => set("website", e.target.value)}
+              style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }}
+            />
+            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5, color: colors.textSecondary, lineHeight: 1.5 }}>
+              <input type="checkbox" required checked={form.acceptedTerms} onChange={(e) => set("acceptedTerms", e.target.checked)} style={{ marginTop: 3 }} />
+              <span>
+                I agree to the <a href="/terms" target="_blank" rel="noreferrer" style={{ color: colors.accent }}>Terms of Service</a> and{" "}
+                <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: colors.accent }}>Privacy Policy</a>.
+              </span>
+            </label>
           </>
         )}
 

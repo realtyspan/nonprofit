@@ -143,4 +143,39 @@ export const MARKETING_MODULES = {
   },
 };
 
+// How the site presents pricing. "flat" = one plan that includes every
+// module (what Stripe actually bills today: a single $39/mo or $390/yr price).
+// "per-module" = each module's own `pricing` object above, which is kept in
+// this file on purpose so switching back later is a one-word change here, not
+// a rewrite — but note the billing side would need per-module Stripe prices
+// and multi-item subscriptions before that model could actually be charged.
+export const PRICING_MODEL = "flat";
+
+export const FLAT_PLAN = {
+  name: "Charity Pulse",
+  monthly: 39,
+  annual: 390,
+  annualNote: "or $390/year — 2 months free",
+  bullets: [
+    "Every module included — Bell Jar, Rental Space, Raffle, Tournaments, Events, and Calendar",
+    "Unlimited users, all roles",
+    "Public pages, website embeds, and printable flyers",
+    "Elks Tools included free for Elks Lodges",
+    "30-day free trial, no card required",
+  ],
+};
+
+// What a page's pricing card should show under the current model. `content`
+// is a module's entry (or null for the hub page).
+export function pricingFor(content) {
+  if (PRICING_MODEL !== "flat") return content?.pricing;
+  return {
+    flat: true,
+    monthly: FLAT_PLAN.monthly,
+    annualNote: FLAT_PLAN.annualNote,
+    bullets: FLAT_PLAN.bullets,
+    note: content?.slug === "elks-tools" ? "Elks Tools is included for Elks Lodges and isn't available to other organization types." : null,
+  };
+}
+
 export const MARKETING_MODULE_ORDER = ["bell-jar", "rentals", "raffle", "tournaments", "calendar", "elks-tools"];

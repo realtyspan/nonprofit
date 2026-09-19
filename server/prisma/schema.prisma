@@ -133,6 +133,8 @@ model User {
   phone        String?
   homeAddress  String? // "Home Address, City and Zip Code" per the GC-7Q affirmation block
   platformRole String? // null | Owner | Support — org-independent (unlike OrgMembership/ModuleGrant). Owner can manage other platform admins; Support cannot. Only ever set through the platform-admin "Admins" screen (Owner-only) or, for the very first Owner, a one-off script.
+  termsAcceptedAt DateTime? // when this person accepted the Terms of Service + Privacy Policy at signup (null for accounts created before those pages existed, and for users an Owner invites — they inherit the org's acceptance)
+  termsVersion    String? // which version of the terms they accepted — the server's TERMS_VERSION constant at that moment
   createdAt    DateTime     @default(now())
 
   signOffs                 SignOff[]

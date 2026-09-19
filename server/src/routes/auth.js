@@ -3,13 +3,33 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const prisma = require("../lib/prisma");
 const { signToken, requireAuth, loadPermissions } = require("../lib/auth");
-const { MODULE_KEYS } = require("../lib/moduleKeys");
+const { MODULE_KEYS, modulesForCategory } = require("../lib/moduleKeys");
+const { TERMS_VERSION } = require("../lib/legal");
+const { rateLimit } = require("../lib/rateLimit");
 const { sendEmail } = require("../lib/notifications");
 const { resetPasswordHtml } = require("../lib/authEmails");
 
 const router = express.Router();
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// change-password and reset-password already enforced 8; signup-org and invite
+// didn't, so a brand-new org could be created with a 1-character password.
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 200; // bcrypt itself only reads the first 72 bytes — this just stops absurd payloads
+function passwordProblem(password) {
+  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+  if (password.length > MAX_PASSWORD_LENGTH) return "Password is too long";
+  return null;
+}
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// In-memory, per server instance — same limitation as every other limiter in
+// this app (see lib/rateLimit.js). Limits are per client IP; app.set("trust
+// proxy") in index.js makes that the real visitor address behind Railway.
+const signupLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5 });
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+const forgotPasswordLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5 });
 
 // Legacy flat roles, kept only so an invite from a not-yet-updated client
 // still works during rollout — mapped through the exact same table the
@@ -37,25 +57,41 @@ router.get("/org-categories", async (req, res) => {
 // updated later from the org profile (Reports > Form details). orgCategoryId is
 // likewise optional — drives which modules are relevant to this org (see
 // modules.js's MODULE_CATEGORY_RESTRICTIONS) but signup shouldn't hard-block on it.
-router.post("/signup-org", async (req, res) => {
-  const { orgName, name, email, password, licenseId, orgCategoryId } = req.body;
+router.post("/signup-org", signupLimiter, async (req, res) => {
+  const { orgName, name, email, password, licenseId, orgCategoryId, acceptedTerms, website } = req.body;
+  // `website` is a honeypot — a real visitor never sees or fills that field.
+  if (website) return res.status(400).json({ error: "Something went wrong — please try again" });
   if (!orgName || !name || !email || !password) {
     return res.status(400).json({ error: "orgName, name, email, password are required" });
+  }
+  if (!EMAIL_SHAPE.test(email)) return res.status(400).json({ error: "Enter a valid email address" });
+  const pwProblem = passwordProblem(password);
+  if (pwProblem) return res.status(400).json({ error: pwProblem });
+  if (acceptedTerms !== true) {
+    return res.status(400).json({ error: "You need to accept the Terms of Service and Privacy Policy to create an organization" });
   }
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return res.status(409).json({ error: "Email already in use" });
 
   let validCategoryId = null;
+  let categoryName = null;
   if (orgCategoryId) {
     const category = await prisma.orgCategory.findUnique({ where: { id: orgCategoryId } });
-    if (category) validCategoryId = category.id;
+    if (category) { validCategoryId = category.id; categoryName = category.name; }
   }
   const org = await prisma.organization.create({ data: { name: orgName, licenseId: licenseId || null, orgCategoryId: validCategoryId } });
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
-    data: { orgId: org.id, name, email, passwordHash, role: "Head" }, // role column is a frozen legacy field, see auth.js dual-read note
+    data: { orgId: org.id, name, email, passwordHash, role: "Head", termsAcceptedAt: new Date(), termsVersion: TERMS_VERSION }, // role column is a frozen legacy field, see auth.js dual-read note
   });
   await prisma.orgMembership.create({ data: { orgId: org.id, userId: user.id, tier: "Owner" } });
+  // Owner does not auto-pass module permissions (see lib/auth.js), so without
+  // explicit grants a new org's first user could see every module but create
+  // nothing in any of them. The flat plan includes every module, so grant
+  // Admin on each one their organization type can use.
+  await prisma.moduleGrant.createMany({
+    data: modulesForCategory(categoryName).map((module) => ({ orgId: org.id, userId: user.id, module, tier: "Admin", grantedBy: user.id })),
+  });
 
   const token = signToken(user);
   res.json({ token, user: { ...(await publicUser(user)), orgName: org.name }, org });
@@ -86,6 +122,9 @@ router.post("/invite", requireAuth, loadPermissions, async (req, res) => {
   }
   orgTier = orgTier || null;
   moduleGrants = moduleGrants || [];
+
+  const invitePwProblem = passwordProblem(password);
+  if (invitePwProblem) return res.status(400).json({ error: invitePwProblem });
 
   const isOwner = req.orgTier === "Owner";
   if (!isOwner) {
@@ -130,7 +169,7 @@ router.get("/users", requireAuth, async (req, res) => {
   res.json(await Promise.all(users.map(publicUser)));
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body;
   const user = await prisma.user.findUnique({ where: { email }, include: { org: true } });
   if (!user) return res.status(401).json({ error: "Invalid credentials" });
@@ -193,7 +232,7 @@ router.post("/change-password", requireAuth, async (req, res) => {
 // whole point is recovering an account you're locked out of. Always responds
 // the same way whether or not the email matches an account, so this can't be
 // used to probe which email addresses have accounts.
-router.post("/forgot-password", async (req, res) => {
+router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: "Email is required" });
 

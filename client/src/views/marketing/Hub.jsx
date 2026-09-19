@@ -1,6 +1,7 @@
 import React from "react";
 import { colors } from "../../lib/tokens";
-import { MARKETING_MODULES, MARKETING_MODULE_ORDER } from "../../lib/marketingContent";
+import { MARKETING_MODULES, MARKETING_MODULE_ORDER, PRICING_MODEL, pricingFor } from "../../lib/marketingContent";
+import PricingCard from "../../components/marketing/PricingCard";
 import MarketingHeader from "../../components/marketing/MarketingHeader";
 import MarketingFooter from "../../components/marketing/MarketingFooter";
 
@@ -17,7 +18,7 @@ export default function Hub({ onGetStarted, onLogin }) {
           Run your lodge's compliance and operations in one place
         </h1>
         <p style={{ fontSize: 16.5, color: colors.textSecondary, lineHeight: 1.6, maxWidth: 600, margin: "0 auto" }}>
-          Bell Jar, facility rentals, your annual raffle, your tournaments, and one shared calendar — pick the modules your lodge needs, each priced on its own.
+          Bell Jar, facility rentals, your annual raffle, your tournaments, and one shared calendar — {PRICING_MODEL === "flat" ? "one simple price, every module included." : "pick the modules your lodge needs, each priced on its own."}
         </p>
       </section>
 
@@ -35,13 +36,15 @@ export default function Hub({ onGetStarted, onLogin }) {
                 <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>{m.name}</div>
                 <div style={{ fontSize: 13.5, color: colors.textSecondary, lineHeight: 1.5, marginBottom: 16 }}>{m.tagline}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: colors.accent }}>
-                  {m.pricing.free ? "Included free" : `From $${m.pricing.amount}/mo`} — Learn more →
+                  {PRICING_MODEL === "flat" ? "Included in every plan" : m.pricing.free ? "Included free" : `From ${m.pricing.amount}/mo`} — Learn more →
                 </div>
               </a>
             );
           })}
         </div>
       </section>
+
+      {PRICING_MODEL === "flat" && <PricingCard moduleName="Charity Pulse" pricing={pricingFor(null)} onGetStarted={onGetStarted} />}
 
       <MarketingFooter />
     </div>
